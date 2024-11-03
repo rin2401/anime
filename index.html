@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍿</text></svg>">
+
+    <title>Anime</title>
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: #ffffff;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+        .image-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center; /* Center images horizontally */
+            align-items: center; /* Center images vertically if container has a height */
+            padding: 20px;
+        }
+        .img-thumbnail {
+            width: 300px;
+            height: auto;
+            border-radius: 8px;
+        }
+        .img-thumbnail:hover {
+            transform: scale(1.05); /* Slight zoom effect */
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3); /* Shadow on hover */
+        }
+    </style>
+</head>
+<body>
+
+<div class="image-container" id="imageContainer"></div>
+
+<script>
+    const imageContainer = document.getElementById('imageContainer');
+
+    function getData(id, gid){
+        var url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:json&tq&gid=${gid}`;
+
+        fetch(url)
+        .then(x => x.text())
+        .then(txt => {
+            var jsonString = txt.match(/(?<="table":).*(?=}\);)/g)[0]
+            var json = JSON.parse(jsonString)
+
+            var table = []
+            var row = []
+            json.cols.forEach(colonne => row.push(colonne.label))
+            table.push(row)
+            json.rows.forEach(r => {
+                var row = []
+                r.c.forEach(cel => {
+                    try{var value = cel.f ? cel.f : cel.v}
+                    catch(e){var value = ''}
+                    row.push(value)
+                }
+                )
+                table.push(row)
+                }
+            )
+
+            console.log(table)
+
+            for (let i = 1; i < table.length; i++) {
+                const [name, image, url] = table[i];
+
+                const link = document.createElement('a');
+                link.href = url;
+                link.target = "_blank";
+
+                const img = document.createElement('img');
+                img.src = image;
+                img.classList.add('img-thumbnail');
+
+                link.appendChild(img);
+                imageContainer.appendChild(link);
+            }
+
+            return table
+        })
+    }
+
+    getData('12q04f4hwtVQjfVSUayDsgXLGGbqrl9urm8gp556nPQA', "1193967919");
+</script>
+</body>
+</html>
