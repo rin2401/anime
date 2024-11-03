@@ -12,10 +12,16 @@
             color: #ffffff;
             margin: 0;
             display: flex;
-            justify-content: center;
+            flex-direction: column;
+            /* justify-content: center; */
             align-items: center;
             min-height: 100vh;
             font-family: Arial, sans-serif;
+        }
+        .filter-container {
+            margin: 20px;
+            display: flex;
+            gap: 10px;
         }
         .image-container {
             display: flex;
@@ -37,19 +43,30 @@
     </style>
 </head>
 <body>
-
+<div class="filter-container">
+    <select id="categoryFilter">
+        <option value="">All Categories</option>
+    </select>
+    <select id="yearFilter">
+        <option value="">All Years</option>
+    </select>
+    <select id="seasonFilter">
+        <option value="">All Seasons</option>
+    </select>
+</div>
 <div class="image-container" id="imageContainer"></div>
 
 <script>
     const imageContainer = document.getElementById('imageContainer');
 
-    function getData(id, gid){
+    var images = []
+
+    function fetchImageData(id, gid){
         var url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:json&tq&gid=${gid}`;
 
         fetch(url)
-        .then(x => x.text())
         .then(txt => {
-            var jsonString = txt.match(/(?<="table":).*(?=}\);)/g)[0]
+            var jsonString = txt.text().match(/(?<="table":).*(?=}\);)/g)[0]
             var json = JSON.parse(jsonString)
 
             var table = []
@@ -59,37 +76,119 @@
             json.rows.forEach(r => {
                 var row = []
                 r.c.forEach(cel => {
-                    try{var value = cel.f ? cel.f : cel.v}
-                    catch(e){var value = ''}
-                    row.push(value)
-                }
+                    try {
+                            var value = cel.f ? cel.f : cel.v
+                        }
+                        catch(e) {
+                            var value = ''
+                        }
+                        row.push(value)
+                    }
                 )
                 table.push(row)
                 }
             )
-
             console.log(table)
 
+            var cols = table[0]
             for (let i = 1; i < table.length; i++) {
-                const [name, image, url] = table[i];
-
-                const link = document.createElement('a');
-                link.href = url;
-                link.target = "_blank";
-
-                const img = document.createElement('img');
-                img.src = image;
-                img.classList.add('img-thumbnail');
-
-                link.appendChild(img);
-                imageContainer.appendChild(link);
+                image = {};
+                for (let j = 0; j < cols.length; j++) {
+                    image[cols[j]] = table[i][j]
+                }
+                images.push(image)
             }
+            console.log(images)
 
-            return table
+            populateFilters()
+            displayImages()
         })
     }
 
-    getData('12q04f4hwtVQjfVSUayDsgXLGGbqrl9urm8gp556nPQA', "1193967919");
+    function populateFilters() {
+        var categories = new Set();
+        var years = new Set();
+        var seasons = new Set();
+
+        // Gather unique categories and years from the fetched data
+        images.forEach(image => {
+            categories.add(image.category);
+            years.add(image.year);
+            seasons.add(image.season);
+        });
+
+        categories = Array.from(categories).sort()
+        years = Array.from(years).sort()
+        seasons = Array.from(seasons).sort()
+
+        // Populate category filter
+        const categoryFilter = document.getElementById('categoryFilter');
+        categories.forEach(category => {
+            const option = document.createElement('option');
+            option.value = category;
+            option.textContent = category;
+            categoryFilter.appendChild(option);
+        });
+
+        // Populate year filter
+        const yearFilter = document.getElementById('yearFilter');
+        years.forEach(year => {
+            const option = document.createElement('option');
+            option.value = year;
+            option.textContent = year;
+            yearFilter.appendChild(option);
+        });
+
+        // Populate season filter
+        const seasonFilter = document.getElementById('seasonFilter');
+        seasons.forEach(season => {
+            const option = document.createElement('option');
+            option.value = season;
+            option.textContent = season;
+            seasonFilter.appendChild(option);
+        });
+    }
+
+    function displayImages() {
+        const imageContainer = document.getElementById('imageContainer');
+        imageContainer.innerHTML = ''; // Clear the container
+
+        const selectedCategory = document.getElementById('categoryFilter').value;
+        const selectedYear = document.getElementById('yearFilter').value;
+        const selectedSeason = document.getElementById('seasonFilter').value;
+
+        const filteredImages = images.filter(image => {
+            return (
+                (selectedCategory === '' || image.category === selectedCategory) &&
+                (selectedYear === '' || image.year === selectedYear) &&
+                (selectedSeason === '' || image.season === selectedSeason)
+            );
+        });
+
+        filteredImages.forEach(image => {
+            const link = document.createElement('a');
+            link.href = image.url;
+            link.target = "_blank";
+
+            const img = document.createElement('img');
+            img.src = image.image;
+            img.classList.add('img-thumbnail');
+
+            const tooltip = document.createElement('span');
+            tooltip.classList.add('tooltip');
+            tooltip.textContent = image.title;
+
+            img.appendChild(tooltip);
+            link.appendChild(img);
+            imageContainer.appendChild(link);
+        });
+    }
+
+    document.getElementById('categoryFilter').addEventListener('change', displayImages);
+    document.getElementById('yearFilter').addEventListener('change', displayImages);
+    document.getElementById('seasonFilter').addEventListener('change', displayImages);
+
+    fetchImageData('12q04f4hwtVQjfVSUayDsgXLGGbqrl9urm8gp556nPQA', "1193967919");
 </script>
 </body>
 </html>
