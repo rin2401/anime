@@ -146,7 +146,7 @@
             const option = document.createElement('option');
             option.value = year;
             option.textContent = year;
-            if (i == 0) {
+            if (i == 0 && year <= new Date().getFullYear()) {
                 option.selected = true;
             }
             yearFilter.appendChild(option);
