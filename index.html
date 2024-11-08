@@ -134,15 +134,21 @@
             const option = document.createElement('option');
             option.value = category;
             option.textContent = category;
+            if (category == "TV Show") {
+                option.selected = true;
+            }
             categoryFilter.appendChild(option);
         });
 
         // Populate year filter
         const yearFilter = document.getElementById('yearFilter');
-        years.forEach(year => {
+        years.forEach((year, i) => {
             const option = document.createElement('option');
             option.value = year;
             option.textContent = year;
+            if (i == 0) {
+                option.selected = true;
+            }
             yearFilter.appendChild(option);
         });
 
