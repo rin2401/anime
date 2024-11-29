@@ -53,7 +53,7 @@ function vidFullscreen() {
 }
 
 function seekTime() {
-    if (window.location.href.split("#") >= 2) {
+    if (window.location.href.split("#").length >= 3) {
         video.currentTime = Number(window.location.href.split("#")[2])
         console.log("video.currentTime:", video.currentTime);
     }
