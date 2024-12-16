@@ -180,7 +180,11 @@
 
         filteredImages.forEach(image => {
             const link = document.createElement('a');
-            link.href = image.url;
+            if (image.m3u8) {
+                link.href = "player/#" + image.m3u8;
+            } else {
+                link.href = "player/#" + image.url;
+            }
             link.target = "_blank";
 
             const img = document.createElement('img');
