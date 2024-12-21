@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍿</text></svg>">
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍿</text></svg>">
     <title>Anime</title>
 
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
     <style>
         body {
             background-color: #1a1a1a;
@@ -19,19 +22,24 @@
             min-height: 100vh;
             font-family: Arial, sans-serif;
         }
+
         .filter-container {
             margin: 20px;
             display: flex;
             gap: 10px;
         }
+
         .image-container {
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
-            justify-content: center; /* Center images horizontally */
-            align-items: center; /* Center images vertically if container has a height */
+            justify-content: center;
+            /* Center images horizontally */
+            align-items: center;
+            /* Center images vertically if container has a height */
             padding: 20px;
         }
+
         .img-thumbnail {
             width: 300px;
             height: 424px;
@@ -39,168 +47,217 @@
             padding: 0px;
             border: 0px;
         }
+
         .img-thumbnail:hover {
-            transform: scale(1.05); /* Slight zoom effect */
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3); /* Shadow on hover */
+            transform: scale(1.05);
+            /* Slight zoom effect */
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            /* Shadow on hover */
         }
+
         .form-select {
             width: auto;
         }
+
+        .anime-card {
+            position: relative;
+            display: inline-block;
+        }
+
+        .anime-ep {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            width: 40px;
+            height: 40px;
+            background: #1a1a1a;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1;
+        }
+
+        .anime-ep-text {
+            font-weight: bold;
+            font-size: 14px;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        }
     </style>
 </head>
+
 <body>
-<div class="filter-container">
-    <select id="categoryFilter" class="form-select">
-        <option value="">All Categories</option>
-    </select>
-    <select id="yearFilter" class="form-select">
-        <option value="">All Years</option>
-    </select>
-    <select id="seasonFilter" class="form-select">
-        <option value="">All Seasons</option>
-    </select>
-</div>
-<div class="image-container" id="imageContainer"></div>
+    <div class="filter-container">
+        <select id="categoryFilter" class="form-select">
+            <option value="">All Categories</option>
+        </select>
+        <select id="yearFilter" class="form-select">
+            <option value="">All Years</option>
+        </select>
+        <select id="seasonFilter" class="form-select">
+            <option value="">All Seasons</option>
+        </select>
+    </div>
+    <div class="image-container" id="imageContainer"></div>
 
-<script>
-    const imageContainer = document.getElementById('imageContainer');
-
-    var images = []
-
-    function fetchImageData(id, gid){
-        var url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:json&tq&gid=${gid}`;
-
-        fetch(url)
-        .then(x => x.text())
-        .then(txt => {
-            var jsonString = txt.match(/(?<="table":).*(?=}\);)/g)[0]
-            var json = JSON.parse(jsonString)
-
-            var table = []
-            var row = []
-            json.cols.forEach(colonne => row.push(colonne.label))
-            table.push(row)
-            json.rows.forEach(r => {
-                var row = []
-                r.c.forEach(cel => {
-                    try {
-                            var value = cel.f ? cel.f : cel.v
-                        }
-                        catch(e) {
-                            var value = ''
-                        }
-                        row.push(value)
-                    }
-                )
-                table.push(row)
-                }
-            )
-            console.log(table)
-
-            var cols = table[0]
-            for (let i = 1; i < table.length; i++) {
-                image = {};
-                for (let j = 0; j < cols.length; j++) {
-                    image[cols[j]] = table[i][j]
-                }
-                images.push(image)
-            }
-            console.log(images)
-
-            populateFilters()
-            displayImages()
-        })
-    }
-
-    function populateFilters() {
-        var categories = new Set();
-        var years = new Set();
-        var seasons = new Set();
-
-        // Gather unique categories and years from the fetched data
-        images.forEach(image => {
-            categories.add(image.category);
-            years.add(image.year);
-            seasons.add(image.season);
-        });
-
-        categories = Array.from(categories).sort()
-        years = Array.from(years).sort().reverse()
-        seasons = Array.from(seasons).sort()
-
-        // Populate category filter
-        const categoryFilter = document.getElementById('categoryFilter');
-        categories.forEach(category => {
-            const option = document.createElement('option');
-            option.value = category;
-            option.textContent = category;
-            if (category == "TV Show") {
-                option.selected = true;
-            }
-            categoryFilter.appendChild(option);
-        });
-
-        // Populate year filter
-        const yearFilter = document.getElementById('yearFilter');
-        years.forEach((year, i) => {
-            const option = document.createElement('option');
-            option.value = year;
-            option.textContent = year;
-            if (i == 1 && year <= new Date().getFullYear()) {
-                option.selected = true;
-            }
-            yearFilter.appendChild(option);
-        });
-
-        // Populate season filter
-        const seasonFilter = document.getElementById('seasonFilter');
-        seasons.forEach(season => {
-            const option = document.createElement('option');
-            option.value = season;
-            option.textContent = season;
-            seasonFilter.appendChild(option);
-        });
-    }
-
-    function displayImages() {
+    <script>
         const imageContainer = document.getElementById('imageContainer');
-        imageContainer.innerHTML = ''; // Clear the container
 
-        const selectedCategory = document.getElementById('categoryFilter').value;
-        const selectedYear = document.getElementById('yearFilter').value;
-        const selectedSeason = document.getElementById('seasonFilter').value;
+        var images = []
 
-        const filteredImages = images.filter(image => {
-            return (
-                (selectedCategory === '' || image.category === selectedCategory) &&
-                (selectedYear === '' || image.year === selectedYear) &&
-                (selectedSeason === '' || image.season === selectedSeason)
-            );
-        });
+        function fetchImageData(id, gid) {
+            var url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:json&tq&gid=${gid}`;
 
-        filteredImages.forEach(image => {
-            const link = document.createElement('a');
-            if (image.m3u8) {
-                link.href = "player/#" + image.m3u8;
-            } else {
-                link.href = image.url;
-            }
-            link.target = "_blank";
+            fetch(url)
+                .then(x => x.text())
+                .then(txt => {
+                    var jsonString = txt.match(/(?<="table":).*(?=}\);)/g)[0]
+                    var json = JSON.parse(jsonString)
 
-            const img = document.createElement('img');
-            img.src = image.image;
-            img.classList.add('img-thumbnail');
+                    var table = []
+                    var row = []
+                    json.cols.forEach(colonne => row.push(colonne.label))
+                    table.push(row)
+                    json.rows.forEach(r => {
+                        var row = []
+                        r.c.forEach(cel => {
+                            try {
+                                var value = cel.f ? cel.f : cel.v
+                            }
+                            catch (e) {
+                                var value = ''
+                            }
+                            row.push(value)
+                        }
+                        )
+                        table.push(row)
+                    }
+                    )
+                    console.log(table)
 
-            link.appendChild(img);
-            imageContainer.appendChild(link);
-        });
-    }
+                    var cols = table[0]
+                    for (let i = 1; i < table.length; i++) {
+                        image = {};
+                        for (let j = 0; j < cols.length; j++) {
+                            image[cols[j]] = table[i][j]
+                        }
+                        images.push(image)
+                    }
+                    console.log(images)
 
-    document.getElementById('categoryFilter').addEventListener('change', displayImages);
-    document.getElementById('yearFilter').addEventListener('change', displayImages);
-    document.getElementById('seasonFilter').addEventListener('change', displayImages);
+                    populateFilters()
+                    displayImages()
+                })
+        }
 
-    fetchImageData('12q04f4hwtVQjfVSUayDsgXLGGbqrl9urm8gp556nPQA', "1193967919");
-</script>
+        function populateFilters() {
+            var categories = new Set();
+            var years = new Set();
+            var seasons = new Set();
+
+            // Gather unique categories and years from the fetched data
+            images.forEach(image => {
+                categories.add(image.category);
+                years.add(image.year);
+                seasons.add(image.season);
+            });
+
+            categories = Array.from(categories).sort()
+            years = Array.from(years).sort().reverse()
+            seasons = Array.from(seasons).sort()
+
+            // Populate category filter
+            const categoryFilter = document.getElementById('categoryFilter');
+            categories.forEach(category => {
+                const option = document.createElement('option');
+                option.value = category;
+                option.textContent = category;
+                if (category == "TV Show") {
+                    option.selected = true;
+                }
+                categoryFilter.appendChild(option);
+            });
+
+            // Populate year filter
+            const yearFilter = document.getElementById('yearFilter');
+            years.forEach((year, i) => {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year;
+                if (i == 1 && year <= new Date().getFullYear()) {
+                    option.selected = true;
+                }
+                yearFilter.appendChild(option);
+            });
+
+            // Populate season filter
+            const seasonFilter = document.getElementById('seasonFilter');
+            seasons.forEach(season => {
+                const option = document.createElement('option');
+                option.value = season;
+                option.textContent = season;
+                seasonFilter.appendChild(option);
+            });
+        }
+
+        function displayImages() {
+            const imageContainer = document.getElementById('imageContainer');
+            imageContainer.innerHTML = ''; // Clear the container
+
+            const selectedCategory = document.getElementById('categoryFilter').value;
+            const selectedYear = document.getElementById('yearFilter').value;
+            const selectedSeason = document.getElementById('seasonFilter').value;
+
+            const filteredImages = images.filter(image => {
+                return (
+                    (selectedCategory === '' || image.category === selectedCategory) &&
+                    (selectedYear === '' || image.year === selectedYear) &&
+                    (selectedSeason === '' || image.season === selectedSeason)
+                );
+            });
+
+            filteredImages.forEach(image => {
+                const animeCard = document.createElement('div');
+                animeCard.classList.add('anime-card');
+
+                const link = document.createElement('a');
+                if (image.m3u8) {
+                    link.href = "player/#" + image.m3u8;
+                } else {
+                    link.href = image.url;
+                }
+                link.target = "_blank";
+
+                const img = document.createElement('img');
+                img.src = image.image;
+                img.classList.add('img-thumbnail');
+
+                link.appendChild(img);
+
+                if (image.ep) {
+                    const epContainer = document.createElement('div');
+                    epContainer.classList.add('anime-ep');
+
+                    const epText = document.createElement('span');
+                    epText.classList.add('anime-ep-text');
+                    epText.textContent = image.ep;
+
+                    epContainer.appendChild(epText);
+                    animeCard.appendChild(epContainer);
+                }
+
+                animeCard.appendChild(link);
+
+                imageContainer.appendChild(animeCard);
+            });
+        }
+
+        document.getElementById('categoryFilter').addEventListener('change', displayImages);
+        document.getElementById('yearFilter').addEventListener('change', displayImages);
+        document.getElementById('seasonFilter').addEventListener('change', displayImages);
+
+        fetchImageData('12q04f4hwtVQjfVSUayDsgXLGGbqrl9urm8gp556nPQA', "1193967919");
+    </script>
 </body>
+
 </html>
