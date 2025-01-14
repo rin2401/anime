@@ -1,0 +1,13 @@
+! Jul 2, 2024 https://animetvn4.com
+animetvn4.*###fbox-display
+animetvn4.*###fbox-close
+animetvn4.*###fbox-background
+
+! Jan 5, 2025 https://animevietsub.biz
+animevietsub.*##.pc_catfix_adv
+animevietsub.*##.bellow_ads_player.Ads
+animevietsub.*##.ad-center-header.Adv
+animevietsub.*##.below-player
+
+! Jan 15, 2025 https://animevietsub.page
+animevietsub.*###invideo_wrapper
