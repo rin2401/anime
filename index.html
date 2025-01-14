@@ -123,16 +123,13 @@
                         r.c.forEach(cel => {
                             try {
                                 var value = cel.f ? cel.f : cel.v
-                            }
-                            catch (e) {
+                            } catch (e) {
                                 var value = ''
                             }
                             row.push(value)
-                        }
-                        )
+                        })
                         table.push(row)
-                    }
-                    )
+                    })
                     console.log(table)
 
                     var cols = table[0]
@@ -225,7 +222,7 @@
                 const link = document.createElement('a');
                 if (image.m3u8) {
                     link.href = "player/#" + image.m3u8;
-                } else if (image.url.includes("youtube")) {
+                } else if (image.url && image.url.includes("youtube")) {
                     link.href = image.url
                 } else {
                     link.href = "frame/#" + image.url;
