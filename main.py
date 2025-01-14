@@ -13,5 +13,9 @@ def home():
 def player():
     return render_template('player/index.html')
 
+@app.route('/frame/')
+def frame():
+    return render_template('frame/index.html')
+
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=8000, debug=True)
