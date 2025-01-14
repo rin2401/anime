@@ -184,7 +184,9 @@
                 const option = document.createElement('option');
                 option.value = year;
                 option.textContent = year;
-                if (i == 1 && year <= new Date().getFullYear()) {
+                var currentYear = new Date().getFullYear();
+                if (i == 0 && parseInt(year) <= currentYear) {
+                    console.log(i, parseInt(year), currentYear)
                     option.selected = true;
                 }
                 yearFilter.appendChild(option);
