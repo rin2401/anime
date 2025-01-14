@@ -225,10 +225,11 @@
                 const link = document.createElement('a');
                 if (image.m3u8) {
                     link.href = "player/#" + image.m3u8;
-                } else {
+                } else if (image.url.includes("youtube")) {
                     link.href = image.url
+                } else {
+                    link.href = "frame/#" + image.url;
                 }
-
                 link.target = "_blank";
 
                 const img = document.createElement('img');
