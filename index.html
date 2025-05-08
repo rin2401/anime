@@ -265,7 +265,9 @@
                         for (const [key, value] of Object.entries(obj)) {
                             const epContainer = document.createElement('a');
                             epContainer.classList.add('anime-ep');
-                            epContainer.href = "player/#" + value;
+                            if (value) {
+                                epContainer.href = "player/#" + value;
+                            }
 
                             const epText = document.createElement('span');
                             epText.classList.add('anime-ep-text');
