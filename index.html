@@ -263,18 +263,20 @@
                         console.log(obj)
 
                         for (const [key, value] of Object.entries(obj)) {
-                            const epContainer = document.createElement('a');
-                            epContainer.classList.add('anime-ep');
+                            let o = document.createElement('a');
+                            o.classList.add('anime-ep');
                             if (value) {
-                                epContainer.href = "player/#" + value;
+                                o.href = "player/#" + value;
+                                o.target = "_blank";
+
                             }
 
                             const epText = document.createElement('span');
                             epText.classList.add('anime-ep-text');
                             epText.textContent = key;
 
-                            epContainer.appendChild(epText);
-                            epBox.appendChild(epContainer);
+                            o.appendChild(epText);
+                            epBox.appendChild(o);
                         }
                     } catch (e) {
                         console.log(e)
