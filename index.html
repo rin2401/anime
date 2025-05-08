@@ -66,15 +66,19 @@
 
         .anime-ep-box {
             position: absolute;
-            display: flex;
             align-items: center;
             justify-content: center;
             bottom: 14px;
+            left: 14px;
             right: 14px;
             z-index: 2;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2px;
         }
 
         .anime-ep {
+            flex-shrink: 0;
             width: 40px;
             height: 40px;
             background: #1a1a1acc;
@@ -85,7 +89,6 @@
             z-index: 2;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
             cursor: pointer;
-            margin: 2px;
             text-decoration: none;
         }
 
@@ -275,7 +278,7 @@
                         console.log(e)
                     }
                 } else if (image.ep) {
-                    const epContainer = document.createElement('div');
+                    const epContainer = document.createElement('a');
                     epContainer.classList.add('anime-ep');
 
                     const epText = document.createElement('span');
