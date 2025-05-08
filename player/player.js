@@ -6,6 +6,7 @@ function playM3u8(url) {
         var m3u8Url = decodeURIComponent(url)
         hls.loadSource(m3u8Url);
         hls.attachMedia(video);
+        console.log(hls)
         hls.on(Hls.Events.MANIFEST_PARSED, function () {
             video.play();
         });
@@ -54,9 +55,23 @@ function seekTime() {
     }
 }
 
+function createBlobUrl(data, mimeType = "application/vnd.apple.mpegurl") {
+    const blob = new Blob([data], { type: mimeType });
+    return URL.createObjectURL(blob);
+}
+
 console.log(window.location.href.split("#"))
 
-playM3u8(window.location.href.split("#")[1])
+var url = window.location.href.split("#")[1]
+if (url.endsWith(".json")) {
+    fetch(url).then(response => response.json()).then(function (data) {
+        url = createBlobUrl(data.m3u8)
+        console.log(url)
+        playM3u8(url)
+    })
+} else {
+    playM3u8(url)
+}
 seekTime()
 
 $(window).on('load', function () {
