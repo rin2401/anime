@@ -32,31 +32,33 @@ def get_url(url):
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor
 
-with open("gionoi_new.m3u") as f:
+FILE="wave.m3u"
+
+with open(FILE) as f:
     lines = [line.strip() for line in f.readlines()]
 
 import time
 from functools import partial
 
-def process_line(line, retries=3, sleep_sec=2):
+def process_line(line, retries=3, sleep_sec=3):
     if "https://stream.googleapiscdn.com" in line:
-        print(line)
+        # print(line)
         for attempt in range(retries):
             new_url = get_url(line)
             if new_url:
-                print(new_url)
+                # print(new_url)
                 return new_url
             else:
                 print(f"Retry {attempt+1}/{retries} failed, sleeping {sleep_sec}s...")
                 time.sleep(sleep_sec)
-        print("All retries failed, using original line.")
+        print("Error:", line)
         return line
     else:
         return line
 
-with ThreadPoolExecutor(max_workers=2) as executor:
+with ThreadPoolExecutor(max_workers=4) as executor:
     new_lines = list(tqdm(executor.map(partial(process_line, retries=3, sleep_sec=2), lines), total=len(lines)))
 
 # Ensure each line ends with a newline
-with open("gionoi_new.m3u", "w") as f:
+with open(FILE, "w") as f:
     f.writelines(line + "\n" for line in new_lines)

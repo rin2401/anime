@@ -12,12 +12,15 @@ firebase_admin.initialize_app(cred, {
 # data = ref.get()
 # print(data)
 
-with open("gionoi_new.m3u") as f:
+FILE="wave.m3u"
+ID=15
+
+with open(FILE) as f:
     m3u8 = f.read()
 
 
 
-users_ref = db.reference('/anime/21/1')
+users_ref = db.reference(f'/anime/{ID}/1')
 users_ref.update({
     'm3u8': m3u8
 })
