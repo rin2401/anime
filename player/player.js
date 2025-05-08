@@ -60,7 +60,7 @@ playM3u8(window.location.href.split("#")[1])
 seekTime()
 
 $(window).on('load', function () {
-    Mousetrap.bind('space', playPause);
+    // Mousetrap.bind('space', playPause);
     Mousetrap.bind('up', volumeUp);
     Mousetrap.bind('down', volumeDown);
     Mousetrap.bind('right', seekRight);
