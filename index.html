@@ -64,24 +64,36 @@
             display: inline-block;
         }
 
-        .anime-ep {
+        .anime-ep-box {
             position: absolute;
-            bottom: 10px;
-            right: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            bottom: 14px;
+            right: 14px;
+            z-index: 2;
+        }
+
+        .anime-ep {
             width: 40px;
             height: 40px;
-            background: #1a1a1a;
+            background: #1a1a1acc;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            z-index: 1;
+            z-index: 2;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+            cursor: pointer;
+            margin: 2px;
+            text-decoration: none;
         }
 
         .anime-ep-text {
             font-weight: bold;
             font-size: 14px;
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+            color: #ffffff;
         }
     </style>
 </head>
@@ -100,6 +112,7 @@
     </div>
     <div class="image-container" id="imageContainer"></div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
     <script>
         const imageContainer = document.getElementById('imageContainer');
 
@@ -237,7 +250,31 @@
 
                 link.appendChild(img);
 
-                if (image.ep) {
+
+                const epBox = document.createElement('div');
+                epBox.classList.add('anime-ep-box');
+
+                if (image.episodes) {
+                    try {
+                        const obj = jsyaml.load(image.episodes);
+                        console.log(obj)
+
+                        for (const [key, value] of Object.entries(obj)) {
+                            const epContainer = document.createElement('a');
+                            epContainer.classList.add('anime-ep');
+                            epContainer.href = "player/#" + value;
+
+                            const epText = document.createElement('span');
+                            epText.classList.add('anime-ep-text');
+                            epText.textContent = key;
+
+                            epContainer.appendChild(epText);
+                            epBox.appendChild(epContainer);
+                        }
+                    } catch (e) {
+                        console.log(e)
+                    }
+                } else if (image.ep) {
                     const epContainer = document.createElement('div');
                     epContainer.classList.add('anime-ep');
 
@@ -246,9 +283,10 @@
                     epText.textContent = image.ep;
 
                     epContainer.appendChild(epText);
-                    animeCard.appendChild(epContainer);
+                    epBox.appendChild(epContainer);
                 }
 
+                animeCard.appendChild(epBox);
                 animeCard.appendChild(link);
 
                 imageContainer.appendChild(animeCard);
