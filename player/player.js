@@ -104,7 +104,7 @@ function setMediaSession() {
         navigator.mediaSession.metadata = new MediaMetadata({
             title: 'Anime Player',
             artwork: [
-                { src: 'https://raw.githubusercontent.com/rin2401/anime/refs/heads/master/player/r3.png', type: 'image/png' },
+                { src: 'https://raw.githubusercontent.com/rin2401/anime/refs/heads/master/player/logog.png' },
             ]
         });
     }
