@@ -108,6 +108,10 @@ function setMediaSession() {
                     src: 'https://rin2401.github.io/anime/player/logo.png', sizes: '128x128',
                     type: 'image/png'
                 },
+                {
+                    src: 'https://rin2401.github.io/anime/player/r3.png', sizes: '512x512',
+                    type: 'image/png'
+                },
             ]
         });
     }
