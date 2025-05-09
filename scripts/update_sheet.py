@@ -23,7 +23,7 @@ for i, x in enumerate(records):
         print(x["id"], x["url"])
         update(x["url"], x["name"], x["id"])
         x["episodes"] = f"1: https://r3fire.firebaseio.com/anime/{x['id']}/1.json"
-        row_num = i + 1
+        row_num = i + 2
         col_num = columns.index("episodes") + 1
         sheet.update_cell(row_num, col_num, x["episodes"])
         print(x["episodes"])
