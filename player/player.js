@@ -104,10 +104,10 @@ function setMediaSession() {
         navigator.mediaSession.metadata = new MediaMetadata({
             title: 'Anime Player',
             artwork: [
-                {
-                    src: 'https://rin2401.github.io/anime/player/r3_128.png', sizes: '128x128',
-                    type: 'image/png'
-                },
+                // {
+                //     src: 'https://rin2401.github.io/anime/player/r3_128.png', sizes: '128x128',
+                //     type: 'image/png'
+                // },
                 {
                     src: 'https://rin2401.github.io/anime/player/r3_512.png', sizes: '512x512',
                     type: 'image/png'
