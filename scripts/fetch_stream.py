@@ -1,6 +1,9 @@
 import subprocess
 import re
-
+from tqdm import tqdm
+from concurrent.futures import ThreadPoolExecutor
+import time
+from functools import partial
 
 def get_url(url):
     curl_command = f"""curl -I -L -v '{url}' \
@@ -29,18 +32,8 @@ def get_url(url):
         if "googleusercontent" in url:
             return url
 
-from tqdm import tqdm
-from concurrent.futures import ThreadPoolExecutor
 
-FILE="wave.m3u"
-
-with open(FILE) as f:
-    lines = [line.strip() for line in f.readlines()]
-
-import time
-from functools import partial
-
-def process_line(line, retries=3, sleep_sec=3):
+def process_line(line, retries=5, sleep_sec=5):
     if "https://stream.googleapiscdn.com" in line:
         # print(line)
         for attempt in range(retries):
@@ -49,16 +42,29 @@ def process_line(line, retries=3, sleep_sec=3):
                 # print(new_url)
                 return new_url
             else:
-                print(f"Retry {attempt+1}/{retries} failed, sleeping {sleep_sec}s...")
+                # print(f"Retry {attempt+1}/{retries} failed, sleeping {sleep_sec}s...")
                 time.sleep(sleep_sec)
         print("Error:", line)
         return line
     else:
         return line
 
-with ThreadPoolExecutor(max_workers=4) as executor:
-    new_lines = list(tqdm(executor.map(partial(process_line, retries=3, sleep_sec=2), lines), total=len(lines)))
+def update_m3u8(FILE, max_workers=4, sleep_sec=5, retries=5):
+    with open(FILE) as f:
+        lines = [line.strip() for line in f.readlines()]
 
-# Ensure each line ends with a newline
-with open(FILE, "w") as f:
-    f.writelines(line + "\n" for line in new_lines)
+    done = False
+    while not done:
+        print(">>> New turn")
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            lines = list(tqdm(executor.map(partial(process_line, retries=retries, sleep_sec=sleep_sec), lines), total=len(lines)))
+        
+        done = True
+        for x in lines:
+            if "https://stream.googleapiscdn.com" in x:
+                done = False
+                break
+
+    # Ensure each line ends with a newline
+    with open(FILE, "w") as f:
+        f.writelines(line + "\n" for line in lines)
