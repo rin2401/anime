@@ -1,5 +1,7 @@
 keys.json
-scripts/__pycache__/sheet.cpython-312.pyc
+**/__pycache__
 .DS_Store
 _metadata
 r3fire.json
+*.m3u8
+*.m3u

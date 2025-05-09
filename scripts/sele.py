@@ -59,17 +59,20 @@ def crawl_m3u8(url):
 
     return path
 
+
+
 def update(url, title, id):
     path = crawl_m3u8(url)
     update_m3u8(path)
     update_ep(id, title, path)
 
 
-# url = "https://animevietsub.bio/phim/belle-rong-va-cong-chua-tan-nhan-r1-a4217/xem-phim-81223.html"
-# title = "Belle"
-# id = 33
+if __name__ == "__main__":
+    # url = "https://animevietsub.bio/phim/belle-rong-va-cong-chua-tan-nhan-r1-a4217/xem-phim-81223.html"
+    # title = "Belle"
+    # id = 33
 
-url = "https://animevietsub.lol/phim/bakemono-no-ko-a413/xem-phim-7424.html"
-title = "Bakemono no Ko"
-id = 31
-update(url, title, id)
+    url = "https://animevietsub.lol/phim/bakemono-no-ko-a413/xem-phim-7424.html"
+    title = "Bakemono no Ko"
+    id = 31
+    update(url, title, id)
