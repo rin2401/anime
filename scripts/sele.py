@@ -41,7 +41,7 @@ def crawl_m3u8(url):
 
     driver.get(url)
     print(driver.title)
-    WebDriverWait(driver, 3).until(
+    WebDriverWait(driver, 20).until(
         lambda d: d.execute_script("return typeof jwplayer === 'function' && typeof jwplayer().getPlaylist === 'function';")
     )
 
@@ -51,7 +51,7 @@ def crawl_m3u8(url):
     file_url = res[0]["allSources"][0]["file"]
     print('File URL:', file_url)
 
-    bytes = get_file_content_chrome(driver, file_url)
+    bytes = get_file_content_chrome(file_url)
 
     print(path)
     with open(path, "wb") as f:
@@ -65,7 +65,11 @@ def update(url, title, id):
     update_ep(id, title, path)
 
 
-url = "https://animevietsub.bio/phim/belle-rong-va-cong-chua-tan-nhan-r1-a4217/xem-phim-81223.html"
-title = "Belle"
-id = 33
+# url = "https://animevietsub.bio/phim/belle-rong-va-cong-chua-tan-nhan-r1-a4217/xem-phim-81223.html"
+# title = "Belle"
+# id = 33
+
+url = "https://animevietsub.lol/phim/bakemono-no-ko-a413/xem-phim-7424.html"
+title = "Bakemono no Ko"
+id = 31
 update(url, title, id)
