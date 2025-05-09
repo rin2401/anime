@@ -92,6 +92,10 @@ var url = window.location.href.split("#")[1]
 if (url.endsWith(".json")) {
     fetch(url).then(response => response.json()).then(function (data) {
         playM3u8Text(data.m3u8)
+        if (data.title) {
+            document.title = data.title
+            setMediaSession(data.title)
+        }
     })
 } else {
     playM3u8(url)
@@ -99,10 +103,10 @@ if (url.endsWith(".json")) {
 seekTime()
 
 
-function setMediaSession() {
+function setMediaSession(title) {
     if ('mediaSession' in navigator) {
         navigator.mediaSession.metadata = new MediaMetadata({
-            title: 'Anime Player',
+            title: title,
             artwork: [
                 // {
                 //     src: 'https://rin2401.github.io/anime/player/r3_128.png', sizes: '128x128',
@@ -124,5 +128,5 @@ $(window).on('load', function () {
     Mousetrap.bind('right', seekRight);
     Mousetrap.bind('left', seekLeft);
     Mousetrap.bind('f', vidFullscreen);
-    setMediaSession();
+    setMediaSession("Anime Player");
 });
