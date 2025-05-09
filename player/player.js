@@ -37,7 +37,8 @@ function playM3u8Text(m3u8Text) {
     }
     else if (video.canPlayType(hlsMimeType)) {
         video.type = hlsMimeType;
-        video.src = `data:${hlsMimeType};base64,${btoa(m3u8Text)}`;
+        // video.src = `data:${hlsMimeType};base64,${btoa(m3u8Text)}`;
+        video.src = createBlobUrl(m3u8Text);
         video.addEventListener('canplay', function () {
             video.play();
         });
