@@ -98,6 +98,18 @@ if (url.endsWith(".json")) {
 }
 seekTime()
 
+
+function setMediaSession() {
+    if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+            title: 'Anime Player',
+            artwork: [
+                { src: 'https://raw.githubusercontent.com/rin2401/anime/refs/heads/master/player/r3.png', type: 'image/png' },
+            ]
+        });
+    }
+}
+
 $(window).on('load', function () {
     // Mousetrap.bind('space', playPause);
     Mousetrap.bind('up', volumeUp);
@@ -105,4 +117,5 @@ $(window).on('load', function () {
     Mousetrap.bind('right', seekRight);
     Mousetrap.bind('left', seekLeft);
     Mousetrap.bind('f', vidFullscreen);
+    setMediaSession();
 });
