@@ -1,6 +1,7 @@
 import os
 import base64
 from re import U
+from tkinter import N
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
@@ -33,12 +34,9 @@ xhr.send();
         raise Exception("Request failed with status %s" % result)
     return base64.b64decode(result)
 
-def crawl_m3u8(url):
+def crawl_m3u8(url, download=True):
     id = url.split("-")[-1].split(".")[0]
     path = f"{id}.m3u8"
-
-    if os.path.exists(path):
-        return path
 
     try:
         driver.get(url)
@@ -61,6 +59,13 @@ def crawl_m3u8(url):
     file_url = res[0]["allSources"][0]["file"]
     print('File URL:', file_url)
 
+    if not download:
+        return None, file_url
+
+    if os.path.exists(path):
+        return path, file_url
+    
+
     bytes = get_file_content_chrome(file_url)
 
     print(path)
@@ -78,5 +83,5 @@ def update_animevietsub(url, title, id):
 
 
 def update_yeuphim(url, title, id):
-    path, file_url = crawl_m3u8(url)
+    path, file_url = crawl_m3u8(url, False)
     return file_url
