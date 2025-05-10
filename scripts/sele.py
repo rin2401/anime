@@ -1,7 +1,5 @@
 import os
 import base64
-from re import U
-from tkinter import N
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
@@ -10,7 +8,7 @@ from update_fire import update_ep
 
 # Connect to existing Chrome started with remote debugging
 chrome_options = Options()
-chrome_options.add_argument('--headless')
+# chrome_options.add_argument('--headless')
 chrome_options.add_argument('--disable-gpu')
 chrome_options.add_argument('--no-sandbox')
 # chrome_options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
@@ -34,20 +32,17 @@ xhr.send();
         raise Exception("Request failed with status %s" % result)
     return base64.b64decode(result)
 
-def crawl_m3u8(url, download=True):
-    id = url.split("-")[-1].split(".")[0]
-    path = f"{id}.m3u8"
-
+def crawl_m3u8(url):
     try:
         driver.get(url)
     except Exception as e:
         print("Error:", url)
-        return None, None
+        return None
     
     print(driver.title)
 
     if not driver.title:
-        return None, None
+        return None
 
     WebDriverWait(driver, 20).until(
         lambda d: d.execute_script("return typeof jwplayer === 'function' && typeof jwplayer().getPlaylist === 'function';")
@@ -59,29 +54,42 @@ def crawl_m3u8(url, download=True):
     file_url = res[0]["allSources"][0]["file"]
     print('File URL:', file_url)
 
-    if not download:
-        return None, file_url
-
-    if os.path.exists(path):
-        return path, file_url
-    
-
-    bytes = get_file_content_chrome(file_url)
-
-    print(path)
-    with open(path, "wb") as f:
-        f.write(bytes)
-
-    return path, file_url
+    return file_url
 
 
 
 def update_animevietsub(url, title, id):
-    path, file_url = crawl_m3u8(url)
+    id = url.split("-")[-1].split(".")[0]
+    path = f"{id}.m3u8"
+
+    print(path)
+    if os.path.exists(path):
+        return path
+
+    file_url = crawl_m3u8(url)
+    if not file_url:
+        return None
+
+    bytes = get_file_content_chrome(file_url)
+
+    with open(path, "wb") as f:
+        f.write(bytes)
+
     update_m3u8(path)
     return update_ep(id, title, path)
 
 
 def update_yeuphim(url, title, id):
-    path, file_url = crawl_m3u8(url, False)
+    file_url = crawl_m3u8(url)
+    if not file_url:
+        return None
+
+    bytes = get_file_content_chrome(file_url)
+    m3u8 = bytes.decode("utf-8")
+
+    for line in m3u8.split("\n"):
+        if "/hls/" in line:
+            file_url = file_url.rsplit("/", 1)[0] + "/" + line
+            break
+
     return file_url
