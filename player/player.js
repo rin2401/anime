@@ -5,27 +5,8 @@ function playM3u8(url) {
     const hlsMimeType = "application/vnd.apple.mpegurl";
 
     if (url.includes(".mp4")) {
-        p = url.split(";")
-        url = p[0]
         video.src = url;
         video.type = 'video/mp4';
-        if (p.length > 1) {
-            audio_url = p[1]
-            const audio = document.createElement('audio');
-            audio.src = audio_url;
-            audio.type = 'audio/mp4';
-            video.appendChild(audio);
-
-            video.addEventListener('play', () => audio.play());
-            video.addEventListener('pause', () => audio.pause());
-            video.addEventListener('seeking', () => {
-                audio.currentTime = video.currentTime;
-            });
-
-            video.addEventListener('volumechange', () => {
-                audio.volume = video.volume;
-            });
-        }
 
         video.addEventListener('canplay', function () {
             video.play();
