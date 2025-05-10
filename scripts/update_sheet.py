@@ -1,6 +1,6 @@
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from sele import update
+import sele
 
 # Google Sheets setup
 scope = [
@@ -19,10 +19,27 @@ sheet = db.get_worksheet_by_id(WORKSHEET_ID)
 records = sheet.get_all_records()
 columns = list(records[0].keys())
 for i, x in enumerate(records):
-    if "animevietsub" in x["url"] and x["category"] != "TV Show" and not x["episodes"]:
+    if x["category"] == "TV Show":
+        continue
+
+    if x["episodes"]:
+        continue
+
+    if "animevietsub" in x["url"] and "html" in x["url"]:
         print(x["id"], x["url"])
-        update(x["url"], x["name"], x["id"])
-        x["episodes"] = f"1: https://r3fire.firebaseio.com/anime/{x['id']}/1.json"
+        url = sele.update_animevietsub(x["url"], x["name"], x["id"])
+        if not url:
+            continue
+        x["episodes"] = f"1: {url}"
+
+    if "yeuphim" in x["url"]:
+        print(x["id"], x["url"])
+        url = sele.update_yeuphim(x["url"], x["name"], x["id"])
+        if not url:
+            continue
+        x["episodes"] = f"1: {url}"
+
+    if x["episodes"]:
         row_num = i + 2
         col_num = columns.index("episodes") + 1
         sheet.update_cell(row_num, col_num, x["episodes"])

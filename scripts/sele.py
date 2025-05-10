@@ -1,5 +1,6 @@
 import os
 import base64
+from re import U
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
@@ -39,8 +40,17 @@ def crawl_m3u8(url):
     if os.path.exists(path):
         return path
 
-    driver.get(url)
+    try:
+        driver.get(url)
+    except Exception as e:
+        print("Error:", url)
+        return None, None
+    
     print(driver.title)
+
+    if not driver.title:
+        return None, None
+
     WebDriverWait(driver, 20).until(
         lambda d: d.execute_script("return typeof jwplayer === 'function' && typeof jwplayer().getPlaylist === 'function';")
     )
@@ -57,22 +67,16 @@ def crawl_m3u8(url):
     with open(path, "wb") as f:
         f.write(bytes)
 
-    return path
+    return path, file_url
 
 
 
-def update(url, title, id):
-    path = crawl_m3u8(url)
+def update_animevietsub(url, title, id):
+    path, file_url = crawl_m3u8(url)
     update_m3u8(path)
-    update_ep(id, title, path)
+    return update_ep(id, title, path)
 
 
-if __name__ == "__main__":
-    # url = "https://animevietsub.bio/phim/belle-rong-va-cong-chua-tan-nhan-r1-a4217/xem-phim-81223.html"
-    # title = "Belle"
-    # id = 33
-
-    url = "https://animevietsub.lol/phim/bakemono-no-ko-a413/xem-phim-7424.html"
-    title = "Bakemono no Ko"
-    id = 31
-    update(url, title, id)
+def update_yeuphim(url, title, id):
+    path, file_url = crawl_m3u8(url)
+    return file_url

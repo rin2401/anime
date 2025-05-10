@@ -2,9 +2,11 @@ import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import db
 
+DB_URL = "https://r3fire.firebaseio.com"
+
 cred = credentials.Certificate("r3fire.json")
 firebase_admin.initialize_app(cred, {
-    'databaseURL': 'https://r3fire.firebaseio.com'
+    'databaseURL': DB_URL
 })
 
 
@@ -19,3 +21,5 @@ def update_ep(id, title, m3u8_path):
         "title": title,
         'm3u8': open(m3u8_path).read()
     })
+
+    return f"{DB_URL}/anime/{id}/1.json"
