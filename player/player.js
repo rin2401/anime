@@ -86,6 +86,26 @@ function createBlobUrl(data, mimeType = "application/vnd.apple.mpegurl") {
     return URL.createObjectURL(blob);
 }
 
+
+function removeAds(m3u8, url) {
+    var baseUrl = url.split("/").slice(0, -1).join("/") + "/"
+    m3u8 = m3u8.replace(/#EXT-X-DISCONTINUITY.*#EXT-X-DISCONTINUITY\n/sg, "");
+
+    m3u8 = m3u8.split('\n').map(line => {
+        if (line.startsWith('#') || line.trim() === '') {
+            return line;
+        }
+
+        if (!line.match(/^https?:\/\//i)) {
+            return baseUrl + line;
+        }
+
+        return line;
+    }).join('\n');
+
+    return m3u8
+}
+
 console.log(window.location.href.split("#"))
 
 var url = window.location.href.split("#")[1]
@@ -97,8 +117,16 @@ if (url.endsWith(".json")) {
             setMediaSession(data.title)
         }
     })
+} else if (url.match(/.*phim1280.*\.m3u8/)) {
+    fetch(url).then(response => response.text()).then(function (m3u8) {
+        m3u8 = removeAds(m3u8, url)
+        playM3u8Text(m3u8)
+        setMediaSession("Anime Player")
+    })
 } else {
     playM3u8(url)
+    setMediaSession("Anime Player");
+
 }
 seekTime()
 
