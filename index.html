@@ -248,7 +248,7 @@
                 link.target = "_blank";
 
                 const img = document.createElement('img');
-                img.src = image.image;
+                img.src = image.image || "https://rin2401.github.io/anime/image/lazy.png";
                 img.classList.add('img-thumbnail');
 
                 link.appendChild(img);
