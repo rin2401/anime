@@ -4,7 +4,13 @@ function playM3u8(url) {
     console.log("HLS:", Hls.isSupported())
     const hlsMimeType = "application/vnd.apple.mpegurl";
 
-    if (Hls.isSupported()) {
+    if (url.includes(".mp4")) {
+        video.src = url;
+        video.addEventListener('canplay', function () {
+            video.play();
+        });
+        return;
+    } else if (Hls.isSupported()) {
         var hls = new Hls();
         var m3u8Url = decodeURIComponent(url)
         hls.loadSource(m3u8Url);
@@ -13,8 +19,7 @@ function playM3u8(url) {
         hls.on(Hls.Events.MANIFEST_PARSED, function () {
             video.play();
         });
-    }
-    else if (video.canPlayType(hlsMimeType)) {
+    } else if (video.canPlayType(hlsMimeType)) {
         video.type = hlsMimeType;
         video.src = url;
         video.addEventListener('canplay', function () {
@@ -35,8 +40,7 @@ function playM3u8Text(m3u8Text) {
         hls.on(Hls.Events.MANIFEST_PARSED, function () {
             video.play();
         });
-    }
-    else if (video.canPlayType(hlsMimeType)) {
+    } else if (video.canPlayType(hlsMimeType)) {
         video.type = hlsMimeType;
         video.src = `data:${hlsMimeType};base64,${btoa(m3u8Text)}`;
         video.addEventListener('canplay', function () {
