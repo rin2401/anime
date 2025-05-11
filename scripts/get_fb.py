@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def get_fb(url):            
+def get_fb_rapid(url):            
     RAPID_API_KEY = os.getenv("RAPID_API_KEY")
     if not RAPID_API_KEY:
         raise Exception("RAPID_API_KEY not found")
@@ -23,5 +23,14 @@ def get_fb(url):
 
     return response.json()
 
+
+def get_fb(url):
+    api_url = "https://facebook-video-downloader.fly.dev/app/main.php"
+    payload = {'url': url}
+
+    response = requests.post(api_url, data=payload)
+
+    return response.json()
+
 if __name__ == "__main__":
-    print(get_fb("https://www.facebook.com/reel/1187362698778788"))
+    print(get_fb('https://www.facebook.com/watch/?v=1923630328376712'))
