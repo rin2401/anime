@@ -5,3 +5,4 @@ _metadata
 r3fire.json
 *.m3u8
 *.m3u
+.env
