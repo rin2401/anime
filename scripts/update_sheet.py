@@ -16,33 +16,41 @@ WORKSHEET_ID = 1193967919
 
 db = client.open_by_key(SHEET_KEY)
 sheet = db.get_worksheet_by_id(WORKSHEET_ID)
-records = sheet.get_all_records()
-columns = list(records[0].keys())
-for i, x in enumerate(records):
-    if x["category"] == "TV Show":
-        continue
 
-    if x["episodes"]:
-        continue
+def add_row(d):
+    columns = list(sheet.row_values(1))
+    print(columns)
+    row_data = [d.get(col, '') for col in columns]
+    sheet.append_row(row_data)
 
-    if "animevietsub" in x["url"] and "html" in x["url"]:
-        print(x["id"], x["url"])
-
-        fire_path = f"anime/{x['id']}/1"
-        url = sele.update_animevietsub(url=x["url"], fire_path=fire_path, title=x["name"])
-        if not url:
+def update_sheet():
+    records = sheet.get_all_records()
+    columns = list(records[0].keys())
+    for i, x in enumerate(records):
+        if x["category"] == "TV Show":
             continue
-        x["episodes"] = f"1: {url}"
 
-    if "yeuphim" in x["url"]:
-        print(x["id"], x["url"])
-        url = sele.update_yeuphim(x["url"])
-        if not url:
+        if x["episodes"]:
             continue
-        x["episodes"] = f"1: {url}"
 
-    if x["episodes"]:
-        row_num = i + 2
-        col_num = columns.index("episodes") + 1
-        sheet.update_cell(row_num, col_num, x["episodes"])
-        print(x["episodes"])
+        if "animevietsub" in x["url"] and "html" in x["url"]:
+            print(x["id"], x["url"])
+
+            fire_path = f"anime/{x['id']}/1"
+            url = sele.update_animevietsub(url=x["url"], fire_path=fire_path, title=x["name"])
+            if not url:
+                continue
+            x["episodes"] = f"1: {url}"
+
+        if "yeuphim" in x["url"]:
+            print(x["id"], x["url"])
+            url = sele.update_yeuphim(x["url"])
+            if not url:
+                continue
+            x["episodes"] = f"1: {url}"
+
+        if x["episodes"]:
+            row_num = i + 2
+            col_num = columns.index("episodes") + 1
+            sheet.update_cell(row_num, col_num, x["episodes"])
+            print(x["episodes"])

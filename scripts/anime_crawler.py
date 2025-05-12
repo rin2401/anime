@@ -1,6 +1,8 @@
 import requests
-import json
-import sys
+from google_search import custom_search
+from sele import crawl_animevietsub
+from update_sheet import add_row
+
 
 def search_anilist(query):
     url = "https://graphql.anilist.co"
@@ -60,6 +62,10 @@ def crawl_anilist(anime_id):
           episode
         }
         status
+        coverImage {
+          large
+        }
+        format
       }
     }
     '''
@@ -100,26 +106,37 @@ def extract_info(anime):
         'end_date': anime.get('endDate'),
         'url': anime.get('siteUrl'),
         'status': anime.get('status'),
+        'image': anime.get('coverImage', {}).get('large'),
+        'format': anime.get('format'),
     }
 
+def get_anilist_stream(id):
+    d = crawl_anilist(id)
+    print(d)
 
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: python anime_crawler.py <anime title>")
-        sys.exit(1)
-    query = " ".join(sys.argv[1:])
-    print(f"Searching AniList for: {query}\n")
-    # results = search_anilist(query)
-    # if not results:
-    #     print("No results found.")
-    #     return
-    # infos = [extract_info(a) for a in results]
-    # print(json.dumps(infos, indent=2, ensure_ascii=False))
+    title = d["title_romaji"]
+    print(title)
 
+    res = custom_search(f"{title} site:animevietsub.lol")
+    print(res[0])
 
-    results = crawl_anilist(query)
-    print(json.dumps(results, indent=2, ensure_ascii=False))
+    p = crawl_animevietsub(res[0]["original_url"])
+    category = ""
+    if d.get("format") == "MOVIE":
+        category = "Movie"
+    elif d.get("format") == "TV":
+        category = "TV Show"
 
+    add_row({
+        "id": id,
+        "name": title,
+        "image": d["image"],
+        "year": d["start_date"]["year"],
+        "anilist_id": id,
+        "category": category,
+        "url": res[0]["original_url"],
+        "episodes": f"1: {p}",
+    })
 
 if __name__ == "__main__":
-    main()
+    get_anilist_stream(21470)
