@@ -161,7 +161,7 @@ def get_anilist_stream(id, url=None):
     elif d.get("format") == "TV":
         category = "TV Show"
 
-    add_row({
+    row = {
         "id": id,
         "name": title,
         "image": d["image"],
@@ -170,7 +170,9 @@ def get_anilist_stream(id, url=None):
         "category": category,
         "url": url,
         "episodes": f"1: {p}",
-    })
+    }
+    print(row)
+    add_row(row)
 
 if __name__ == "__main__":
-    get_anilist_stream(158928)
+    get_anilist_stream(158166)

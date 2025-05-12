@@ -38,14 +38,14 @@ def crawl_m3u8(url):
         driver.get(url)
     except Exception as e:
         print("Error:", url)
-        return None
+        return None, None
     
 
     title = driver.title
     print(title)
 
     if not title:
-        return None
+        return None, None
 
     WebDriverWait(driver, 20).until(
         lambda d: d.execute_script("return typeof jwplayer === 'function' && typeof jwplayer().getPlaylist === 'function';")

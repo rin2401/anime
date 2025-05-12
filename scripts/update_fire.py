@@ -15,7 +15,7 @@ firebase_admin.initialize_app(cred, {
 # print(data)
 
 
-def update_ep(title, m3u8_path, fire_path="/anime/{id}/1"):
+def update_ep(title, m3u8_path, fire_path):
     users_ref = db.reference(fire_path)
     users_ref.update({
         "title": title,

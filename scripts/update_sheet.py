@@ -19,7 +19,6 @@ sheet = db.get_worksheet_by_id(WORKSHEET_ID)
 
 def add_row(d):
     columns = list(sheet.row_values(1))
-    print(columns)
     row_data = [d.get(col, '') for col in columns]
     sheet.append_row(row_data)
 
@@ -54,3 +53,6 @@ def update_sheet():
             col_num = columns.index("episodes") + 1
             sheet.update_cell(row_num, col_num, x["episodes"])
             print(x["episodes"])
+
+if __name__ == "__main__":
+    update_sheet()
