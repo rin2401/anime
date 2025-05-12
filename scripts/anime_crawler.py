@@ -130,28 +130,30 @@ def animevietsub_search(query):
 
     return res
 
-def get_anilist_stream(id):
+def get_anilist_stream(id, url=None):
     d = crawl_anilist(id)
     print(d)
 
     title = d["title_romaji"]
     print(title)
 
-    urls = []
-    # urls = animevietsub_search(title)
-    # print("animevietsub_search:", urls)
-    if len(urls) != 1:
-        query = f"{title} site:animevietsub.lol"
-        print("Search:", query)
-        res = custom_search(query)
-        print(res)
-        urls = [x["original_url"] for x in res]
-        print("google_search:", urls)
+    if not url:
+        urls = []
+        # urls = animevietsub_search(title)
+        # print("animevietsub_search:", urls)
+        if len(urls) != 1:
+            query = f"{title} site:animevietsub.lol"
+            print("Search:", query)
+            res = custom_search(query)
+            print(res)
+            urls = [x["original_url"] for x in res]
+            print("google_search:", urls)
 
-    if not urls:
-        return
+        if not urls:
+            return
+        url = urls[0]
 
-    p = crawl_animevietsub(urls[0], title=title)
+    p = crawl_animevietsub(url, title=title)
 
     category = ""
     if d.get("format") == "MOVIE":
@@ -166,7 +168,7 @@ def get_anilist_stream(id):
         "year": d["start_date"]["year"],
         "anilist_id": id,
         "category": category,
-        "url": res[0]["original_url"],
+        "url": url,
         "episodes": f"1: {p}",
     })
 
