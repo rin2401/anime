@@ -78,7 +78,8 @@ def update_animevietsub(url, fire_path, title=None):
 
     update_m3u8(path)
 
-    return update_ep(title, path, fire_path)
+    m3u8_data = open(path).read()
+    return update_ep(title, m3u8_data, fire_path)
 
 
 def update_yeuphim(url):

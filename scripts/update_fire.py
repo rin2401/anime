@@ -15,11 +15,11 @@ firebase_admin.initialize_app(cred, {
 # print(data)
 
 
-def update_ep(title, m3u8_path, fire_path):
+def update_ep(title, m3u8_data, fire_path):
     users_ref = db.reference(fire_path)
     users_ref.update({
         "title": title,
-        'm3u8': open(m3u8_path).read()
+        'm3u8': m3u8_data
     })
 
     return f"{DB_URL}/{fire_path}.json"
