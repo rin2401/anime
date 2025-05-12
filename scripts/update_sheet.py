@@ -27,14 +27,16 @@ for i, x in enumerate(records):
 
     if "animevietsub" in x["url"] and "html" in x["url"]:
         print(x["id"], x["url"])
-        url = sele.update_animevietsub(x["url"], x["name"], x["id"])
+
+        fire_path = f"anime/{x['id']}/1"
+        url = sele.update_animevietsub(url=x["url"], fire_path=fire_path, title=x["name"])
         if not url:
             continue
         x["episodes"] = f"1: {url}"
 
     if "yeuphim" in x["url"]:
         print(x["id"], x["url"])
-        url = sele.update_yeuphim(x["url"], x["name"], x["id"])
+        url = sele.update_yeuphim(x["url"])
         if not url:
             continue
         x["episodes"] = f"1: {url}"

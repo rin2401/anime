@@ -1,5 +1,6 @@
 import os
 import base64
+from turtle import up
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
@@ -39,9 +40,11 @@ def crawl_m3u8(url):
         print("Error:", url)
         return None
     
-    print(driver.title)
 
-    if not driver.title:
+    title = driver.title
+    print(title)
+
+    if not title:
         return None
 
     WebDriverWait(driver, 20).until(
@@ -54,33 +57,32 @@ def crawl_m3u8(url):
     file_url = res[0]["allSources"][0]["file"]
     print('File URL:', file_url)
 
-    return file_url
+    return file_url, title
 
 
 
-def update_animevietsub(url, title, id):
+def update_animevietsub(url, fire_path, title=None):
     id = url.split("-")[-1].split(".")[0]
     path = f"{id}.m3u8"
 
     print(path)
-    if os.path.exists(path):
-        return path
+    if not os.path.exists(path):
+        file_url, title = crawl_m3u8(url)
+        if not file_url:
+            return None
 
-    file_url = crawl_m3u8(url)
-    if not file_url:
-        return None
+        bytes = get_file_content_chrome(file_url)
 
-    bytes = get_file_content_chrome(file_url)
-
-    with open(path, "wb") as f:
-        f.write(bytes)
+        with open(path, "wb") as f:
+            f.write(bytes)
 
     update_m3u8(path)
-    return update_ep(id, title, path)
+
+    return update_ep(title, path, fire_path)
 
 
-def update_yeuphim(url, title, id):
-    file_url = crawl_m3u8(url)
+def update_yeuphim(url):
+    file_url, title = crawl_m3u8(url)
     if not file_url:
         return None
 
@@ -93,3 +95,17 @@ def update_yeuphim(url, title, id):
             break
 
     return file_url
+
+
+def crawl_animevietsub(url):
+    id = url.split("-")[-1].split(".")[0]
+    fire_path =  f"animevietsub/{id}"
+    path = update_animevietsub(url, fire_path)
+    return path
+
+
+if __name__ == "__main__":
+    url = "https://animevietsub.lol/phim/dao-hai-tac-one-piece-a1/tap-11285-106297.html"
+    url = "https://animevietsub.lol/phim/one-piece-vua-hai-tac-a1/tap-special6-105606.html"
+    path = crawl_animevietsub(url)    
+    print(path)
