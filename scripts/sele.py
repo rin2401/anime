@@ -97,10 +97,10 @@ def update_yeuphim(url):
     return file_url
 
 
-def crawl_animevietsub(url):
+def crawl_animevietsub(url, title=None):
     id = url.split("-")[-1].split(".")[0]
     fire_path =  f"animevietsub/{id}"
-    path = update_animevietsub(url, fire_path)
+    path = update_animevietsub(url, fire_path, title=title)
     return path
 
 

@@ -117,10 +117,10 @@ def get_anilist_stream(id):
     title = d["title_romaji"]
     print(title)
 
-    res = custom_search(f"{title} site:animevietsub.lol")
+    res = custom_search(f"{title} Tập Full site:animevietsub.lol")
     print(res[0])
 
-    p = crawl_animevietsub(res[0]["original_url"])
+    p = crawl_animevietsub(res[0]["original_url"], title=title)
     category = ""
     if d.get("format") == "MOVIE":
         category = "Movie"
@@ -139,4 +139,4 @@ def get_anilist_stream(id):
     })
 
 if __name__ == "__main__":
-    get_anilist_stream(21470)
+    get_anilist_stream(122575)
