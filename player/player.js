@@ -187,6 +187,23 @@ function setMediaSession(title) {
     }
 }
 
+
+
+function loadSavedTime() {
+    const STORAGE_KEY = "savedVideoTime";
+    const savedTime = localStorage.getItem(STORAGE_KEY);
+    console.log("savedVideoTime:", savedTime)
+    if (savedTime) {
+        video.currentTime = parseFloat(savedTime);
+    }
+
+    setInterval(() => {
+        localStorage.setItem(STORAGE_KEY, video.currentTime.toString());
+        console.log("Saved time:", video.currentTime);
+    }, 5000);
+}
+
+
 $(window).on('load', function () {
     // Mousetrap.bind('space', playPause);
     Mousetrap.bind('up', volumeUp);
@@ -194,5 +211,6 @@ $(window).on('load', function () {
     Mousetrap.bind('right', seekRight);
     Mousetrap.bind('left', seekLeft);
     Mousetrap.bind('f', vidFullscreen);
+    loadSavedTime();
     setMediaSession("Anime Player");
 });
