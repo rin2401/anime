@@ -99,6 +99,9 @@ def update_yeuphim(url):
 
 def crawl_animevietsub(url, title=None):
     id = url.split("-")[-1].split(".")[0]
+    if not id.isnumeric():
+        return None
+
     fire_path =  f"animevietsub/{id}"
     path = update_animevietsub(url, fire_path, title=title)
     return path

@@ -1,3 +1,4 @@
+import re
 import requests
 from google_search import custom_search
 from sele import crawl_animevietsub
@@ -110,6 +111,25 @@ def extract_info(anime):
         'format': anime.get('format'),
     }
 
+
+def animevietsub_search(query):
+    url = "https://animevietsub.lol/ajax/suggest"
+
+    payload = {
+        "ajaxSearch": "1",
+        "keysearch": query
+    }
+    headers = {
+      'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+    }
+
+    response = requests.post(url, headers=headers, data=payload)
+
+
+    res = re.findall("<a href=\"(http.*?)\"", response.text)
+
+    return res
+
 def get_anilist_stream(id):
     d = crawl_anilist(id)
     print(d)
@@ -117,10 +137,22 @@ def get_anilist_stream(id):
     title = d["title_romaji"]
     print(title)
 
-    res = custom_search(f"{title} Tập Full site:animevietsub.lol")
-    print(res[0])
+    urls = []
+    # urls = animevietsub_search(title)
+    # print("animevietsub_search:", urls)
+    if len(urls) != 1:
+        query = f"{title} site:animevietsub.lol"
+        print("Search:", query)
+        res = custom_search(query)
+        print(res)
+        urls = [x["original_url"] for x in res]
+        print("google_search:", urls)
 
-    p = crawl_animevietsub(res[0]["original_url"], title=title)
+    if not urls:
+        return
+
+    p = crawl_animevietsub(urls[0], title=title)
+
     category = ""
     if d.get("format") == "MOVIE":
         category = "Movie"
@@ -139,4 +171,4 @@ def get_anilist_stream(id):
     })
 
 if __name__ == "__main__":
-    get_anilist_stream(122575)
+    get_anilist_stream(158928)
