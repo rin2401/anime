@@ -274,9 +274,12 @@
                             let o = document.createElement('a');
                             o.classList.add('anime-ep');
                             if (value) {
-                                o.href = "player/#" + value;
+                                if (value.match(/(m3u8|mp4|json)/)) {
+                                    o.href = "player/#" + value;
+                                } else {
+                                    o.href = "frame/#" + value;
+                                }
                                 o.target = "_blank";
-
                             }
 
                             const epText = document.createElement('span');
