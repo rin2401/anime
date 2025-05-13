@@ -178,4 +178,8 @@ def get_anilist_stream(id, url=None):
     add_row(row)
 
 if __name__ == "__main__":
-    get_anilist_stream(158166)
+    import sys
+    if len(sys.argv) > 1:
+        get_anilist_stream(int(sys.argv[1]))
+    elif len(sys.argv) > 2:
+        get_anilist_stream(int(sys.argv[1]), sys.argv[2])
