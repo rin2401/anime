@@ -36,12 +36,16 @@ def crawl_yeuphim(url):
         ep, id = url.split("/")[-1].split("-")[-2:]
         ep = int(ep)
         path = update_yeuphim(url)
-        line = f"{ep}: {path}"
+        if path:
+            line = f"{ep}: {path}"
+        else:
+            line = f"{ep}: {url}"
         lines.append(line)
         print(line)
 
     return "\n".join(lines)
 
 if __name__ == "__main__":
-    url = "https://yeuphim.sbs/xem-phim/thang-cap-manh-nhat/tap-01-163994"
+    import sys
+    url = sys.argv[1]
     print(crawl_yeuphim(url))
