@@ -1,6 +1,7 @@
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-import sele
+from yeuphim import update_yeuphim
+from animevietsub import update_animevietsub
 
 # Google Sheets setup
 scope = [
@@ -36,14 +37,14 @@ def update_sheet():
             print(x["id"], x["url"])
 
             fire_path = f"anime/{x['id']}/1"
-            url = sele.update_animevietsub(url=x["url"], fire_path=fire_path, title=x["name"])
+            url = update_animevietsub(url=x["url"], fire_path=fire_path, title=x["name"])
             if not url:
                 continue
             x["episodes"] = f"1: {url}"
 
         if "yeuphim" in x["url"]:
             print(x["id"], x["url"])
-            url = sele.update_yeuphim(x["url"])
+            url = update_yeuphim(x["url"])
             if not url:
                 continue
             x["episodes"] = f"1: {url}"

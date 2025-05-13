@@ -1,8 +1,8 @@
 import re
 import requests
 from google_search import custom_search
-from sele import crawl_animevietsub
-from update_sheet import add_row
+from animevietsub import crawl_animevietsub
+from sheet import add_row
 
 
 def search_anilist(query):

@@ -9,12 +9,6 @@ firebase_admin.initialize_app(cred, {
     'databaseURL': DB_URL
 })
 
-
-# ref = db.reference('/anime/78/5')
-# data = ref.get()
-# print(data)
-
-
 def update_ep(title, m3u8_data, fire_path):
     users_ref = db.reference(fire_path)
     users_ref.update({
