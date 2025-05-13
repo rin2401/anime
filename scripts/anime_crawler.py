@@ -153,13 +153,13 @@ def get_anilist_stream(id, url=None):
             return
         url = urls[0]
 
-    p = crawl_animevietsub(url, title=title)
 
     category = ""
     if d.get("format") == "MOVIE":
         category = "Movie"
     elif d.get("format") == "TV":
         category = "TV Show"
+
 
     row = {
         "id": id,
@@ -169,8 +169,11 @@ def get_anilist_stream(id, url=None):
         "anilist_id": id,
         "category": category,
         "url": url,
-        "episodes": f"1: {p}",
     }
+    if row["category"] == "Movie":
+        p = crawl_animevietsub(url, title=title)
+        row["episodes"] = f"1: {p}"
+
     print(row)
     add_row(row)
 
