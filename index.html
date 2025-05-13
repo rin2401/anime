@@ -268,27 +268,63 @@
                 if (image.episodes) {
                     try {
                         const obj = jsyaml.load(image.episodes);
-                        console.log(obj)
+                        episodes = Object.entries(obj)
+                        console.log("Episodes:", episodes.length)
+                        const PAGE_SIZE = 54;
+                        let currentPage = 0;
+                        const totalPages = Math.ceil(episodes.length / PAGE_SIZE);
 
-                        for (const [key, value] of Object.entries(obj).slice(-54)) {
-                            let o = document.createElement('a');
-                            o.classList.add('anime-ep');
-                            if (value) {
-                                if (value.match(/(m3u8|mp4|json)/)) {
-                                    o.href = "player/#" + value;
-                                } else {
-                                    o.href = "frame/#" + value;
+                        function renderEpisodesPage(page) {
+                            epBox.innerHTML = "";
+                            let start = page * PAGE_SIZE;
+                            let end = start + PAGE_SIZE;
+                            let pageEpisodes = episodes.slice(start, end);
+
+                            if (totalPages > 1) {
+                                if (page > 0 && page < totalPages - 1) {
+                                    pageEpisodes = [["❮❮", null], ...episodes.slice(start - 1, end - 1), ["❯❯", null]];
+                                } else if (page === 0 && totalPages > 1) {
+                                    if (episodes.length > PAGE_SIZE) {
+                                        pageEpisodes = [...episodes.slice(start, end - 1), ["❯❯", null]];
+                                    }
+                                } else if (page === totalPages - 1 && page > 0) {
+                                    pageEpisodes = [["❮❮", null], ...episodes.slice(start - 1, end)];
                                 }
-                                o.target = "_blank";
                             }
 
-                            const epText = document.createElement('span');
-                            epText.classList.add('anime-ep-text');
-                            epText.textContent = key;
-
-                            o.appendChild(epText);
-                            epBox.appendChild(o);
+                            for (const [key, value] of pageEpisodes) {
+                                let o = document.createElement('a');
+                                o.classList.add('anime-ep');
+                                if (key === "❮❮") {
+                                    o.textContent = "❮❮";
+                                    o.onclick = () => {
+                                        currentPage = Math.max(0, currentPage - 1);
+                                        renderEpisodesPage(currentPage);
+                                    };
+                                } else if (key === "❯❯") {
+                                    o.textContent = "❯❯";
+                                    o.onclick = () => {
+                                        currentPage = Math.min(totalPages - 1, currentPage + 1);
+                                        renderEpisodesPage(currentPage);
+                                    };
+                                } else {
+                                    if (value) {
+                                        if (value.match(/(m3u8|mp4|json)/)) {
+                                            o.href = "player/#" + value;
+                                        } else {
+                                            o.href = "frame/#" + value;
+                                        }
+                                        o.target = "_blank";
+                                    }
+                                    const epText = document.createElement('span');
+                                    epText.classList.add('anime-ep-text');
+                                    epText.textContent = key;
+                                    o.appendChild(epText);
+                                }
+                                epBox.appendChild(o);
+                            }
                         }
+                        renderEpisodesPage(currentPage);
                     } catch (e) {
                         console.log(e)
                     }
