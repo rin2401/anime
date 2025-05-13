@@ -64,9 +64,9 @@
             position: absolute;
             align-items: center;
             justify-content: center;
-            bottom: 14px;
-            left: 14px;
-            right: 14px;
+            bottom: 10px;
+            left: 10px;
+            right: 10px;
             z-index: 2;
             display: flex;
             flex-wrap: wrap;
@@ -270,7 +270,7 @@
                         const obj = jsyaml.load(image.episodes);
                         console.log(obj)
 
-                        for (const [key, value] of Object.entries(obj)) {
+                        for (const [key, value] of Object.entries(obj).slice(-54)) {
                             let o = document.createElement('a');
                             o.classList.add('anime-ep');
                             if (value) {
