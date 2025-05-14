@@ -36,12 +36,14 @@ def crawl_yeuphim(url):
         ep, id = url.split("/")[-1].split("-")[-2:]
         ep = int(ep)
         path = update_yeuphim(url)
-        if path:
-            line = f"{ep}: {path}"
-        else:
-            line = f"{ep}: {url}"
+        if not path:
+            path = url
+        
+        line = f"{ep}: {path}"
         lines.append(line)
         print(line)
+        with open("yeuphim.txt", "a") as f:
+            f.write(line + "\n")
 
     return "\n".join(lines)
 

@@ -1,7 +1,7 @@
 import re
 import requests
 from google_search import custom_search
-from animevietsub import crawl_animevietsub
+from animevietsub import crawl_ep
 from sheet import add_row
 
 
@@ -171,7 +171,7 @@ def get_anilist_stream(id, url=None):
         "url": url,
     }
     if row["category"] == "Movie":
-        p = crawl_animevietsub(url, title=title)
+        p = crawl_ep(url, title=title)
         row["episodes"] = f"1: {p}"
 
     print(row)

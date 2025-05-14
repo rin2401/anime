@@ -1,11 +1,16 @@
 import subprocess
 import re
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
+from requests.utils import to_key_val_list
 from tqdm import tqdm
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
-from sele import fetch, driver
+from sele import fetch, driver, crawl_m3u8
 from fire import update_ep
 
 def get_url(url):
@@ -93,8 +98,8 @@ def update_animevietsub(url, fire_path, title=None):
     m3u8_data = open(path).read()
     return update_ep(title, m3u8_data, fire_path)
 
-def crawl_animevietsub(url, title=None):
-    id = url.split("-")[-1].split(".")[0]
+def crawl_ep(url, title=None):
+    ep, id = url.rsplit(".", 1)[0].split("-")[-2:]
     if not id.isnumeric():
         return None
 
@@ -102,8 +107,39 @@ def crawl_animevietsub(url, title=None):
     path = update_animevietsub(url, fire_path, title=title)
     return path
 
+def crawl_animevietsub(url, title=None):
+    driver.get(url)
+    WebDriverWait(driver, 15).until(
+        EC.presence_of_all_elements_located((By.CSS_SELECTOR, "li.episode"))
+    )
+    links = driver.find_elements(By.CSS_SELECTOR, "li.episode a")
+
+    urls = [link.get_attribute("href") for link in links]
+    print(urls)    
+
+    lines = []
+    for url in urls:
+        ep, id = url.rsplit(".", 1)[0].split("-")[-2:]
+        if ep.isnumeric():
+            ep = int(ep)
+
+        ep_title = None
+        if title:
+            ep_title = f"{title} - {ep}"
+
+        path = crawl_ep(url, title=ep_title)
+        if not path:
+            path = url
+        
+        line = f"{ep}: {path}"
+        lines.append(line)
+        print(line)
+        with open("animevietsub.txt", "a") as f:
+            f.write(line + "\n")
+
+    return "\n".join(lines)
+
 if __name__ == "__main__":
-    url = "https://animevietsub.lol/phim/dao-hai-tac-one-piece-a1/tap-11285-106297.html"
-    url = "https://animevietsub.lol/phim/one-piece-vua-hai-tac-a1/tap-special6-105606.html"
-    path = crawl_animevietsub(url)    
+    url = "https://animevietsub.lol/phim/thang-tu-la-loi-noi-doi-cua-em-i1-a2432/tap-22end-33036.html"
+    path = crawl_animevietsub(url, title="Tháng Tư Là Lời Nói Dối Của Em")    
     print(path)
