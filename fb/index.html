@@ -29,26 +29,68 @@
             height: 100vh;
             display: block;
         }
+
+
+        /* .fb-iframe {
+            position: relative;
+            padding-bottom: 56.25%;
+            height: 0;
+            overflow: hidden;
+        } */
+
+        /* .fb-iframe iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        } */
     </style>
 </head>
 
 <body>
     <iframe id="fb-video-frame" class="fb-iframe" style="display:none" allowfullscreen="true"
-        allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share">
-    </iframe>
+        allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"></iframe>
+    <video id="video" style="width: 100%; height: 100%;" controls="" crossorigin="anonymous"></video>
     <div id="fb-error" style="display:none; color:red; text-align:center; font-size:1.2em; margin-top:2em;"></div>
     <script>
+        function getFbVideoData(fbVideoId) {
+            url = `https://www.facebook.com/watch/?v=${fbVideoId}`
+            const apiUrl = "https://cors.rin2401.workers.dev/https://facebook-video-downloader.fly.dev/app/main.php";
+            const video = document.getElementById('video');
+            const iframe = document.getElementById('fb-video-frame');
+
+            fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ url })
+            }).then(response => response.json()).then(data => {
+                console.log(data)
+                url = data.links["Download High Quality"]
+                video.src = url;
+                video.style.display = 'block';
+                iframe.style.display = 'none';
+            }).catch(error => {
+                console.error(error)
+                const fbEmbedUrl = `https://www.facebook.com/plugins/video.php?href=https://www.facebook.com/watch/?v=${fbVideoId}`;
+                iframe.src = fbEmbedUrl;
+                iframe.style.display = 'block';
+                video.style.display = 'none';
+            })
+        }
+
         const params = new URLSearchParams(window.location.search);
         const fbVideoId = params.get('v');
         if (fbVideoId) {
-            const fbEmbedUrl = `https://www.facebook.com/plugins/video.php?href=https://www.facebook.com/watch/?v=${fbVideoId}`;
-            const iframe = document.getElementById('fb-video-frame');
-            iframe.src = fbEmbedUrl;
-            iframe.style.display = 'block';
+            getFbVideoData(fbVideoId)
         } else {
             document.getElementById('fb-error').textContent = 'No Facebook video ID found in URL (?v=...)';
             document.getElementById('fb-error').style.display = 'block';
         }
+
+
+
+
     </script>
 </body>
 
