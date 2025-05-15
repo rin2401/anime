@@ -314,6 +314,8 @@
                                     if (value) {
                                         if (value.match(/(m3u8|mp4|json)/)) {
                                             o.href = "player/#" + value;
+                                        } else if (value.includes("facebook")) {
+                                            o.href = "fb/?v=" + value.split("=")[1]
                                         } else {
                                             o.href = "frame/#" + value;
                                         }
