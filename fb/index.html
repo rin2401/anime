@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facebook</title>
+    <link rel="apple-touch-icon" href="https://rin2401.github.io/anime/image/r3_512.png">
+    <link rel="icon" type="image/png" href="https://rin2401.github.io/anime/image/r3_512.png">
+    <meta property="og:image" content="https://rin2401.github.io/anime/image/r3.png">
+
+    <style>
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .fb-iframe {
+            border: none;
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <iframe id="fb-video-frame" class="fb-iframe" style="display:none" allowfullscreen="true"
+        allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share">
+    </iframe>
+    <div id="fb-error" style="display:none; color:red; text-align:center; font-size:1.2em; margin-top:2em;"></div>
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const fbVideoId = params.get('v');
+        if (fbVideoId) {
+            const fbEmbedUrl = `https://www.facebook.com/plugins/video.php?href=https://www.facebook.com/watch/?v=${fbVideoId}`;
+            const iframe = document.getElementById('fb-video-frame');
+            iframe.src = fbEmbedUrl;
+            iframe.style.display = 'block';
+        } else {
+            document.getElementById('fb-error').textContent = 'No Facebook video ID found in URL (?v=...)';
+            document.getElementById('fb-error').style.display = 'block';
+        }
+    </script>
+</body>
+
+</html>

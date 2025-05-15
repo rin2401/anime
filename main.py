@@ -21,6 +21,9 @@ def frame():
 def yt():
     return render_template('yt/index.html')
 
+@app.route('/fb/')
+def fb():
+    return render_template('fb/index.html')
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=8000, debug=True)
