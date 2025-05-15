@@ -4,7 +4,6 @@ import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
-from requests.utils import to_key_val_list
 from tqdm import tqdm
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -84,9 +83,11 @@ def update_animevietsub(url, fire_path, title=None):
 
     print(path)
     if not os.path.exists(path):
-        file_url, title = crawl_m3u8(url)
+        file_url, title_url = crawl_m3u8(url)
         if not file_url:
             return None
+        if not title:
+            title = title_url
 
         bytes = fetch(file_url)
 
@@ -141,5 +142,5 @@ def crawl_animevietsub(url, title=None):
 
 if __name__ == "__main__":
     url = "https://animevietsub.lol/phim/thang-tu-la-loi-noi-doi-cua-em-i1-a2432/tap-22end-33036.html"
-    path = crawl_animevietsub(url, title="Tháng Tư Là Lời Nói Dối Của Em")    
+    path = crawl_animevietsub(url, title="Shigatsu wa Kimi no Uso")    
     print(path)
