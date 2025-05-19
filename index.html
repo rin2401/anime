@@ -10,6 +10,7 @@
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"
         integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+
     <style>
         body {
             background-color: #1a1a1a;
@@ -23,9 +24,9 @@
             font-family: Arial, sans-serif;
         }
 
-        .filter-container {
+        #filter-container {
             margin: 20px;
-            display: flex;
+            display: none;
             gap: 10px;
         }
 
@@ -106,22 +107,138 @@
             border-top-left-radius: 8px;
             border-top-right-radius: 8px;
         }
+
+        .user-avatar {
+            right: 12px;
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: #333;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+            overflow: hidden;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            cursor: pointer;
+            transition: box-shadow 0.2s;
+        }
+
+        .user-avatar:hover {
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+        }
+
+        .user-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+            display: block;
+        }
+
+        .avatar-dropdown {
+            position: fixed;
+            right: 12px;
+            top: 63px;
+            background: #222;
+            border-radius: 8px;
+            min-width: 100px;
+            z-index: 1100;
+            display: none;
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .avatar-dropdown.show {
+            display: flex;
+        }
+
+        .avatar-dropdown button {
+            background: none;
+            border: none;
+            color: #fff;
+            padding: 10px 20px;
+            text-align: left;
+            width: 100%;
+            cursor: pointer;
+            font-size: 16px;
+            border-radius: 0;
+            transition: background 0.2s;
+        }
+
+        .avatar-dropdown button:hover {
+            background: #444;
+        }
     </style>
+    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth-compat.js"></script>
 </head>
 
 <body>
-    <div class="filter-container">
+    <div id="filter-container">
         <select id="categoryFilter" class="form-select">
             <option value="">All Categories</option>
         </select>
         <select id="yearFilter" class="form-select">
             <option value="">All Years</option>
         </select>
-        <select id="seasonFilter" class="form-select">
+        <select id="seasonFilter" class="form-select" style="display: none;">
             <option value="">All Seasons</option>
         </select>
+        <div class="user-avatar" title="User" id="user-avatar-btn">
+            <img id="user-avatar" alt="User Avatar">
+        </div>
+        <div class="avatar-dropdown" id="avatarDropdown">
+            <button id="signOutBtnDropdown">Sign Out</button>
+        </div>
     </div>
     <div class="image-container" id="imageContainer"></div>
+
+    <script src="/anime/auth/auth.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/blueimp-md5/2.19.0/js/md5.min.js"></script>
+    <script>
+        const authUrl = "/anime/auth"
+        const avatarBtn = document.getElementById('user-avatar-btn');
+        const filterContainer = document.getElementById('filter-container');
+        var userAvatar = document.getElementById('user-avatar');
+
+        window.addEventListener('load', function () {
+            firebase.auth().onAuthStateChanged(function (user) {
+                if (user) {
+                    console.log(user)
+                    if (user.photoURL) {
+                        userAvatar.src = user.photoURL;
+                    } else {
+                        const emailHash = md5(user.email.trim().toLowerCase());
+                        const gravatarUrl = `https://www.gravatar.com/avatar/${emailHash}?d=identicon&s=200`;
+                        userAvatar.src = gravatarUrl;
+                    }
+                    avatarBtn.style.display = "flex"
+                    filterContainer.style.display = "flex"
+                } else {
+                    window.location.href = authUrl;
+                }
+            }, function (error) {
+                console.log(error);
+            });
+        });
+
+        const avatarDropdown = document.getElementById('avatarDropdown');
+        document.addEventListener('click', function (event) {
+            if (avatarBtn.contains(event.target)) {
+                avatarDropdown.classList.toggle('show');
+            } else if (!avatarDropdown.contains(event.target)) {
+                avatarDropdown.classList.remove('show');
+            }
+        });
+        document.getElementById('signOutBtnDropdown').onclick = function () {
+            if (window.firebase && firebase.auth) {
+                firebase.auth().signOut().then(function () {
+                    window.location.href = authUrl;
+                });
+            }
+        };
+    </script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
     <script>

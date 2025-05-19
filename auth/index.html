@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Auth</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="apple-touch-icon" href="https://rin2401.github.io/anime/image/r3_512.png">
+    <link rel="icon" type="image/png" href="https://rin2401.github.io/anime/image/r3_512.png">
+    <meta property="og:image" content="https://rin2401.github.io/anime/image/r3.png">
+
+    <link type="text/css" rel="stylesheet" href="https://www.gstatic.com/firebasejs/ui/6.1.0/firebase-ui-auth.css" />
+    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/ui/6.1.0/firebase-ui-auth.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/blueimp-md5/2.19.0/js/md5.min.js"></script>
+    <script src="/anime/auth/auth.js"></script>
+    <script>
+        var HOME_URL = "/anime"
+
+        var uiConfig = {
+            signInSuccessUrl: HOME_URL,
+            signInOptions: [
+                firebase.auth.GoogleAuthProvider.PROVIDER_ID,
+                // firebase.auth.FacebookAuthProvider.PROVIDER_ID,
+                // firebase.auth.TwitterAuthProvider.PROVIDER_ID,
+                // firebase.auth.GithubAuthProvider.PROVIDER_ID,
+                firebase.auth.EmailAuthProvider.PROVIDER_ID,
+                // firebase.auth.PhoneAuthProvider.PROVIDER_ID,
+                // firebaseui.auth.AnonymousAuthProvider.PROVIDER_ID
+            ],
+            tosUrl: HOME_URL,
+            privacyPolicyUrl: '/anime',
+        };
+
+        var ui = new firebaseui.auth.AuthUI(firebase.auth());
+        ui.start('#firebaseui-auth-container', uiConfig);
+    </script>
+    <style>
+        body,
+        html {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        #firebaseui-auth-container {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 300px;
+        }
+    </style>
+</head>
+
+<body>
+    <div>
+        <img id="logo" src="https://rin2401.github.io/anime/image/r3.png" alt="Logo">
+    </div>
+    <div id="firebaseui-auth-container"></div>
+</body>
+
+<script>
+    firebase.auth().onAuthStateChanged(function (user) {
+        if (user) {
+            window.location.href = HOME_URL;
+        }
+    });
+</script>
+
+</html>
