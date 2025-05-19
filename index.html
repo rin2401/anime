@@ -197,8 +197,7 @@
     <div class="image-container" id="imageContainer"></div>
 
     <script src="/anime/auth/auth.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/blueimp-md5/2.19.0/js/md5.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/blueimp-md5/2.19.0/js/md5.min.js"></script>ß
     <script>
         const imageContainer = document.getElementById('imageContainer');
 
@@ -346,8 +345,15 @@
 
                 if (image.episodes) {
                     try {
-                        const obj = jsyaml.load(image.episodes);
-                        episodes = Object.entries(obj)
+                        const episodes = [];
+                        for (e of image.episodes.split("\n")) {
+                            if (!e.trim()) continue;
+                            let [ep, url] = e.split(":", 2);
+                            ep = ep.trim();
+                            url = url.trim();
+                            episodes.push([ep, url])
+                        }
+
                         console.log("Episodes:", episodes.length)
                         const PAGE_SIZE = 54;
                         let currentPage = 0;
