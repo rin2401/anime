@@ -19,6 +19,7 @@
         var HOME_URL = "/anime"
 
         var uiConfig = {
+            signInFlow: 'popup',
             signInSuccessUrl: HOME_URL,
             signInOptions: [
                 firebase.auth.GoogleAuthProvider.PROVIDER_ID,
@@ -30,7 +31,7 @@
                 // firebaseui.auth.AnonymousAuthProvider.PROVIDER_ID
             ],
             tosUrl: HOME_URL,
-            privacyPolicyUrl: '/anime',
+            privacyPolicyUrl: HOME_URL,
         };
 
         var ui = new firebaseui.auth.AuthUI(firebase.auth());
