@@ -349,8 +349,10 @@
                             .map(e => e.trim())
                             .filter(e => e)
                             .map(e => {
-                                let [ep, url] = e.split(":", 2);
-                                return [ep.trim(), url.trim()];
+                                s = e.split(":");
+                                ep = s[0].trim();
+                                url = s.slice(1).join(":").trim();
+                                return [ep, url];
                             })
 
                         console.log("Episodes:", episodes.length)
