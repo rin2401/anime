@@ -451,7 +451,7 @@
             firebase.auth().onAuthStateChanged(function (user) {
                 if (user) {
                     console.log(user)
-                    if (user.photoURL) {
+                    if (user.photoURL && window.location.hostname != "localhost") {
                         userAvatar.src = user.photoURL;
                     } else {
                         const emailHash = md5(user.email.trim().toLowerCase());
