@@ -197,7 +197,7 @@
     <div class="image-container" id="imageContainer"></div>
 
     <script src="/anime/auth/auth.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/blueimp-md5/2.19.0/js/md5.min.js"></script>ß
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/blueimp-md5/2.19.0/js/md5.min.js"></script>
     <script>
         const imageContainer = document.getElementById('imageContainer');
 
@@ -228,7 +228,6 @@
                         })
                         table.push(row)
                     })
-                    console.log(table)
 
                     var cols = table[0]
                     for (let i = 1; i < table.length; i++) {
@@ -345,14 +344,14 @@
 
                 if (image.episodes) {
                     try {
-                        const episodes = [];
-                        for (e of image.episodes.split("\n")) {
-                            if (!e.trim()) continue;
-                            let [ep, url] = e.split(":", 2);
-                            ep = ep.trim();
-                            url = url.trim();
-                            episodes.push([ep, url])
-                        }
+                        const episodes = image.episodes
+                            .split("\n")
+                            .map(e => e.trim())
+                            .filter(e => e)
+                            .map(e => {
+                                let [ep, url] = e.split(":", 2);
+                                return [ep.trim(), url.trim()];
+                            })
 
                         console.log("Episodes:", episodes.length)
                         const PAGE_SIZE = 54;
