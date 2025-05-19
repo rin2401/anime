@@ -306,13 +306,15 @@
             const selectedYear = document.getElementById('yearFilter').value;
             const selectedSeason = document.getElementById('seasonFilter').value;
 
-            const filteredImages = images.filter(image => {
+            var filteredImages = images.filter(image => {
                 return (
                     (selectedCategory === '' || image.category === selectedCategory) &&
                     (selectedYear === '' || image.year === selectedYear) &&
                     (selectedSeason === '' || image.season === selectedSeason)
                 );
             });
+
+            filteredImages = filteredImages.sort((a, b) => b.status.localeCompare(a.status))
 
             filteredImages.forEach(image => {
                 const animeCard = document.createElement('div');
