@@ -130,7 +130,7 @@ function loadRoom(roomId) {
         video.addEventListener('loadedmetadata', function () {
             const tst = Math.floor(Date.now() / 1000);
 
-            video.currentTime = parseInt((tst + t) % video.duration);
+            video.currentTime = parseInt((tst + t) % parseInt(video.duration));
         });
 
         if (url.endsWith(".json")) {
