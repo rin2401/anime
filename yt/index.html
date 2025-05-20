@@ -64,12 +64,14 @@
 				this.innerHTML = text;
 			};
 
-			var player = window.player = youtube({ el: elPlayer });
-
-			var urlVideoId = new URLSearchParams(window.location.search).get('v');
-			if (urlVideoId) {
-				player.src = urlVideoId;
+			var params = new URLSearchParams(window.location.search);
+			options = {
+				el: elPlayer,
+				id: params.get("v"),
+				list: params.get("list")
 			}
+			var player = window.player = youtube(options);
+			console.log(player)
 
 			player.addEventListener('canplay', function (event) {
 				elPlay.disabled = false;
@@ -132,16 +134,12 @@
 			player.addEventListener('playing', typeListener);
 			player.addEventListener('ended', typeListener);
 			player.addEventListener('durationchange', typeListener);
-			player.addEventListener('timeupdate', typeListener);
+			// player.addEventListener('timeupdate', typeListener);
 			player.addEventListener('play', typeListener);
 			player.addEventListener('pause', typeListener);
 			player.addEventListener('ratechange', typeListener);
 			player.addEventListener('volumechange', typeListener);
 
-			elLoad.addEventListener('click', function (event) {
-				var videoId = elVideos.value;
-				player.src = videoId;
-			});
 			elPlay.addEventListener('click', function (event) {
 				player.play();
 			});

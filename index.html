@@ -325,7 +325,7 @@
                     if (image.url.includes("facebook")) {
                         link.href = "fb/?v=" + image.url.split("=")[1]
                     } else if (image.url.includes("youtube")) {
-                        link.href = "yt/?v=" + image.url.split("=")[1]
+                        link.href = "yt/?" + image.url.split("?")[1]
                     } else {
                         link.href = "frame/#" + image.url;
                     }
@@ -400,7 +400,7 @@
                                         } else if (value.includes("facebook")) {
                                             o.href = "fb/?v=" + value.split("=")[1]
                                         } else if (value.includes("youtube")) {
-                                            o.href = "yt/?v=" + value.split("=")[1]
+                                            o.href = "yt/?" + value.split("?")[1]
                                         } else {
                                             o.href = "frame/#" + value;
                                         }
