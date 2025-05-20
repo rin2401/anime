@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anime Room</title>
+    <link rel="apple-touch-icon" href="https://rin2401.github.io/anime/image/r3_512.png">
+    <link rel="icon" type="image/png" href="https://rin2401.github.io/anime/image/r3_512.png">
+    <meta property="og:image" content="https://rin2401.github.io/anime/image/r3.png">
+
+    <style>
+        body {
+            background-color: black;
+        }
+
+        #video {
+            position: absolute;
+            top: 0px;
+            right: 0px;
+            bottom: 0px;
+            left: 0px;
+            margin: auto;
+            max-height: 100%;
+            max-width: 100%;
+        }
+    </style>
+
+    <script src="https://code.jquery.com/jquery-3.2.1.min.js"
+        integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="/anime/player/mousetrap.min.js" charset="utf-8"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
+</head>
+
+<body>
+    <video id="video" style="width: 100%; height: 100%;" controls="" crossorigin="anonymous"></video>
+    <script src="player.js"></script>
+    <script src="/anime/auth/auth.js"></script>
+</body>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-1PSF8GWBEY"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    gtag('js', new Date());
+
+    gtag('config', 'G-1PSF8GWBEY');
+</script>
+
+</html>

@@ -31,6 +31,10 @@ def fb():
 def auth():
     return render_template('auth/index.html')
 
+@bp.route('/room/')
+def room():
+    return render_template('room/index.html')
+
 app.register_blueprint(bp)
 
 if __name__ == '__main__':
