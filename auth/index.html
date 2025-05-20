@@ -34,8 +34,15 @@
             privacyPolicyUrl: HOME_URL,
         };
 
-        var ui = new firebaseui.auth.AuthUI(firebase.auth());
-        ui.start('#firebaseui-auth-container', uiConfig);
+        var auth = firebase.auth();
+        auth.onAuthStateChanged(function (user) {
+            if (user) {
+                window.location.href = HOME_URL;
+            } else {
+                var ui = new firebaseui.auth.AuthUI(auth);
+                ui.start('#firebaseui-auth-container', uiConfig);
+            }
+        });
     </script>
     <style>
         body,
@@ -75,13 +82,5 @@
     </div>
     <div id="firebaseui-auth-container"></div>
 </body>
-
-<script>
-    firebase.auth().onAuthStateChanged(function (user) {
-        if (user) {
-            window.location.href = HOME_URL;
-        }
-    });
-</script>
 
 </html>
