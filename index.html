@@ -297,7 +297,10 @@
             });
         }
 
+
         function displayImages() {
+            const history = JSON.parse(localStorage.getItem("history")) || {};
+
             const imageContainer = document.getElementById('imageContainer');
             imageContainer.innerHTML = ''; // Clear the container
 
@@ -382,37 +385,41 @@
                                 }
                             }
 
-                            for (const [key, value] of pageEpisodes) {
+                            for (const [idx, url] of pageEpisodes) {
                                 let o = document.createElement('a');
                                 o.classList.add('anime-ep');
-                                if (key === "❮❮") {
+                                if (idx === "❮❮") {
                                     o.textContent = "❮❮";
                                     o.onclick = () => {
                                         currentPage = Math.max(0, currentPage - 1);
                                         renderEpisodesPage(currentPage);
                                     };
-                                } else if (key === "❯❯") {
+                                } else if (idx === "❯❯") {
                                     o.textContent = "❯❯";
                                     o.onclick = () => {
                                         currentPage = Math.min(totalPages - 1, currentPage + 1);
                                         renderEpisodesPage(currentPage);
                                     };
                                 } else {
-                                    if (value) {
-                                        if (value.match(/(m3u8|mp4|json)/)) {
-                                            o.href = "player/#" + value;
-                                        } else if (value.includes("facebook")) {
-                                            o.href = "fb/?v=" + value.split("=")[1]
-                                        } else if (value.includes("youtube")) {
-                                            o.href = "yt/?" + value.split("?")[1]
+                                    if (url) {
+                                        if (url.match(/(m3u8|mp4|json)/)) {
+                                            o.href = "player/#" + url;
+                                        } else if (url.includes("facebook")) {
+                                            o.href = "fb/?v=" + url.split("=")[1]
+                                        } else if (url.includes("youtube")) {
+                                            o.href = "yt/?" + url.split("?")[1]
                                         } else {
-                                            o.href = "frame/#" + value;
+                                            o.href = "frame/#" + url;
                                         }
                                         o.target = "_blank";
                                     }
                                     const epText = document.createElement('span');
                                     epText.classList.add('anime-ep-text');
-                                    epText.textContent = key;
+                                    epText.textContent = idx;
+                                    if (url in history) {
+                                        epText.style.color = "#0dcaf0";
+                                    }
+
                                     o.appendChild(epText);
                                 }
                                 epBox.appendChild(o);

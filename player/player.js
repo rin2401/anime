@@ -189,47 +189,30 @@ function setMediaSession(title) {
 
 
 
-async function loadSavedTime() {
-    const hash = await getHash(url)
-    console.log("Hash:", hash)
-
+function loadSavedTime() {
     const STORAGE_KEY = "history";
     const history = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
     console.log("History:", history)
-    if (history[hash]) {
-        video.currentTime = history[hash];
+    if (history[url]) {
+        video.currentTime = history[url];
     }
 
     setInterval(() => {
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
             ...JSON.parse(localStorage.getItem(STORAGE_KEY)),
-            [hash]: parseInt(video.currentTime)
+            [url]: parseInt(video.currentTime)
         }));
         console.log("Saved time:", parseInt(video.currentTime));
     }, 5000);
 }
 
-function getHash(str, algo = "SHA-256") {
-    let strBuf = new TextEncoder().encode(str);
-    return crypto.subtle.digest(algo, strBuf)
-        .then(hash => {
-            window.hash = hash;
-            let result = '';
-            const view = new DataView(hash);
-            for (let i = 0; i < hash.byteLength; i += 4) {
-                result += ('00000000' + view.getUint32(i).toString(16)).slice(-8);
-            }
-            return result;
-        });
-}
-
-$(window).on('load', async function () {
+$(window).on('load', function () {
     // Mousetrap.bind('space', playPause);
     Mousetrap.bind('up', volumeUp);
     Mousetrap.bind('down', volumeDown);
     Mousetrap.bind('right', seekRight);
     Mousetrap.bind('left', seekLeft);
     Mousetrap.bind('f', vidFullscreen);
-    await loadSavedTime();
+    loadSavedTime();
     setMediaSession("Anime Player");
 });
