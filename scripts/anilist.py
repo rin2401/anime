@@ -64,7 +64,7 @@ def crawl_anilist(anime_id):
         }
         status
         coverImage {
-          large
+          extraLarge
         }
         format
       }
@@ -107,7 +107,7 @@ def extract_info(anime):
         'end_date': anime.get('endDate'),
         'url': anime.get('siteUrl'),
         'status': anime.get('status'),
-        'image': anime.get('coverImage', {}).get('large'),
+        'image': anime.get('coverImage', {}).get('extraLarge'),
         'format': anime.get('format'),
     }
 
@@ -130,14 +130,14 @@ def animevietsub_search(query):
 
     return res
 
-def get_anilist_stream(id, url=None):
+def get_anilist_stream(id, url=None, search=False):
     d = crawl_anilist(id)
     print(d)
 
     title = d["title_romaji"]
     print(title)
 
-    if not url:
+    if not url and search==True:
         urls = []
         # urls = animevietsub_search(title)
         # print("animevietsub_search:", urls)
@@ -149,10 +149,8 @@ def get_anilist_stream(id, url=None):
             urls = [x["original_url"] for x in res]
             print("google_search:", urls)
 
-        if not urls:
-            return
-        url = urls[0]
-
+        if urls:
+            url = urls[0]
 
     category = ""
     if d.get("format") == "MOVIE":
@@ -168,11 +166,13 @@ def get_anilist_stream(id, url=None):
         "year": d["start_date"]["year"],
         "anilist_id": id,
         "category": category,
-        "url": url,
     }
-    if row["category"] == "Movie":
-        p = crawl_ep(url, title=title)
-        row["episodes"] = f"1: {p}"
+
+    if url:
+        row["url"] = url
+        if row["category"] == "Movie":
+            p = crawl_ep(url, title=title)
+            row["episodes"] = f"1: {p}"
 
     print(row)
     add_row(row)
