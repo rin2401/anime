@@ -65,8 +65,8 @@ def update_url():
         query = f"{x['name']} site:animevietsub.lol"
         print("Search:", query)
         res = custom_search(query)
-        print(res)
         urls = [x["original_url"] for x in res]
+        urls = [x for x in urls if "/phim/" in x]
         print("google_search:", urls)
 
         if not urls:
