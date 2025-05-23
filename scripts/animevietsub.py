@@ -79,7 +79,7 @@ def update_m3u8(FILE, max_workers=4, sleep_sec=5, retries=5):
 
 def update_animevietsub(url, fire_path, title=None):
     id = url.split("-")[-1].split(".")[0]
-    path = f"{id}.m3u8"
+    path = f"animevietsub/{id}.m3u8"
 
     print(path)
     if not os.path.exists(path):
