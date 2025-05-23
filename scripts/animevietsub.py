@@ -108,7 +108,7 @@ def crawl_ep(url, title=None):
     path = update_animevietsub(url, fire_path, title=title)
     return path
 
-def crawl_animevietsub(url, title=None):
+def crawl_animevietsub(url, title=None, last=False):
     driver.get(url)
     WebDriverWait(driver, 15).until(
         EC.presence_of_all_elements_located((By.CSS_SELECTOR, "li.episode"))
@@ -116,6 +116,8 @@ def crawl_animevietsub(url, title=None):
     links = driver.find_elements(By.CSS_SELECTOR, "li.episode a")
 
     urls = [link.get_attribute("href") for link in links]
+    if last:
+        urls = urls[-1:]
     print(urls)    
 
     lines = []
@@ -141,6 +143,9 @@ def crawl_animevietsub(url, title=None):
     return "\n".join(lines)
 
 if __name__ == "__main__":
-    url = "https://animevietsub.lol/phim/thang-tu-la-loi-noi-doi-cua-em-i1-a2432/tap-22end-33036.html"
-    path = crawl_animevietsub(url, title="Shigatsu wa Kimi no Uso")    
+    # url = "https://animevietsub.lol/phim/one-piece-vua-hai-tac-a1/tap-special6-105606.html"
+    # path = crawl_animevietsub(url, title="One Piece", last=True)    
+
+    url = "https://animevietsub.lol/phim/shin-samurai-den-yaiba-a5607/tap-01-105590.html"
+    path = crawl_animevietsub(url, title="Shin Samurai-den YAIBA", last=True)    
     print(path)

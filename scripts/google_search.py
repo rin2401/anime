@@ -144,7 +144,7 @@ def custom_search(query, max_results=10):
         doc = {
             "title": d["title"],
             "original_url": d["link"],
-            "description": d["snippet"],
+            "description": d.get("snippet"),
         }
         search_results.append(doc)
 

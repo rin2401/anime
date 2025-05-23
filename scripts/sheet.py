@@ -1,7 +1,8 @@
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from yeuphim import update_yeuphim
-from animevietsub import update_animevietsub
+from animevietsub import crawl_animevietsub
+from google_search import custom_search
 
 # Google Sheets setup
 scope = [
@@ -27,20 +28,16 @@ def update_sheet():
     records = sheet.get_all_records()
     columns = list(records[0].keys())
     for i, x in enumerate(records):
-        if x["category"] == "TV Show":
-            continue
-
         if x["episodes"]:
             continue
 
         if "animevietsub" in x["url"] and "html" in x["url"]:
             print(x["id"], x["url"])
 
-            fire_path = f"anime/{x['id']}/1"
-            url = update_animevietsub(url=x["url"], fire_path=fire_path, title=x["name"])
-            if not url:
+            episodes = crawl_animevietsub(x["url"], title=x["name"])
+            if not episodes:
                 continue
-            x["episodes"] = f"1: {url}"
+            x["episodes"] = episodes
 
         if "yeuphim" in x["url"]:
             print(x["id"], x["url"])
@@ -55,5 +52,34 @@ def update_sheet():
             sheet.update_cell(row_num, col_num, x["episodes"])
             print(x["episodes"])
 
+def update_url():
+    records = sheet.get_all_records()
+    columns = list(records[0].keys())
+    for i, x in enumerate(records):
+        if x["category"] not in ["TV Show"]:
+            continue
+
+        if x["url"]:
+            continue
+
+        query = f"{x['name']} site:animevietsub.lol"
+        print("Search:", query)
+        res = custom_search(query)
+        print(res)
+        urls = [x["original_url"] for x in res]
+        print("google_search:", urls)
+
+        if not urls:
+            continue
+
+        url = urls[0]
+        x["url"] = url
+        row_num = i + 2
+        col_num = columns.index("url") + 1
+        sheet.update_cell(row_num, col_num, x["url"])
+        print(x["url"])
+
+
 if __name__ == "__main__":
+    # update_url()
     update_sheet()
