@@ -109,6 +109,8 @@ def crawl_ep(url, title=None):
     return path
 
 def crawl_animevietsub(url, title=None, last=False):
+    with open("animevietsub.txt", "a") as f:
+        f.write(url + "\n")
     driver.get(url)
     WebDriverWait(driver, 15).until(
         EC.presence_of_all_elements_located((By.CSS_SELECTOR, "li.episode"))
