@@ -56,10 +56,6 @@
 <script type="text/javascript">
     imageUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/banner/2471-A7h23JrH0ENK.jpg"
 
-
-
-
-
     function getUrlParameter(name) {
         const urlParams = new URLSearchParams(window.location.search);
         return urlParams.get(name);
@@ -71,6 +67,14 @@
         window.history.replaceState({}, '', url);
     }
 
+    function togglePictureInPicture() {
+        if (document.pictureInPictureElement) {
+            document.exitPictureInPicture();
+        } else if (document.pictureInPictureEnabled) {
+            video = document.querySelectorAll('video')[0];
+            video.requestPictureInPicture();
+        }
+    }
 
     const id = getUrlParameter('id')
     const url = `https://r3fire.firebaseio.com/anime/${id}.json`
@@ -152,6 +156,26 @@
             );
 
             $('.jw-display-icon-rewind .jw-icon-rewind').before($('.jw-display-icon-prev'));
+
+            player.addButton("/anime/image/player-inline.png", "r3mina", function (e) {
+                btn = document.querySelectorAll("[aria-label=r3mina]")[0]
+                var pWidth = btn.offsetWidth; //use .outerWidth() if you want borders
+                var x = e.pageX - btn.offsetLeft;
+
+                console.log(pWidth, btn.offsetLeft, e.pageX)
+
+                if (x < pWidth / 3.5) {
+                    window.open("/anime")
+                } else {
+                    togglePictureInPicture()
+                }
+            }, "btn-logo")
+            btn = document.querySelectorAll('[button=btn-logo]')[0];
+            btn.style.height = "44px"
+            btn.style.width = "100px"
+            btn_image = btn.children[0]
+            btn_image.style.height = "100%"
+            btn_image.style.width = "100%"
         });
     }
 </script>
