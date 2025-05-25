@@ -298,6 +298,20 @@
         }
 
 
+        function getAnimeUrl(url) {
+            if (url.match(/(m3u8|mp4|json)/)) {
+                return "player/#" + url;
+            } else if (url.includes("facebook")) {
+                return "fb/?v=" + url.split("=")[1]
+            } else if (url.includes("youtube")) {
+                return "yt/?" + url.split("?")[1]
+            } else if (!url.includes("http")) {
+                return url;
+            } else {
+                return "frame/#" + url;
+            }
+        }
+
         function displayImages() {
             const history = JSON.parse(localStorage.getItem("history")) || {};
 
@@ -323,19 +337,8 @@
                 animeCard.classList.add('anime-card');
 
                 const link = document.createElement('a');
-                if (image.m3u8) {
-                    link.href = "player/#" + image.m3u8;
-                } else if (image.url) {
-                    if (image.url.includes("facebook")) {
-                        link.href = "fb/?v=" + image.url.split("=")[1]
-                    } else if (image.url.includes("youtube")) {
-                        link.href = "yt/?" + image.url.split("?")[1]
-                    } else if (image.url.includes("/room/")) {
-                        link.href = image.url
-                    }
-                    else {
-                        link.href = "frame/#" + image.url;
-                    }
+                if (image.url) {
+                    link.href = getAnimeUrl(image.url)
                 }
                 link.target = "_blank";
 
@@ -402,15 +405,7 @@
                                     };
                                 } else {
                                     if (url) {
-                                        if (url.match(/(m3u8|mp4|json)/)) {
-                                            o.href = "player/#" + url;
-                                        } else if (url.includes("facebook")) {
-                                            o.href = "fb/?v=" + url.split("=")[1]
-                                        } else if (url.includes("youtube")) {
-                                            o.href = "yt/?" + url.split("?")[1]
-                                        } else {
-                                            o.href = "frame/#" + url;
-                                        }
+                                        o.href = getAnimeUrl(url)
                                         o.target = "_blank";
                                     }
                                     const epText = document.createElement('span');
