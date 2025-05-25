@@ -71,11 +71,11 @@
         window.history.replaceState({}, '', url);
     }
 
-    var player = jwplayer("video");
 
     const initialIndex = parseInt(getUrlParameter('i')) - 1 || 0;
-    id = getUrlParameter('id')
-    url = `https://r3fire.firebaseio.com/anime/${id}.json`
+    const id = getUrlParameter('id')
+    const url = `https://r3fire.firebaseio.com/anime/${id}.json`
+
     fetch(url).then(response => response.json()).then(function (data) {
         console.log(data)
         data = Object.values(data).map(d => {
@@ -85,6 +85,11 @@
             }
         })
 
+        setupPlayer(data)
+    })
+
+    function setupPlayer(data) {
+        var player = jwplayer("video");
         player.setup({
             stereomode: 'monoscopic',
             playlist: data,
@@ -93,52 +98,51 @@
             aspectratio: '16:9',
             startindex: initialIndex
         });
-    })
+        player.on('playlistItem', function (event) {
+            updateUrlWithIndex(player.getPlaylistIndex());
+            document.title = event.item.title;
+        });
 
-    player.on('playlistItem', function (event) {
-        updateUrlWithIndex(player.getPlaylistIndex());
-        document.title = event.item.title;
-    });
+        player.on('ready', function () {
+            const currentItem = player.getPlaylistItem();
+            document.title = currentItem.title;
+        });
 
-    player.on('ready', function () {
-        const currentItem = player.getPlaylistItem();
-        document.title = currentItem.title;
-    });
+        player.on('ready', function () {
+            player.addButton(
+                '<svg xmlns="http://www.w3.org/2000/svg" class="jw-svg-icon jw-svg-icon-prev" viewBox="0 0 240 240"><path transform="translate(240, 0) scale(-1, 1) " d="M165,60v53.3L59.2,42.8C56.9,41.3,55,42.3,55,45v150c0,2.7,1.9,3.8,4.2,2.2L165,126.6v53.3h20v-120L165,60L165,60z"></path></svg>',
+                'Previous',
+                function () {
+                    if (player.getPlaylistIndex() === 0) {
+                        player.playlistItem(Math.max(0, player.getPlaylist().length - 1));
+                    }
+                    else {
+                        player.playlistItem(Math.max(0, player.getPlaylistIndex() - 1));
+                    }
+                },
+                'previous',
+                'jw-icon-prev'
+            );
+            $('.jw-controlbar .jw-icon-next').before($('.jw-icon-prev'));
 
-    player.on('ready', function () {
-        player.addButton(
-            '<svg xmlns="http://www.w3.org/2000/svg" class="jw-svg-icon jw-svg-icon-prev" viewBox="0 0 240 240"><path transform="translate(240, 0) scale(-1, 1) " d="M165,60v53.3L59.2,42.8C56.9,41.3,55,42.3,55,45v150c0,2.7,1.9,3.8,4.2,2.2L165,126.6v53.3h20v-120L165,60L165,60z"></path></svg>',
-            'Previous',
-            function () {
-                if (player.getPlaylistIndex() === 0) {
-                    player.playlistItem(Math.max(0, player.getPlaylist().length - 1));
-                }
-                else {
-                    player.playlistItem(Math.max(0, player.getPlaylistIndex() - 1));
-                }
-            },
-            'previous',
-            'jw-icon-prev'
-        );
-        $('.jw-controlbar .jw-icon-next').before($('.jw-icon-prev'));
+            player.addButton(
+                '<svg xmlns="http://www.w3.org/2000/svg" class="jw-svg-icon jw-svg-icon-prev" viewBox="0 0 240 240"><path transform="translate(240, 0) scale(-1, 1) " d="M165,60v53.3L59.2,42.8C56.9,41.3,55,42.3,55,45v150c0,2.7,1.9,3.8,4.2,2.2L165,126.6v53.3h20v-120L165,60L165,60z"></path></svg>',
+                'Previous',
+                function () {
+                    if (player.getPlaylistIndex() === 0) {
+                        player.playlistItem(Math.max(0, player.getPlaylist().length - 1));
+                    }
+                    else {
+                        player.playlistItem(Math.max(0, player.getPlaylistIndex() - 1));
+                    }
+                },
+                'previous2',
+                'jw-display-icon-prev'
+            );
 
-        player.addButton(
-            '<svg xmlns="http://www.w3.org/2000/svg" class="jw-svg-icon jw-svg-icon-prev" viewBox="0 0 240 240"><path transform="translate(240, 0) scale(-1, 1) " d="M165,60v53.3L59.2,42.8C56.9,41.3,55,42.3,55,45v150c0,2.7,1.9,3.8,4.2,2.2L165,126.6v53.3h20v-120L165,60L165,60z"></path></svg>',
-            'Previous',
-            function () {
-                if (player.getPlaylistIndex() === 0) {
-                    player.playlistItem(Math.max(0, player.getPlaylist().length - 1));
-                }
-                else {
-                    player.playlistItem(Math.max(0, player.getPlaylistIndex() - 1));
-                }
-            },
-            'previous2',
-            'jw-display-icon-prev'
-        );
-
-        $('.jw-display-icon-rewind .jw-icon-rewind').before($('.jw-display-icon-prev'));
-    });
+            $('.jw-display-icon-rewind .jw-icon-rewind').before($('.jw-display-icon-prev'));
+        });
+    }
 </script>
 
 </html>
