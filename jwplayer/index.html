@@ -30,7 +30,7 @@
 
 
 
-        @media (max-width: 767px) {
+        @media (max-width: 419px) {
             .jw-icon-prev {
                 display: none !important;
             }
@@ -53,7 +53,7 @@
 <script type="text/javascript" src="/anime/jwplayer/jwplayer_882.js"></script>
 <script type="text/javascript">jwplayer.key = "ITWMv7t88JGzI0xPwW8I0+LveiXX9SWbfdmt0ArUSyc=";</script>
 <script type="text/javascript">
-    imageUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/banner/2471-A7h23JrH0ENK.jpg"
+    imageUrl = "/anime/image/r3_512.png"
 
     function getUrlParameter(name) {
         const urlParams = new URLSearchParams(window.location.search);
@@ -75,17 +75,37 @@
         }
     }
 
+    function setMediaSession(title) {
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: title,
+                artwork: [
+                    {
+                        src: '/anime/image/r3_512.png', sizes: '512x512',
+                        type: 'image/png'
+                    },
+                    {
+                        src: '/anime/image/r3_128.png', sizes: '128x128',
+                        type: 'image/png'
+                    },
+                ]
+            });
+        }
+    }
+
     const id = getUrlParameter('id')
     const url = `https://r3fire.firebaseio.com/anime/${id}.json`
-    fetch(url).then(response => response.json()).then(function (data) {
-        setupPlayer(data)
-    })
+    fetch(url).then(response => response.json()).then(setupPlayer)
 
     function setupPlayer(data) {
         var M = {};
         var episodeList = [];
 
         Object.entries(data).forEach(([id, episode], index) => {
+            if (!episode) {
+                return
+            }
+
             M[id] = index;
             episodeList.push({
                 ...episode,
@@ -104,7 +124,7 @@
             playlist: episodeList,
             width: '100%',
             height: '100%',
-            aspectratio: '16:9',
+            aspectratio: '16:9'
         });
 
         player.playlistItem(initialIndex)
@@ -115,11 +135,13 @@
             var e = episodeList[index].id
             updateUrlWithIndex(e);
             document.title = event.item.title;
+            // setMediaSession(event.item.title)
         });
 
         player.on('ready', function () {
             const currentItem = player.getPlaylistItem();
             document.title = currentItem.title;
+            // setMediaSession(currentItem.title)
         });
 
         player.on('ready', function () {
@@ -159,12 +181,6 @@
             player.addButton("/anime/image/r3_player.png", "r3mina", function (e) {
                 window.location.href = "/anime"
             }, "btn-logo")
-            btn = document.querySelectorAll('[button=btn-logo]')[0];
-            btn.style.height = "44px"
-            btn.style.width = "44px"
-            btn_image = btn.children[0]
-            btn_image.style.height = "100%"
-            btn_image.style.width = "100%"
         });
     }
 </script>
