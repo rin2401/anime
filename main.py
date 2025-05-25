@@ -35,6 +35,14 @@ def auth():
 def room():
     return render_template('room/index.html')
 
+@bp.route('/socket/')
+def socket():
+    return render_template('socket/index.html')
+
+@bp.route('/jwplayer/')
+def jwplayer():
+    return render_template('jwplayer/index.html')
+
 app.register_blueprint(bp)
 
 if __name__ == '__main__':
