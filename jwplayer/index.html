@@ -39,8 +39,7 @@
                 display: none !important;
             }
 
-            .jw-button-container>.jw-icon-playback,
-            .jw-icon-rewind {
+            .jw-button-container>.jw-icon-playback {
                 display: flex !important;
             }
         }
@@ -157,22 +156,12 @@
 
             $('.jw-display-icon-rewind .jw-icon-rewind').before($('.jw-display-icon-prev'));
 
-            player.addButton("/anime/image/player-inline.png", "r3mina", function (e) {
-                btn = document.querySelectorAll("[aria-label=r3mina]")[0]
-                var pWidth = btn.offsetWidth; //use .outerWidth() if you want borders
-                var x = e.pageX - btn.offsetLeft;
-
-                console.log(pWidth, btn.offsetLeft, e.pageX)
-
-                if (x < pWidth / 3.5) {
-                    window.open("/anime")
-                } else {
-                    togglePictureInPicture()
-                }
+            player.addButton("/anime/image/r3_player.png", "r3mina", function (e) {
+                window.location.href = "/anime"
             }, "btn-logo")
             btn = document.querySelectorAll('[button=btn-logo]')[0];
             btn.style.height = "44px"
-            btn.style.width = "100px"
+            btn.style.width = "44px"
             btn_image = btn.children[0]
             btn_image.style.height = "100%"
             btn_image.style.width = "100%"
