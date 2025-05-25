@@ -27,6 +27,22 @@
             top: 0;
             left: 0;
         }
+
+
+
+        @media (max-width: 767px) {
+            .jw-icon-prev {
+                display: none !important;
+            }
+
+            .jw-icon-rewind {
+                display: none !important;
+            }
+
+            .jw-button-container>.jw-icon-rewind {
+                display: flex !important;
+            }
+        }
     </style>
 </head>
 
@@ -81,7 +97,15 @@
         playlist: data,
         width: '100%',
         height: '100%',
-        aspectratio: '16:9'
+        aspectratio: '16:9',
+        skin: {
+            "controls": {
+                "buttons": {
+                    "rewind": false // Hide the 10s rewind button
+                }
+            }
+        }
+
     });
 
     player.on('ready', function () {
@@ -109,6 +133,23 @@
             'jw-icon-prev'
         );
         $('.jw-controlbar .jw-icon-next').before($('.jw-icon-prev'));
+
+        player.addButton(
+            '<svg xmlns="http://www.w3.org/2000/svg" class="jw-svg-icon jw-svg-icon-prev" viewBox="0 0 240 240"><path transform="translate(240, 0) scale(-1, 1) " d="M165,60v53.3L59.2,42.8C56.9,41.3,55,42.3,55,45v150c0,2.7,1.9,3.8,4.2,2.2L165,126.6v53.3h20v-120L165,60L165,60z"></path></svg>',
+            'Previous',
+            function () {
+                if (player.getPlaylistIndex() === 0) {
+                    player.playlistItem(Math.max(0, player.getPlaylist().length - 1));
+                }
+                else {
+                    player.playlistItem(Math.max(0, player.getPlaylistIndex() - 1));
+                }
+            },
+            'previous2',
+            'jw-display-icon-prev'
+        );
+
+        $('.jw-display-icon-rewind .jw-icon-rewind').before($('.jw-display-icon-prev'));
     });
 </script>
 
