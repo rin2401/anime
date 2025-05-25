@@ -92,8 +92,8 @@
         });
         console.log('Episode list:', episodeList);
 
-        const e = getUrlParameter('e');
-        const initialIndex = e ? M[e] : 0;
+        var e = String(getUrlParameter('e'));
+        var initialIndex = e ? M[e] : 0;
 
         var player = jwplayer("video");
         player.setup({
@@ -102,9 +102,12 @@
             width: '100%',
             height: '100%',
             aspectratio: '16:9',
-            startindex: initialIndex
         });
+
+        player.playlistItem(initialIndex)
+
         player.on('playlistItem', function (event) {
+            console.log(event)
             var index = player.getPlaylistIndex()
             var e = episodeList[index].id
             updateUrlWithIndex(e);
