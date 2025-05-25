@@ -14,14 +14,14 @@
         body {
             margin: 0;
             padding: 0;
-            width: 100%;
-            height: 100%;
+            width: 100vw;
+            height: 100vh;
             overflow: hidden;
             background-color: black;
         }
 
         #video {
-            width: 100% !important;
+            width: 100vw !important;
             height: 100% !important;
             position: absolute;
             top: 0;
@@ -39,7 +39,8 @@
                 display: none !important;
             }
 
-            .jw-button-container>.jw-icon-rewind {
+            .jw-button-container>.jw-icon-playback,
+            .jw-icon-rewind {
                 display: flex !important;
             }
         }
@@ -91,6 +92,19 @@
         d.image = imageUrl;
     }
 
+    function getUrlParameter(name) {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(name);
+    }
+
+    function updateUrlWithIndex(index) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('i', index + 1);
+        window.history.replaceState({}, '', url);
+    }
+
+    const initialIndex = parseInt(getUrlParameter('i')) - 1 || 0;
+
     var player = jwplayer("video");
     player.setup({
         stereomode: 'monoscopic',
@@ -98,23 +112,17 @@
         width: '100%',
         height: '100%',
         aspectratio: '16:9',
-        skin: {
-            "controls": {
-                "buttons": {
-                    "rewind": false // Hide the 10s rewind button
-                }
-            }
-        }
+        startindex: initialIndex
+    });
 
+    player.on('playlistItem', function (event) {
+        updateUrlWithIndex(player.getPlaylistIndex());
+        document.title = event.item.title;
     });
 
     player.on('ready', function () {
         const currentItem = player.getPlaylistItem();
         document.title = currentItem.title;
-    });
-
-    player.on('playlistItem', function (event) {
-        document.title = event.item.title;
     });
 
     player.on('ready', function () {
