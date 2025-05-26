@@ -288,14 +288,13 @@ function hideControls() {
 
 function toggleMainState(e) {
     e.stopPropagation();
-    // if (!e.path.includes(controls)) {
-    //     if (!isPlaying) {
-    //         play();
-    //     } else {
-    //         pause();
-    //     }
-    // }
-    video.paused ? video.play() : video.pause();
+    if (e.target.id == "video") {
+        if (!isPlaying) {
+            play();
+        } else {
+            pause();
+        }
+    }
 }
 
 function handleVolume(e) {
