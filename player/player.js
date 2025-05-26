@@ -1,44 +1,10 @@
 var video = document.getElementById('video');
 
-async function playVideoAudio(url, audio_url) {
-    video.src = url;
-    video.type = 'video/mp4';
-
-    const audio = document.createElement('audio');
-    audio.src = audio_url;
-    audio.type = 'audio/mp4';
-    video.appendChild(audio);
-
-    video.addEventListener('play', () => audio.play());
-    video.addEventListener('pause', () => audio.pause());
-    video.addEventListener('seeking', () => {
-        audio.currentTime = video.currentTime;
-    });
-}
-
-function fetchData(url) {
-    return fetch(url)
-        .then((resp) => resp.ok && resp.arrayBuffer())
-        .then((buf) => new Uint8Array(buf));
-}
-function waitForEvent(target, event_name) {
-    return new Promise((res) => {
-        target.addEventListener(event_name, res, { once: true });
-    });
-}
-
-
-async function playM3u8(url) {
+function playM3u8(url) {
     console.log("HLS:", Hls.isSupported())
     const hlsMimeType = "application/vnd.apple.mpegurl";
 
     if (url.includes(".mp4")) {
-        if (url.includes(";")) {
-            [url, audio_url] = url.split(";")
-            await playVideoAudio(url, audio_url);
-            return;
-        }
-
         video.src = url;
         video.type = 'video/mp4';
         video.addEventListener('canplay', function () {

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="apple-touch-icon" href="https://rin2401.github.io/anime/image/r3_512.png">
+    <link rel="icon" type="image/png" href="https://rin2401.github.io/anime/image/r3_512.png">
+    <meta property="og:image" content="https://rin2401.github.io/anime/image/r3.png">
+    <title>r3 Player</title>
+
+    <script type="module" src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js"></script>
+    <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300;400;500;600;700;800;900&display=swap"
+        rel="stylesheet" />
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+    <div class="video-container">
+        <video id="video" disableRemotePlayback></video>
+        <span class="custom-loader"></span>
+        <div class="player-state">
+            <span class="state-btn state-backward">
+                <ion-icon name="play-back-outline"></ion-icon>
+                <span class="backward-duration">5</span>
+            </span>
+            <span class="main-state state-btn">
+                <ion-icon name="play-outline"></ion-icon>
+            </span>
+            <span class="state-btn state-forward">
+                <span class="forward-duration">5</span>
+                <ion-icon name="play-forward-outline"></ion-icon>
+            </span>
+        </div>
+        <div class="controls">
+            <div class="duration">
+                <div class="current-time"></div>
+                <div class="hover-time">
+                    <span class="hover-duration"></span>
+                </div>
+                <div class="buffer"></div>
+            </div>
+            <div class="btn-controls">
+                <div class="btn-con">
+                    <span class="play-pause control-btn">
+                        <ion-icon name="play-outline"></ion-icon>
+                    </span>
+                    <span class="prev control-btn">
+                        <ion-icon name="play-skip-back-outline"></ion-icon>
+                    </span>
+                    <span class="next control-btn">
+                        <ion-icon name="play-skip-forward-outline"></ion-icon>
+                    </span>
+                    <span class="volume">
+                        <span class="mute-unmute control-btn">
+                            <ion-icon name="volume-high-outline"></ion-icon>
+                        </span>
+                        <div class="max-vol">
+                            <div class="current-vol"></div>
+                        </div>
+                    </span>
+                    <span class="time-container">
+                        <span class="current-duration">0:00</span>
+                        <span>/</span>
+                        <span class="total-duration">0:00</span>
+                    </span>
+                </div>
+                <div class="right-controls">
+                    <span class="backward control-btn" title="5 backward">
+                        <ion-icon name="play-back-outline"></ion-icon>
+                    </span>
+                    <span class="forward control-btn" title="5 forward">
+                        <ion-icon name="play-forward-outline"></ion-icon>
+                    </span>
+                    <span class="mini-player control-btn">
+                        <ion-icon name="albums-outline"></ion-icon>
+                    </span>
+                    <span class="settings control-btn">
+                        <span class="setting-btn">
+                            <ion-icon name="options-outline"></ion-icon>
+                        </span>
+                        <ul class="setting-menu">
+                            <li data-value="0.25">0.25x</li>
+                            <li data-value="0.5">0.5x</li>
+                            <li data-value="0.75">0.75x</li>
+                            <li data-value="1" class="speed-active">1x</li>
+                            <li data-value="1.25">1.25x</li>
+                            <li data-value="1.5">1.5x</li>
+                            <li data-value="1.75">1.75x</li>
+                            <li data-value="2">2x</li>
+                        </ul>
+                    </span>
+                    <span class="theater-btn control-btn">
+                        <span class="theater-default">
+                            <ion-icon name="tablet-landscape-outline"></ion-icon>
+                        </span>
+                        <span class="theater-active">
+                            <ion-icon name="tv-outline"></ion-icon>
+                        </span>
+                    </span>
+                    <span class="fullscreen-btn control-btn" title="fullscreen">
+                        <span class="full">
+                            <ion-icon name="scan-outline"></ion-icon>
+                        </span>
+                        <span class="contract">
+                            <ion-icon name="contract-outline"></ion-icon>
+                        </span>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.2.1.min.js"
+        integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script defer src="main.js"></script>
+    <script>
+
+        const prev = document.querySelector(".prev");
+        const next = document.querySelector(".next");
+        imageUrl = "/anime/image/r3_512.png"
+
+        function getUrlParameter(name) {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get(name);
+        }
+
+        function updateUrlWithIndex(index) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('e', index);
+            window.history.replaceState({}, '', url);
+        }
+
+        function togglePictureInPicture() {
+            if (document.pictureInPictureElement) {
+                document.exitPictureInPicture();
+            } else if (document.pictureInPictureEnabled) {
+                video = document.querySelectorAll('video')[0];
+                video.requestPictureInPicture();
+            }
+        }
+
+        function createBlobUrl(data, mimeType = "application/vnd.apple.mpegurl") {
+            const blob = new Blob([data], { type: mimeType });
+            return URL.createObjectURL(blob);
+        }
+
+        function createBase64Url(data, mimeType = "application/vnd.apple.mpegurl") {
+            return `data:${mimeType};base64,${btoa(data)}`;
+        }
+
+
+        const id = getUrlParameter('id')
+        const url = `https://r3fire.firebaseio.com/anime/${id}.json`
+        fetch(url).then(response => response.json()).then(setupPlayer)
+
+        var episodeList = [];
+        var e = String(getUrlParameter('e'));
+        var M = {};
+
+        var initialIndex = 0;
+
+        console.log(e, initialIndex)
+
+        function setupPlayer(data) {
+            console.log(data)
+
+            Object.entries(data).forEach(([id, episode]) => {
+                if (!episode) {
+                    return
+                }
+                M[id] = episodeList.length;
+                episodeList.push({
+                    ...episode,
+                    id: id,
+                    image: imageUrl
+                });
+            });
+            console.log('Episode list:', episodeList);
+            console.log(M)
+
+            if (e) {
+                initialIndex = M[e] || 0;
+            }
+            var url = episodeList[initialIndex].file
+            loadVideo(url)
+        }
+
+        function loadVideo(url) {
+            if (url.endsWith(".json")) {
+                fetch(url).then(response => response.json()).then(function (data) {
+                    playM3u8Text(data.m3u8)
+                })
+            }
+            else if (url.match(/.*phim1280.*\.m3u8/)) {
+                fetch(url).then(response => response.text()).then(function (m3u8) {
+                    m3u8 = removeAds(m3u8, url)
+                    playM3u8Text(m3u8)
+                })
+            } else {
+                playM3u8(url)
+            }
+            document.title = episodeList[initialIndex].title;
+            updateUrlWithIndex(episodeList[initialIndex].id);
+            setMediaSession(episodeList[initialIndex].title);
+        }
+
+
+        prev.addEventListener("click", function () {
+            initialIndex = Math.max(0, initialIndex - 1);
+            loadVideo(episodeList[initialIndex].file)
+        });
+        next.addEventListener("click", function () {
+            initialIndex = Math.min(episodeList.length - 1, initialIndex + 1);
+            loadVideo(episodeList[initialIndex].file)
+        });
+    </script>
+</body>
+
+</html>

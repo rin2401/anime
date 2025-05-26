@@ -43,6 +43,10 @@ def socket():
 def jwplayer():
     return render_template('jwplayer/index.html')
 
+@bp.route('/r3player/')
+def r3player():
+    return render_template('r3player/index.html')
+
 app.register_blueprint(bp)
 
 if __name__ == '__main__':
