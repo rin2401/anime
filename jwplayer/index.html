@@ -75,23 +75,34 @@
         }
     }
 
-    function setMediaSession(title) {
-        if ('mediaSession' in navigator) {
-            navigator.mediaSession.metadata = new MediaMetadata({
-                title: title,
-                artwork: [
-                    {
-                        src: '/anime/image/r3_512.png', sizes: '512x512',
-                        type: 'image/png'
-                    },
-                    {
-                        src: '/anime/image/r3_128.png', sizes: '128x128',
-                        type: 'image/png'
-                    },
-                ]
-            });
-        }
+    function createBlobUrl(data, mimeType = "application/vnd.apple.mpegurl") {
+        const blob = new Blob([data], { type: mimeType });
+        return URL.createObjectURL(blob);
     }
+
+    function createBase64Url(data, mimeType = "application/vnd.apple.mpegurl") {
+        return `data:${mimeType};base64,${btoa(data)}`;
+    }
+
+    function removeAds(m3u8, url) {
+        var baseUrl = url.split("/").slice(0, -1).join("/") + "/"
+        m3u8 = m3u8.replace(/#EXT-X-DISCONTINUITY.*#EXT-X-DISCONTINUITY\n/sg, "");
+
+        m3u8 = m3u8.split('\n').map(line => {
+            if (line.startsWith('#') || line.trim() === '') {
+                return line;
+            }
+
+            if (!line.match(/^https?:\/\//i)) {
+                return baseUrl + line;
+            }
+
+            return line;
+        }).join('\n');
+
+        return m3u8
+    }
+
 
     const id = getUrlParameter('id')
     const url = `https://r3fire.firebaseio.com/anime/${id}.json`
@@ -101,12 +112,12 @@
         var M = {};
         var episodeList = [];
 
-        Object.entries(data).forEach(([id, episode], index) => {
+        Object.entries(data).forEach(([id, episode]) => {
             if (!episode) {
                 return
             }
 
-            M[id] = index;
+            M[id] = episodeList.length;
             episodeList.push({
                 ...episode,
                 id: id,
@@ -124,7 +135,7 @@
             playlist: episodeList,
             width: '100%',
             height: '100%',
-            aspectratio: '16:9'
+            aspectratio: '16:9',
         });
 
         player.playlistItem(initialIndex)
@@ -135,16 +146,38 @@
             var e = episodeList[index].id
             updateUrlWithIndex(e);
             document.title = event.item.title;
-            // setMediaSession(event.item.title)
+
+            var url = episodeList[index].file
+
+            if (url.endsWith(".json")) {
+                fetch(url).then(response => response.json()).then(function (data) {
+                    episodeList[index].file = createBlobUrl(data.m3u8)
+                    player.setPlaylistItem(index, episodeList[index])
+                    console.log(player.getPlaylistItem())
+
+                    player.playlistItem(index)
+                })
+            }
+            else if (url.match(/.*phim1280.*\.m3u8/)) {
+                console.log(url)
+                fetch(url).then(response => response.text()).then(function (m3u8) {
+                    m3u8 = removeAds(m3u8, url)
+                    episodeList[index].file = createBlobUrl(m3u8)
+                    // episodeList[index].file = createBase64Url(m3u8)
+                    console.log(episodeList[index])
+
+                    player.setPlaylistItem(index, episodeList[index])
+                    console.log(player.getPlaylistItem())
+
+                    player.playlistItem(index)
+                })
+            }
         });
 
         player.on('ready', function () {
             const currentItem = player.getPlaylistItem();
             document.title = currentItem.title;
-            // setMediaSession(currentItem.title)
-        });
 
-        player.on('ready', function () {
             player.addButton(
                 '<svg xmlns="http://www.w3.org/2000/svg" class="jw-svg-icon jw-svg-icon-prev" viewBox="0 0 240 240"><path transform="translate(240, 0) scale(-1, 1) " d="M165,60v53.3L59.2,42.8C56.9,41.3,55,42.3,55,45v150c0,2.7,1.9,3.8,4.2,2.2L165,126.6v53.3h20v-120L165,60L165,60z"></path></svg>',
                 'Previous',
