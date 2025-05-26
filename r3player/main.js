@@ -318,12 +318,37 @@ function handleProgress() {
 }
 
 function toggleFullscreen() {
-    if (!document.fullscreenElement) {
-        videoContainer.requestFullscreen();
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        if (video.webkitEnterFullscreen) {
+            video.webkitEnterFullscreen();
+        } else {
+            videoContainer.requestFullscreen();
+        }
         handleMainStateIcon(`<ion-icon name="scan-outline"></ion-icon>`);
     } else {
-        handleMainStateIcon(` <ion-icon name="contract-outline"></ion-icon>`);
-        document.exitFullscreen();
+        if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+        } else if (document.exitFullscreen) {
+            document.exitFullscreen();
+        }
+        handleMainStateIcon(`<ion-icon name="contract-outline"></ion-icon>`);
+    }
+}
+
+video.addEventListener('webkitendfullscreen', handleFullscreenExit);
+document.addEventListener('fullscreenchange', handleFullscreenChange);
+document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+
+
+function handleFullscreenExit() {
+    console.log('iOS native video player exited fullscreen');
+}
+
+function handleFullscreenChange() {
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        console.log('Standard fullscreen exited');
+    } else {
+        console.log('Standard fullscreen entered');
     }
 }
 
@@ -514,6 +539,7 @@ function playM3u8Text(m3u8Text) {
     } else if (video.canPlayType(hlsMimeType)) {
         video.type = hlsMimeType;
         video.src = `data:${hlsMimeType};base64,${btoa(m3u8Text)}`;
+        video.load()
         video.addEventListener('canplay', function () {
             video.play();
         });
