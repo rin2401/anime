@@ -12,7 +12,8 @@
     <script src="https://cdn.jsdelivr.net/npm/artplayer@latest/dist/artplayer.js"></script>
     <script
         src="https://cdn.jsdelivr.net/npm/artplayer-plugin-hls-control@latest/dist/artplayer-plugin-hls-control.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/artplayer-playlist/dist/artplayer-plugin-playlist.min.js"></script>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/artplayer-playlist/dist/artplayer-plugin-playlist.min.js"></script> -->
+    <script src="artplayer-plugin-playlist.browser.js"></script>
 
     <style>
         html,
@@ -157,14 +158,14 @@
                 pip: true,
                 // autoSize: true,
                 autoMini: true,
-                screenshot: true,
+                screenshot: false,
                 setting: true,
                 loop: true,
                 flip: true,
                 playbackRate: true,
                 aspectRatio: true,
                 fullscreen: true,
-                fullscreenWeb: true,
+                fullscreenWeb: false,
                 subtitleOffset: true,
                 miniProgressBar: true,
                 mutex: true,
@@ -174,34 +175,36 @@
                 // airplay: true,
                 theme: '#23ade5',
                 plugins: [
-                    artplayerPluginHlsControl({
-                        quality: {
-                            // Show qualitys in control
-                            control: true,
-                            // Show qualitys in setting
-                            setting: true,
-                            // Get the quality name from level
-                            getName: (level) => level.height + 'P',
-                            // I18n
-                            title: 'Quality',
-                            auto: 'Auto',
-                        },
-                        audio: {
-                            // Show audios in control
-                            control: true,
-                            // Show audios in setting
-                            setting: true,
-                            // Get the audio name from track
-                            getName: (track) => track.name,
-                            // I18n
-                            title: 'Audio',
-                            auto: 'Auto',
-                        }
-                    }),
+                    // artplayerPluginHlsControl({
+                    //     quality: {
+                    //         // Show qualitys in control
+                    //         control: true,
+                    //         // Show qualitys in setting
+                    //         setting: true,
+                    //         // Get the quality name from level
+                    //         getName: (level) => level.height + 'P',
+                    //         // I18n
+                    //         title: 'Quality',
+                    //         auto: 'Auto',
+                    //     },
+                    //     audio: {
+                    //         // Show audios in control
+                    //         control: true,
+                    //         // Show audios in setting
+                    //         setting: true,
+                    //         // Get the audio name from track
+                    //         getName: (track) => track.name,
+                    //         // I18n
+                    //         title: 'Audio',
+                    //         auto: 'Auto',
+                    //     }
+                    // }),
                     artplayerPlaylist({
                         rebuildPlayer: false,
-                        onchanged: (art) => {
-                            console.log(art)
+                        onchanged: (art, index) => {
+                            console.log("Video Change", index)
+                            updateParams(episodeList[index].id)
+                            document.title = episodeList[index].title
                         },
                         autoNext: true,
                         showText: false,
@@ -218,11 +221,6 @@
                     column: 10,
                     scale: 0.85,
                 },
-            });
-
-            art.on('playlist:switch', (item, index) => {
-                console.log(`Switched to index ${index}:`, item.title);
-                updateParams(episodeList[index].id)
             });
         }
     </script>
