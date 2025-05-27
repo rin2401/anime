@@ -173,6 +173,7 @@
                 if (!episode) {
                     return
                 }
+                id = episode.id || id
                 M[id] = episodeList.length;
                 episodeList.push({
                     ...episode,
