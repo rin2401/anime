@@ -333,8 +333,9 @@
                 animeCard.classList.add('anime-card');
 
                 const link = document.createElement('a');
-                if (image.url) {
-                    link.href = getAnimeUrl(image.url)
+                var url = image.playlist || image.url
+                if (url) {
+                    link.href = getAnimeUrl(url)
                 }
                 // link.target = "_blank";
 
