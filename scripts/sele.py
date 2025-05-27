@@ -29,7 +29,7 @@ xhr.send();
         raise Exception("Request failed with status %s" % result)
     return base64.b64decode(result)
 
-def crawl_m3u8(url):
+def crawl_m3u8(url, timeout=10):
     try:
         driver.get(url)
         title = driver.title
@@ -38,7 +38,7 @@ def crawl_m3u8(url):
         if not title:
             return None, None
 
-        WebDriverWait(driver, 20).until(
+        WebDriverWait(driver, timeout).until(
             lambda d: d.execute_script("return typeof jwplayer === 'function' && typeof jwplayer().getPlaylist === 'function';")
         )
 

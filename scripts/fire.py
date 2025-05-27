@@ -21,15 +21,10 @@ def update_ep(title, m3u8_data, fire_path):
 
 
 def update_anime(anime_id, title, episodes):
-
     data = {}
-    for d in tqdm(episodes.split("\n")):
-        if not d.strip():
-            continue
-
-        id, url = d.split(":", 1)
-        id = id.strip()
-        url = url.strip()
+    for d in tqdm(episodes):
+        id = str(d["ep"])
+        url = d["path"]
 
         item = {
             "id": id,
@@ -43,14 +38,12 @@ def update_anime(anime_id, title, episodes):
         # ref = db.reference(f"anime/{anime_id}/{id}")
         # ref.set(item)
 
-
-    print(data)
     ref = db.reference(f"anime/{anime_id}")
     ref.set(list(data.values()))
 
 if __name__ == "__main__":
-    data = """S6: https://r3fire.firebaseio.com/animevietsub/105606.json
-1128.5: https://r3fire.firebaseio.com/animevietsub/106297.json
-1129: https://r3fire.firebaseio.com/animevietsub/106436.json
-1130: https://r3fire.firebaseio.com/animevietsub/106564.json"""
-    update_anime("21", "One Piece", data)
+    import json
+    with open("yeuphim/dao-hai-tac.jsonl") as f:
+        data = [json.loads(l) for l in f]
+
+    update_anime("dao-hai-tac", "One Piece", data)
