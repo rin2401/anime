@@ -124,7 +124,6 @@
         }
 
         function setupPlayer(data) {
-            var url2Id = {};
             var M = {};
 
             var episodeList = [];
@@ -134,7 +133,6 @@
                     return
                 }
 
-                url2Id[episode.file] = episode.id;
                 M[episode.id] = episodeList.length;
                 episodeList.push({
                     id: episode.id,
@@ -145,7 +143,7 @@
             console.log('Episode list:', episodeList);
 
             var e = String(getUrlParameter('e'));
-            var initialIndex = e ? M[e] : 0;
+            var initialIndex = e ? M[e] || episodeList.length - 1 : episodeList.length - 1;
             updateParams(episodeList[initialIndex].id)
 
             var art = new Artplayer({
