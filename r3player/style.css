@@ -214,7 +214,6 @@ body {
 
 .play-pause, .prev, .next {
     display: flex;
-    margin-right: 0.5rem;
 }
 
 .control-btn {
@@ -228,7 +227,7 @@ body {
     border: 1px solid transparent;
     box-sizing: border-box;
     position: relative;
-    margin-right: 0.5rem;
+    margin-right: 0.2rem;
 }
 
 .control-btn:last-child {
