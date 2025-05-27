@@ -129,7 +129,7 @@
             return urlParams.get(name);
         }
 
-        function updateUrlWithIndex(index) {
+        function updateParams(index) {
             const url = new URL(window.location.href);
             url.searchParams.set('e', index);
             window.history.replaceState({}, '', url);
@@ -155,13 +155,12 @@
 
 
         const id = getUrlParameter('id')
-        const url = `https://r3fire.firebaseio.com/anime/${id}.json`
-        fetch(url).then(response => response.json()).then(setupPlayer)
+        const playlistUrl = `https://r3fire.firebaseio.com/anime/${id}.json`
+        fetch(playlistUrl).then(response => response.json()).then(setupPlayer)
 
         var episodeList = [];
         var e = String(getUrlParameter('e'));
         var M = {};
-
         var initialIndex = 0;
 
         console.log(e, initialIndex)
@@ -187,29 +186,28 @@
             if (e) {
                 initialIndex = M[e] || 0;
             }
-            var url = episodeList[initialIndex].file
-            loadVideo(url)
+            loadVideo(episodeList[initialIndex].file)
         }
 
         function loadVideo(url) {
             if (url.endsWith(".json")) {
                 fetch(url).then(response => response.json()).then(function (data) {
-                    playM3u8Text(data.m3u8)
+                    playM3u8Text(url, data.m3u8)
                 })
             }
             else if (url.match(/.*phim1280.*\.m3u8/)) {
                 fetch(url).then(response => response.text()).then(function (m3u8) {
                     m3u8 = removeAds(m3u8, url)
-                    playM3u8Text(m3u8)
+                    playM3u8Text(url, m3u8)
                 })
             } else {
                 playM3u8(url)
             }
             document.title = episodeList[initialIndex].title;
-            updateUrlWithIndex(episodeList[initialIndex].id);
+            updateParams(episodeList[initialIndex].id);
             setMediaSession(episodeList[initialIndex].title);
-        }
 
+        }
 
         prev.addEventListener("click", function () {
             initialIndex = Math.max(0, initialIndex - 1);

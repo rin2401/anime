@@ -419,6 +419,29 @@ function toggleMiniPlayer() {
     }
 }
 
+
+async function handlePiPExit() {
+    try {
+        if (document.exitPictureInPicture) {
+            await document.exitPictureInPicture();
+        } else if (video.webkitSetPresentationMode) {
+            await video.webkitSetPresentationMode('inline');
+        }
+    } catch (err) {
+        console.error('Exit PiP failed:', err);
+    }
+}
+
+
+video.addEventListener('leavepictureinpicture', handlePiPExit);
+
+video.addEventListener('webkitpresentationmodechanged', () => {
+    if (video.webkitPresentationMode === 'inline') {
+        handlePiPExit();
+    }
+});
+
+
 function handleSettingMenu() {
     settingMenu.classList.toggle("show-setting-menu");
 }
@@ -514,17 +537,19 @@ function playM3u8(url) {
         console.log(hls)
         hls.on(Hls.Events.MANIFEST_PARSED, function () {
             video.play();
+            loadSavedTime(url)
         });
     } else if (video.canPlayType(hlsMimeType)) {
         video.type = hlsMimeType;
         video.src = url;
         video.addEventListener('canplay', function () {
             video.play();
+            loadSavedTime(url)
         });
     }
 }
 
-function playM3u8Text(m3u8Text) {
+function playM3u8Text(url, m3u8Text) {
     const hlsMimeType = "application/vnd.apple.mpegurl";
     console.log("HLS m3u8 text:", Hls.isSupported())
     if (Hls.isSupported()) {
@@ -535,6 +560,7 @@ function playM3u8Text(m3u8Text) {
         console.log(hls)
         hls.on(Hls.Events.MANIFEST_PARSED, function () {
             video.play();
+            loadSavedTime(url)
         });
     } else if (video.canPlayType(hlsMimeType)) {
         video.type = hlsMimeType;
@@ -542,6 +568,7 @@ function playM3u8Text(m3u8Text) {
         video.load()
         video.addEventListener('canplay', function () {
             video.play();
+            loadSavedTime(url)
         });
     }
 }
@@ -581,4 +608,26 @@ function setMediaSession(title) {
             ]
         });
     }
+}
+
+var intervalId = null;
+
+function loadSavedTime(url) {
+    if (intervalId) {
+        clearInterval(intervalId);
+    }
+    const STORAGE_KEY = "history";
+    const history = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    if (history[url]) {
+        video.currentTime = history[url];
+        console.log("Get time:", url, history[url], video.currentTime);
+    }
+
+    intervalId = setInterval(() => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            ...JSON.parse(localStorage.getItem(STORAGE_KEY)),
+            [url]: parseInt(video.currentTime)
+        }));
+        console.log("Saved time:", url, parseInt(video.currentTime));
+    }, 5000);
 }
