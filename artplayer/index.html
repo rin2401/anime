@@ -133,9 +133,10 @@
                     return
                 }
 
-                M[episode.id] = episodeList.length;
+                id = episode.id || id
+                M[id] = episodeList.length;
                 episodeList.push({
-                    id: episode.id,
+                    id: id,
                     title: episode.title,
                     url: episode.file
                 });
