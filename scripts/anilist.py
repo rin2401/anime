@@ -1,9 +1,5 @@
 import re
 import requests
-from google_search import custom_search
-from animevietsub import crawl_ep
-from sheet import add_row
-
 
 def search_anilist(query):
     url = "https://graphql.anilist.co"
@@ -36,7 +32,7 @@ def search_anilist(query):
     data = response.json()
     return data.get('data', {}).get('Page', {}).get('media', [])
 
-def crawl_anilist(anime_id):
+def api_anilist(anime_id):
     """
     Fetch anime details from AniList by anime ID.
     Returns a dict with anime info, or None if not found.
@@ -53,6 +49,12 @@ def crawl_anilist(anime_id):
         }
         description(asHtml: false)
         episodes
+        streamingEpisodes {
+          title
+          thumbnail
+          url
+          site
+        }
         averageScore
         genres
         startDate { year month day }
@@ -80,6 +82,11 @@ def crawl_anilist(anime_id):
     if not anime:
         print("Anime not found for id:", anime_id)
         return None
+
+    return anime
+
+def crawl_anilist(anime_id):
+    anime = api_anilist(anime_id)
     return extract_info(anime)
 
 def extract_info(anime):
@@ -130,56 +137,14 @@ def animevietsub_search(query):
 
     return res
 
-def get_anilist_stream(id, url=None, search=False):
-    d = crawl_anilist(id)
-    print(d)
-
-    title = d["title_romaji"]
-    print(title)
-
-    if not url and search==True:
-        urls = []
-        # urls = animevietsub_search(title)
-        # print("animevietsub_search:", urls)
-        if len(urls) != 1:
-            query = f"{title} site:animevietsub.lol"
-            print("Search:", query)
-            res = custom_search(query)
-            print(res)
-            urls = [x["original_url"] for x in res]
-            print("google_search:", urls)
-
-        if urls:
-            url = urls[0]
-
-    category = ""
-    if d.get("format") == "MOVIE":
-        category = "Movie"
-    elif d.get("format") == "TV":
-        category = "TV Show"
-
-
-    row = {
-        "id": id,
-        "name": title,
-        "image": d["image"],
-        "year": d["start_date"]["year"],
-        "anilist_id": id,
-        "category": category,
-    }
-
-    if url:
-        row["url"] = url
-        if row["category"] == "Movie":
-            p = crawl_ep(url, title=title)
-            row["episodes"] = f"1: {p}"
-
-    print(row)
-    add_row(row)
+def get_anilist_crunchyroll(id):
+    res = api_anilist(id)
+    episodes = res.get("streamingEpisodes")
+    for x in episodes:
+        x["id"] = x["title"].split("-")[0].replace("Episode", "").strip()
+        
+    return episodes
 
 if __name__ == "__main__":
-    import sys
-    if len(sys.argv) > 1:
-        get_anilist_stream(int(sys.argv[1]))
-    elif len(sys.argv) > 2:
-        get_anilist_stream(int(sys.argv[1]), sys.argv[2])
+    res = get_anilist_crunchyroll(20)
+    print(res[0])

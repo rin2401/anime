@@ -2,6 +2,7 @@ import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import db
 from tqdm.auto import tqdm
+from anilist import get_anilist_crunchyroll
 
 DB_URL = "https://r3fire.firebaseio.com"
 
@@ -21,7 +22,12 @@ def update_ep(title, m3u8_data, fire_path):
 
 
 def update_anime(anime_id, title, episodes):
-    data = {}
+    items = []
+    episodes = sorted(episodes, key=lambda x: x["id"])
+
+    res = get_anilist_crunchyroll(anime_id)
+    M = {x["id"]: x["thumbnail"] for x in res}
+
     for d in tqdm(episodes):
         id = str(d["ep"])
         url = d["path"]
@@ -30,20 +36,29 @@ def update_anime(anime_id, title, episodes):
             "id": id,
             "title": title + " - " + id,
             "file": url,
-            "type": "hls"
+            "type": "hls",
         }
 
-        data[id] = item
+        image =  M.get(id)
+        if image:
+            item["image"] = image
 
-        # ref = db.reference(f"anime/{anime_id}/{id}")
-        # ref.set(item)
+        items.append(item)
+
+    print(items)
 
     ref = db.reference(f"anime/{anime_id}")
-    ref.set(list(data.values()))
+    ref.set(items)
 
 if __name__ == "__main__":
     import json
-    with open("yeuphim/dao-hai-tac.jsonl") as f:
+    name = "naruto"
+    title = "Naruto"
+    anime_id = 20
+
+    with open(f"yeuphim/{name}.jsonl") as f:
         data = [json.loads(l) for l in f]
 
-    update_anime("dao-hai-tac", "One Piece", data)
+    update_anime(anime_id, title, data)
+
+    print(f"/anime/artplayer?id={anime_id}")

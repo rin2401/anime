@@ -47,6 +47,10 @@ def jwplayer():
 def r3player():
     return render_template('r3player/index.html')
 
+@bp.route('/artplayer/')
+def artplayer():
+    return render_template('artplayer/index.html')
+
 app.register_blueprint(bp)
 
 if __name__ == '__main__':

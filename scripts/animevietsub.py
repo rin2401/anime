@@ -108,18 +108,19 @@ def crawl_ep(url, title=None):
     path = update_animevietsub(url, fire_path, title=title)
     return path
 
-def crawl_animevietsub(url, title=None, last=False):
+def crawl_animevietsub(url, title=None, last=0):
     with open("animevietsub.txt", "a") as f:
         f.write(url + "\n")
     driver.get(url)
+
     WebDriverWait(driver, 15).until(
         EC.presence_of_all_elements_located((By.CSS_SELECTOR, "li.episode"))
     )
     links = driver.find_elements(By.CSS_SELECTOR, "li.episode a")
 
     urls = [link.get_attribute("href") for link in links]
-    if last:
-        urls = urls[-1:]
+    if last > 0:
+        urls = urls[-last:]
     print(urls)    
 
     lines = []
@@ -144,10 +145,32 @@ def crawl_animevietsub(url, title=None, last=False):
 
     return "\n".join(lines)
 
-if __name__ == "__main__":
-    # url = "https://animevietsub.lol/phim/one-piece-vua-hai-tac-a1/tap-special6-105606.html"
-    # path = crawl_animevietsub(url, title="One Piece", last=True)    
+def animevietsub_search(query):
+    url = "https://animevietsub.lol/ajax/suggest"
 
-    url = "https://animevietsub.lol/phim/shin-samurai-den-yaiba-a5607/tap-01-105590.html"
-    path = crawl_animevietsub(url, title="Shin Samurai-den YAIBA", last=True)    
-    print(path)
+    payload = {
+        "ajaxSearch": "1",
+        "keysearch": query
+    }
+    headers = {
+      'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+    }
+
+    response = requests.post(url, headers=headers, data=payload)
+
+
+    res = re.findall("<a href=\"(http.*?)\"", response.text)
+
+    return res
+
+
+if __name__ == "__main__":
+    url = "https://animevietsub.lol/phim/one-piece-vua-hai-tac-a1/tap-special6-105606.html"
+    path = crawl_animevietsub(url, title="One Piece", last=100)    
+
+    # url = "https://animevietsub.lol/phim/shin-samurai-den-yaiba-a5607/tap-01-105590.html"
+    # path = crawl_animevietsub(url, title="Shin Samurai-den YAIBA", last=True)    
+    # print(path)
+
+    # url = "https://animevietsub.lol/phim/gio-noi-the-wind-rises-s1-a1438/tap-01-19370.html"
+    # crawl_ep(url, title="Kaze Tachinu")

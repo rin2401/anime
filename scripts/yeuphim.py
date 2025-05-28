@@ -22,9 +22,6 @@ def update_yeuphim(url, timeout=10):
     return file_url
 
 def crawl_yeuphim(url):
-    # with open("yeuphim.txt", "a") as f:
-    #     f.write(url + "\n")
-
     driver.get(url)
     # Wait until the episode links are present
     WebDriverWait(driver, 15).until(
@@ -55,9 +52,11 @@ def crawl_yeuphim(url):
         if id in M:
             path = M[id]
         else:
-            path = update_yeuphim(url.replace(str(id), str(id-1)), timeout=5)
-            if not path:
+            if id % 2 == 1:
                 path = update_yeuphim(url, timeout=5)
+            else:
+                path = update_yeuphim(url.replace(str(id), str(id-1)), timeout=5)
+
             if not path:
                 continue
             with open(file_path, "a") as f:
