@@ -94,58 +94,89 @@
             return m3u8
         }
 
-        const id = getUrlParameter('id')
-        const url = `https://r3fire.firebaseio.com/anime/${id}.json`
-        fetch(url).then(response => response.json()).then(setupPlayer)
-
-        function playM3u8(video, url, art) {
-            fetch(url)
-                .then(response => response.text())
-                .then(data => {
-                    m3u8 = removeAds(data, url)
-                    if (Hls.isSupported()) {
-                        if (art.hls) art.hls.destroy();
-                        const hls = new Hls();
-                        hls.loadSource(createBlobUrl(m3u8));
-                        hls.attachMedia(video);
-                        art.hls = hls;
-                        art.on('destroy', () => hls.destroy());
-                    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                        video.src = createBase64Url(m3u8);
-
-                    } else {
-                        art.notice.show = 'Unsupported playback format: m3u8';
-                    }
-                })
-                .catch(error => {
-                    console.error(error);
-                });
+        function playM3u8Text(video, m3u8, art) {
+            if (Hls.isSupported()) {
+                if (art.hls) art.hls.destroy();
+                const hls = new Hls();
+                var blob = createBlobUrl(m3u8)
+                hls.loadSource(blob);
+                hls.attachMedia(video);
+                art.hls = hls;
+                art.on('destroy', () => hls.destroy());
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = createBase64Url(m3u8);
+            }
         }
 
-        function playJson(video, url, art) {
-            fetch(url)
-                .then(response => response.json())
-                .then(data => {
-                    m3u8 = data.m3u8
-                    if (Hls.isSupported()) {
-                        if (art.hls) art.hls.destroy();
-                        const hls = new Hls();
-                        hls.loadSource(createBlobUrl(m3u8));
-                        hls.attachMedia(video);
-                        art.hls = hls;
-                        art.on('destroy', () => hls.destroy());
-                    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                        video.src = createBase64Url(m3u8);
-                    } else {
-                        art.notice.show = 'Unsupported playback format: m3u8';
-                    }
-                })
-                .catch(error => {
-                    console.error(error);
-                });
+        async function playM3u8(video, url, art) {
+            var res = await fetch(url)
+            if (!res.ok) {
+                console.error(res);
+                return
+            }
+            var m3u8 = await res.text()
+            const regex = /.*?\.m3u8/gi;
+            const links = m3u8.match(regex);
+            if (links.length > 0) {
+                url = url.split("/").slice(0, -1).join("/") + "/" + links[0]
+                res = await fetch(url)
+                if (!res.ok) {
+                    console.error(res);
+                    return
+                }
+                m3u8 = await res.text()
+            }
+            console.log(url)
+
+            m3u8 = removeAds(m3u8, url)
+            playM3u8Text(video, m3u8, art)
+        }
+
+        async function playJson(video, url, art) {
+            res = await fetch(url)
+            if (!res.ok) {
+                console.error(res);
+                return
+            }
+            var data = await res.json()
+            var m3u8 = data.m3u8
+            playM3u8Text(video, m3u8, art)
         }
 
         var imageUrl = "/anime/image/r3_512.png"
+
+
+        const id = getUrlParameter('id')
+        const k = getUrlParameter('k')
+
+        if (id) {
+            const url = `https://r3fire.firebaseio.com/anime/${id}.json`
+            fetch(url).then(response => response.json()).then(setupPlayer)
+        } else if (k) {
+            const url = "https://phimapi.com/phim/" + k
+            fetch(url).then(response => response.json())
+                .then(data => {
+                    var playlist = data.episodes[0].server_data.map((item) => {
+                        var id = 1
+                        if (item.slug.includes("tap")) {
+                            let num = Number(item.slug.replace("tap-", ""));
+                            if (Number.isInteger(num)) {
+                                id = num
+                            }
+                        }
+
+                        return {
+                            id: id,
+                            title: data.movie.name + " - " + id,
+                            file: item.link_m3u8,
+                            image: data.movie.thumb_url || imageUrl,
+                        }
+                    })
+                    setupPlayer(playlist)
+                })
+        }
+
+
 
         function setupPlayer(data) {
             var M = {};
@@ -176,6 +207,7 @@
             var art = new Artplayer({
                 container: '.artplayer-app',
                 url: episodeList[initialIndex].url,
+                poster: episodeList[initialIndex].image || imageUrl,
                 setting: true,
                 isLive: false,
                 muted: false,
