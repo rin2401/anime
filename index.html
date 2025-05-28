@@ -552,7 +552,7 @@
             selectedYear.value = ""
             selectedSeason.value = ""
 
-            const res = await fetch(`https://phimapi.com/v1/api/tim-kiem?keyword=${q}&page=1&limit=64`)
+            const res = await fetch(`https://phimapi.com/v1/api/tim-kiem?keyword=${q}&page=1&limit=64&sort_field=year&sort_order=desc`)
             const data = await res.json()
             var items = data.data.items.map(item => {
                 return {
