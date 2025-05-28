@@ -235,12 +235,12 @@
             return images
         }
 
-        function populateFilters() {
+        function populateFilters(sYear = null, sCate = "TV Show", sSeason = "") {
             var categories = new Set();
             var years = new Set();
             var seasons = new Set();
 
-            images.forEach(image => {
+            images.map(image => {
                 categories.add(image.category);
                 years.add(image.year);
                 seasons.add(image.season);
@@ -251,34 +251,43 @@
             seasons = Array.from(seasons).sort()
 
             const categoryFilter = document.getElementById('categoryFilter');
-            categories.forEach(category => {
+            categories.map(category => {
                 const option = document.createElement('option');
                 option.value = category;
                 option.textContent = category;
-                if (category == "TV Show") {
+                if (category == sCate) {
                     option.selected = true;
                 }
                 categoryFilter.appendChild(option);
             });
 
             const yearFilter = document.getElementById('yearFilter');
-            years.forEach((year, i) => {
+            years.map((year, i) => {
                 const option = document.createElement('option');
                 option.value = year;
                 option.textContent = year;
-                var currentYear = new Date().getFullYear();
-                if (i == 0 && parseInt(year) <= currentYear) {
-                    console.log(i, parseInt(year), currentYear)
-                    option.selected = true;
+                if (sYear == null) {
+                    var currentYear = new Date().getFullYear();
+                    if (i == 0 && parseInt(year) <= currentYear) {
+                        console.log(i, parseInt(year), currentYear)
+                        option.selected = true;
+                    }
+                } else {
+                    if (year == sYear) {
+                        option.selected = true;
+                    }
                 }
                 yearFilter.appendChild(option);
             });
 
             const seasonFilter = document.getElementById('seasonFilter');
-            seasons.forEach(season => {
+            seasons.map(season => {
                 const option = document.createElement('option');
                 option.value = season;
                 option.textContent = season;
+                if (season == sSeason) {
+                    option.selected = true;
+                }
                 seasonFilter.appendChild(option);
             });
         }
@@ -438,13 +447,21 @@
 
             var filteredImages = images.filter(image => {
                 return (
-                    (selectedCategory.value === '' || image.category === selectedCategory.value) &&
-                    (selectedYear.value === '' || image.year === selectedYear.value) &&
-                    (selectedSeason.value === '' || image.season === selectedSeason.value)
+                    (!selectedCategory.value || image.category == selectedCategory.value) &&
+                    (!selectedYear.value || image.year == selectedYear.value) &&
+                    (!selectedSeason.value || image.season == selectedSeason.value)
                 );
             });
 
+            // const q = getUrlParameter("q")
+            // if (q) {
+            //     filteredImages = filteredImages.filter(image => image.name.toLowerCase().includes(q.toLowerCase()))
+            // }
+
             filteredImages = filteredImages.sort((a, b) => b.status.localeCompare(a.status))
+
+            console.log(filteredImages)
+
             filteredImages.map(image => {
                 const animeCard = createAnimeCard(image, history)
                 imageContainer.appendChild(animeCard);
@@ -455,11 +472,44 @@
         selectedYear.addEventListener('change', displayImages);
         selectedSeason.addEventListener('change', displayImages);
 
+        function getUrlParameter(name) {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get(name);
+        }
+
+        async function searchAnime(q) {
+            selectedCategory.value = ""
+            selectedYear.value = ""
+            selectedSeason.value = ""
+
+            const res = await fetch(`https://phimapi.com/v1/api/tim-kiem?keyword=${q}&page=1&limit=64`)
+            const data = await res.json()
+            var items = data.data.items.map(item => {
+                return {
+                    id: item._id,
+                    name: item.origin_name,
+                    image: data.data.APP_DOMAIN_CDN_IMAGE + "/" + item.poster_url,
+                    category: item.type,
+                    year: item.year,
+                    phimapi: item.slug,
+                    status: ""
+                }
+            })
+
+            return items
+        }
+
         async function initData() {
-            images = await fetchImageData('12q04f4hwtVQjfVSUayDsgXLGGbqrl9urm8gp556nPQA', "1193967919");
+            const q = getUrlParameter("q")
+            if (q) {
+                images = await searchAnime(q)
+                populateFilters("", "", "")
 
+            } else {
+                images = await fetchImageData('12q04f4hwtVQjfVSUayDsgXLGGbqrl9urm8gp556nPQA', "1193967919");
+                populateFilters()
+            }
 
-            populateFilters()
             displayImages()
         }
 
