@@ -117,7 +117,7 @@
             var m3u8 = await res.text()
             const regex = /.*?\.m3u8/gi;
             const links = m3u8.match(regex);
-            if (links.length > 0) {
+            if (links) {
                 url = url.split("/").slice(0, -1).join("/") + "/" + links[0]
                 res = await fetch(url)
                 if (!res.ok) {
@@ -167,7 +167,7 @@
 
                         return {
                             id: id,
-                            title: data.movie.name + " - " + id,
+                            title: data.movie.origin_name + " - " + id,
                             file: item.link_m3u8,
                             image: data.movie.thumb_url || imageUrl,
                         }
