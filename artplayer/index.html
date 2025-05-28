@@ -8,14 +8,17 @@
     <link rel="icon" type="image/png" href="https://rin2401.github.io/anime/image/r3_512.png">
     <meta property="og:image" content="https://rin2401.github.io/anime/image/r3.png">
 
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/artplayer@latest/dist/artplayer.css">
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.17/hls.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/artplayer@latest/dist/artplayer.js"></script>
     <script
         src="https://cdn.jsdelivr.net/npm/artplayer-plugin-hls-control@latest/dist/artplayer-plugin-hls-control.js"></script>
     <!-- <script src="https://cdn.jsdelivr.net/npm/artplayer-playlist/dist/artplayer-plugin-playlist.min.js"></script> -->
     <script src="artplayer-plugin-playlist.browser.js"></script>
-
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/artplayer@latest/dist/artplayer.css">
+    <!-- <script src="
+    https://cdn.jsdelivr.net/npm/artplayer-plugin-auto-thumbnail@1.0.1/dist/artplayer-plugin-auto-thumbnail.min.js
+    "></script> -->
     <style>
         html,
         body {
@@ -36,17 +39,17 @@
     <div class="artplayer-app"></div>
 
     <script>
-        imageUrl = "/anime/image/r3_512.png"
-
         function getUrlParameter(name) {
             const urlParams = new URLSearchParams(window.location.search);
             return urlParams.get(name);
         }
 
-        function updateParams(index) {
+        function updateParams(episode) {
             const url = new URL(window.location.href);
-            url.searchParams.set('e', index);
+            url.searchParams.set('e', episode.id);
             window.history.replaceState({}, '', url);
+            document.title = episode.title
+            setMediaSession(episode.title)
         }
         function createBlobUrl(data, mimeType = "application/vnd.apple.mpegurl") {
             const blob = new Blob([data], { type: mimeType });
@@ -79,7 +82,6 @@
         const id = getUrlParameter('id')
         const url = `https://r3fire.firebaseio.com/anime/${id}.json`
         fetch(url).then(response => response.json()).then(setupPlayer)
-
 
         function playM3u8(video, url, art) {
             fetch(url)
@@ -119,7 +121,6 @@
                         art.on('destroy', () => hls.destroy());
                     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                         video.src = createBase64Url(m3u8);
-
                     } else {
                         art.notice.show = 'Unsupported playback format: m3u8';
                     }
@@ -128,6 +129,27 @@
                     console.error(error);
                 });
         }
+
+
+        function setMediaSession(title) {
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.metadata = new MediaMetadata({
+                    title: title,
+                    artwork: [
+                        {
+                            src: '/anime/image/r3_512.png', sizes: '512x512',
+                            type: 'image/png'
+                        },
+                        {
+                            src: '/anime/image/r3_128.png', sizes: '128x128',
+                            type: 'image/png'
+                        },
+                    ]
+                });
+            }
+        }
+
+        var imageUrl = "/anime/image/r3_512.png"
 
         function setupPlayer(data) {
             var M = {};
@@ -144,7 +166,9 @@
                 episodeList.push({
                     id: id,
                     title: episode.title,
-                    url: episode.file
+                    url: episode.file,
+                    image: imageUrl,
+
                 });
             });
             console.log('Episode list:', episodeList);
@@ -152,8 +176,7 @@
             var e = String(getUrlParameter('e'));
             var initialIndex = M[e] ?? episodeList.length - 1;
 
-            updateParams(episodeList[initialIndex].id)
-            document.title = episodeList[initialIndex].title
+            updateParams(episodeList[initialIndex])
 
             var art = new Artplayer({
                 container: '.artplayer-app',
@@ -210,13 +233,15 @@
                         rebuildPlayer: false,
                         onchanged: (art, index) => {
                             console.log("Video Change", index)
-                            updateParams(episodeList[index].id)
-                            document.title = episodeList[index].title
+                            updateParams(episodeList[index])
                         },
                         autoNext: true,
                         showText: false,
                         playlist: episodeList,
-                    })
+                    }),
+                    // artplayerPluginAutoThumbnail({
+                    //     //
+                    // }),
                 ],
                 customType: {
                     m3u8: playM3u8,
