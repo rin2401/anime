@@ -152,6 +152,7 @@
             var e = String(getUrlParameter('e'));
             var initialIndex = e ? M[e] || episodeList.length - 1 : episodeList.length - 1;
             updateParams(episodeList[initialIndex].id)
+            document.title = episodeList[initialIndex].title
 
             var art = new Artplayer({
                 container: '.artplayer-app',
