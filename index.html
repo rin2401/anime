@@ -201,48 +201,38 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/blueimp-md5/2.19.0/js/md5.min.js"></script>
     <script>
         const imageContainer = document.getElementById('imageContainer');
-
         var images = []
 
-        function fetchImageData(id, gid) {
+        async function fetchImageData(id, gid) {
             var url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:json&tq&gid=${gid}`;
 
-            fetch(url)
-                .then(x => x.text())
-                .then(txt => {
-                    var jsonString = txt.match(/(?<="table":).*(?=}\);)/g)[0]
-                    var json = JSON.parse(jsonString)
+            res = await fetch(url)
+            txt = await res.text()
 
-                    var table = []
-                    var row = []
-                    json.cols.forEach(colonne => row.push(colonne.label))
-                    table.push(row)
-                    json.rows.forEach(r => {
-                        var row = []
-                        r.c.forEach(cel => {
-                            try {
-                                var value = cel.f ? cel.f : cel.v
-                            } catch (e) {
-                                var value = ''
-                            }
-                            row.push(value)
-                        })
-                        table.push(row)
-                    })
+            var jsonString = txt.match(/(?<="table":).*(?=}\);)/g)[0]
+            var data = JSON.parse(jsonString)
 
-                    var cols = table[0]
-                    for (let i = 1; i < table.length; i++) {
-                        image = {};
-                        for (let j = 0; j < cols.length; j++) {
-                            image[cols[j]] = table[i][j]
-                        }
-                        images.push(image)
+            var cols = data.cols.map(colonne => colonne.label)
+            var table = data.rows.map(r => {
+                return r.c.map(cel => {
+                    try {
+                        var value = cel.f ? cel.f : cel.v
+                    } catch (e) {
+                        var value = ''
                     }
-                    console.log(images)
-
-                    populateFilters()
-                    displayImages()
+                    return value
                 })
+            })
+            images = table.map(row => {
+                var image = {}
+                cols.map((col, i) => {
+                    image[col] = row[i]
+                })
+                return image
+            })
+            // console.log(images)
+
+            return images
         }
 
         function populateFilters() {
@@ -308,186 +298,192 @@
             }
         }
 
+        function renderEpisodesPage(epBox, episodes, page, history) {
+            const PAGE_SIZE = 54;
+            epBox.innerHTML = "";
+            let start = page * PAGE_SIZE;
+            let end = start + PAGE_SIZE;
+            let pageEpisodes = episodes.slice(start, end);
+            const totalPages = Math.ceil(episodes.length / PAGE_SIZE);
+
+            if (totalPages > 1) {
+                if (page > 0 && page < totalPages - 1) {
+                    pageEpisodes = [["❮❮", null], ...episodes.slice(start - 1, end - 1), ["❯❯", null]];
+                } else if (page === 0 && totalPages > 1) {
+                    if (episodes.length > PAGE_SIZE) {
+                        pageEpisodes = [...episodes.slice(start, end - 1), ["❯❯", null]];
+                    }
+                } else if (page === totalPages - 1 && page > 0) {
+                    pageEpisodes = [["❮❮", null], ...episodes.slice(start - 1, end)];
+                }
+            }
+
+            for (const [idx, url] of pageEpisodes) {
+                let o = document.createElement('a');
+                o.classList.add('anime-ep');
+                if (idx === "❮❮") {
+                    o.textContent = "❮❮";
+                    o.onclick = () => {
+                        page = Math.max(0, page - 1);
+                        renderEpisodesPage(epBox, episodes, page, history);
+                    };
+                } else if (idx === "❯❯") {
+                    o.textContent = "❯❯";
+                    o.onclick = () => {
+                        page = Math.min(totalPages - 1, page + 1);
+                        renderEpisodesPage(epBox, episodes, page, history);
+                    };
+                } else {
+                    if (url) {
+                        o.href = getAnimeUrl(url)
+                        o.target = "_blank";
+                    }
+                    const epText = document.createElement('span');
+                    epText.classList.add('anime-ep-text');
+                    epText.textContent = idx;
+                    if (url in history) {
+                        epText.style.color = "#0d6efd";
+                    }
+
+                    o.appendChild(epText);
+                }
+                epBox.appendChild(o);
+            }
+        }
+
+        function createAnimeCard(image, history) {
+            const animeCard = document.createElement('div');
+            animeCard.classList.add('anime-card');
+
+            const link = document.createElement('a');
+
+            var url = image.url
+
+            if (image.phimapi) {
+                url = `/anime/artplayer/?k=${image.phimapi}`
+            } else if (image.playlist) {
+                url = `/anime/artplayer/?id=${image.playlist}`
+            }
+
+            if (url) {
+                link.href = getAnimeUrl(url)
+            }
+            // link.target = "_blank";
+
+            const img = document.createElement('img');
+            img.src = image.image || "/anime/image/lazy.png";
+            img.classList.add('img-thumbnail');
+
+            link.appendChild(img);
+
+
+            const epBox = document.createElement('div');
+            epBox.classList.add('anime-ep-box');
+
+            if (image.episodes) {
+                try {
+                    const episodes = image.episodes
+                        .split("\n")
+                        .map(e => e.trim())
+                        .filter(e => e)
+                        .map(e => {
+                            s = e.split(":");
+                            ep = s[0].trim();
+                            url = s.slice(1).join(":").trim();
+                            return [ep, url];
+                        })
+
+                    console.log("Episodes:", episodes.length)
+                    renderEpisodesPage(epBox, episodes, 0, history);
+                } catch (e) {
+                    console.log(e)
+                }
+            } else if (image.ep) {
+                const epContainer = document.createElement('a');
+                epContainer.classList.add('anime-ep');
+
+                const epText = document.createElement('span');
+                epText.classList.add('anime-ep-text');
+                epText.textContent = image.ep;
+
+                epContainer.appendChild(epText);
+                epBox.appendChild(epContainer);
+            }
+
+            if (image.name) {
+                const nameLabel = document.createElement('div');
+                nameLabel.classList.add('anime-name-label');
+                nameLabel.textContent = image.name;
+                animeCard.appendChild(nameLabel);
+            }
+
+            animeCard.appendChild(epBox);
+            animeCard.appendChild(link);
+
+            return animeCard
+        }
+
+        const authUrl = "/anime/auth"
+        const avatarBtn = document.getElementById('user-avatar-btn');
+        const filterContainer = document.getElementById('filter-container');
+        const userAvatar = document.getElementById('user-avatar');
+        const avatarDropdown = document.getElementById('avatarDropdown');
+        const selectedCategory = document.getElementById('categoryFilter');
+        const selectedYear = document.getElementById('yearFilter');
+        const selectedSeason = document.getElementById('seasonFilter');
+
         function displayImages() {
-            const history = JSON.parse(localStorage.getItem("history")) || {};
-
             const imageContainer = document.getElementById('imageContainer');
-            imageContainer.innerHTML = ''; // Clear the container
-
-            const selectedCategory = document.getElementById('categoryFilter').value;
-            const selectedYear = document.getElementById('yearFilter').value;
-            const selectedSeason = document.getElementById('seasonFilter').value;
+            imageContainer.innerHTML = '';
+            const history = JSON.parse(localStorage.getItem("history")) || {};
 
             var filteredImages = images.filter(image => {
                 return (
-                    (selectedCategory === '' || image.category === selectedCategory) &&
-                    (selectedYear === '' || image.year === selectedYear) &&
-                    (selectedSeason === '' || image.season === selectedSeason)
+                    (selectedCategory.value === '' || image.category === selectedCategory.value) &&
+                    (selectedYear.value === '' || image.year === selectedYear.value) &&
+                    (selectedSeason.value === '' || image.season === selectedSeason.value)
                 );
             });
 
             filteredImages = filteredImages.sort((a, b) => b.status.localeCompare(a.status))
-
-            filteredImages.forEach(image => {
-                const animeCard = document.createElement('div');
-                animeCard.classList.add('anime-card');
-
-                const link = document.createElement('a');
-
-                var url = image.url
-
-                if (image.phimapi) {
-                    url = `/anime/artplayer/?k=${image.phimapi}`
-                } else if (image.playlist) {
-                    url = `/anime/artplayer/?id=${image.playlist}`
-                }
-
-                if (url) {
-                    link.href = getAnimeUrl(url)
-                }
-                // link.target = "_blank";
-
-                const img = document.createElement('img');
-                img.src = image.image || "/anime/image/lazy.png";
-                img.classList.add('img-thumbnail');
-
-                link.appendChild(img);
-
-
-                const epBox = document.createElement('div');
-                epBox.classList.add('anime-ep-box');
-
-                if (image.episodes) {
-                    try {
-                        const episodes = image.episodes
-                            .split("\n")
-                            .map(e => e.trim())
-                            .filter(e => e)
-                            .map(e => {
-                                s = e.split(":");
-                                ep = s[0].trim();
-                                url = s.slice(1).join(":").trim();
-                                return [ep, url];
-                            })
-
-                        console.log("Episodes:", episodes.length)
-                        const PAGE_SIZE = 54;
-                        let currentPage = 0;
-                        const totalPages = Math.ceil(episodes.length / PAGE_SIZE);
-
-                        function renderEpisodesPage(page) {
-                            epBox.innerHTML = "";
-                            let start = page * PAGE_SIZE;
-                            let end = start + PAGE_SIZE;
-                            let pageEpisodes = episodes.slice(start, end);
-
-                            if (totalPages > 1) {
-                                if (page > 0 && page < totalPages - 1) {
-                                    pageEpisodes = [["❮❮", null], ...episodes.slice(start - 1, end - 1), ["❯❯", null]];
-                                } else if (page === 0 && totalPages > 1) {
-                                    if (episodes.length > PAGE_SIZE) {
-                                        pageEpisodes = [...episodes.slice(start, end - 1), ["❯❯", null]];
-                                    }
-                                } else if (page === totalPages - 1 && page > 0) {
-                                    pageEpisodes = [["❮❮", null], ...episodes.slice(start - 1, end)];
-                                }
-                            }
-
-                            for (const [idx, url] of pageEpisodes) {
-                                let o = document.createElement('a');
-                                o.classList.add('anime-ep');
-                                if (idx === "❮❮") {
-                                    o.textContent = "❮❮";
-                                    o.onclick = () => {
-                                        currentPage = Math.max(0, currentPage - 1);
-                                        renderEpisodesPage(currentPage);
-                                    };
-                                } else if (idx === "❯❯") {
-                                    o.textContent = "❯❯";
-                                    o.onclick = () => {
-                                        currentPage = Math.min(totalPages - 1, currentPage + 1);
-                                        renderEpisodesPage(currentPage);
-                                    };
-                                } else {
-                                    if (url) {
-                                        o.href = getAnimeUrl(url)
-                                        o.target = "_blank";
-                                    }
-                                    const epText = document.createElement('span');
-                                    epText.classList.add('anime-ep-text');
-                                    epText.textContent = idx;
-                                    if (url in history) {
-                                        epText.style.color = "#0d6efd";
-                                    }
-
-                                    o.appendChild(epText);
-                                }
-                                epBox.appendChild(o);
-                            }
-                        }
-                        renderEpisodesPage(currentPage);
-                    } catch (e) {
-                        console.log(e)
-                    }
-                } else if (image.ep) {
-                    const epContainer = document.createElement('a');
-                    epContainer.classList.add('anime-ep');
-
-                    const epText = document.createElement('span');
-                    epText.classList.add('anime-ep-text');
-                    epText.textContent = image.ep;
-
-                    epContainer.appendChild(epText);
-                    epBox.appendChild(epContainer);
-                }
-
-                if (image.name) {
-                    const nameLabel = document.createElement('div');
-                    nameLabel.classList.add('anime-name-label');
-                    nameLabel.textContent = image.name;
-                    animeCard.appendChild(nameLabel);
-                }
-
-                animeCard.appendChild(epBox);
-                animeCard.appendChild(link);
-
+            filteredImages.map(image => {
+                const animeCard = createAnimeCard(image, history)
                 imageContainer.appendChild(animeCard);
-            });
+            })
         }
 
-        document.getElementById('categoryFilter').addEventListener('change', displayImages);
-        document.getElementById('yearFilter').addEventListener('change', displayImages);
-        document.getElementById('seasonFilter').addEventListener('change', displayImages);
-    </script>
-    <script>
-        const authUrl = "/anime/auth"
-        const avatarBtn = document.getElementById('user-avatar-btn');
-        const filterContainer = document.getElementById('filter-container');
-        var userAvatar = document.getElementById('user-avatar');
+        selectedCategory.addEventListener('change', displayImages);
+        selectedYear.addEventListener('change', displayImages);
+        selectedSeason.addEventListener('change', displayImages);
 
-        window.addEventListener('load', function () {
-            firebase.auth().onAuthStateChanged(function (user) {
-                if (user) {
-                    console.log(user)
-                    if (user.photoURL && window.location.hostname != "localhost") {
-                        userAvatar.src = user.photoURL;
-                    } else {
-                        const emailHash = md5(user.email.trim().toLowerCase());
-                        const gravatarUrl = `https://www.gravatar.com/avatar/${emailHash}?d=identicon&s=200`;
-                        userAvatar.src = gravatarUrl;
-                    }
-                    avatarBtn.style.display = "flex"
-                    filterContainer.style.display = "flex"
-                    fetchImageData('12q04f4hwtVQjfVSUayDsgXLGGbqrl9urm8gp556nPQA', "1193967919");
-                } else {
+        async function initData() {
+            images = await fetchImageData('12q04f4hwtVQjfVSUayDsgXLGGbqrl9urm8gp556nPQA', "1193967919");
+
+
+            populateFilters()
+            displayImages()
+        }
+
+        window.addEventListener('load', async function () {
+            firebase.auth().onAuthStateChanged(async function (user) {
+                if (!user) {
                     window.location.href = authUrl;
                 }
-            }, function (error) {
-                console.log(error);
+
+                console.log(user)
+                if (user.photoURL && window.location.hostname != "localhost") {
+                    userAvatar.src = user.photoURL;
+                } else {
+                    const emailHash = md5(user.email.trim().toLowerCase());
+                    const gravatarUrl = `https://www.gravatar.com/avatar/${emailHash}?d=identicon&s=200`;
+                    userAvatar.src = gravatarUrl;
+                }
+                avatarBtn.style.display = "flex"
+                filterContainer.style.display = "flex"
+                initData()
             });
         });
 
-        const avatarDropdown = document.getElementById('avatarDropdown');
         document.addEventListener('click', function (event) {
             if (avatarBtn.contains(event.target)) {
                 avatarDropdown.classList.toggle('show');
