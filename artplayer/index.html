@@ -49,7 +49,22 @@
             url.searchParams.set('e', episode.id);
             window.history.replaceState({}, '', url);
             document.title = episode.title
-            setMediaSession(episode.title)
+
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.metadata = new MediaMetadata({
+                    title: episode.title,
+                    artwork: [
+                        {
+                            src: episode.image, sizes: '512x512',
+                            type: 'image/png'
+                        },
+                        // {
+                        //     src: '/anime/image/r3_128.png', sizes: '128x128',
+                        //     type: 'image/png'
+                        // },
+                    ]
+                });
+            }
         }
         function createBlobUrl(data, mimeType = "application/vnd.apple.mpegurl") {
             const blob = new Blob([data], { type: mimeType });
@@ -130,25 +145,6 @@
                 });
         }
 
-
-        function setMediaSession(title) {
-            if ('mediaSession' in navigator) {
-                navigator.mediaSession.metadata = new MediaMetadata({
-                    title: title,
-                    artwork: [
-                        {
-                            src: '/anime/image/r3_512.png', sizes: '512x512',
-                            type: 'image/png'
-                        },
-                        {
-                            src: '/anime/image/r3_128.png', sizes: '128x128',
-                            type: 'image/png'
-                        },
-                    ]
-                });
-            }
-        }
-
         var imageUrl = "/anime/image/r3_512.png"
 
         function setupPlayer(data) {
@@ -167,8 +163,7 @@
                     id: id,
                     title: episode.title,
                     url: episode.file,
-                    image: imageUrl,
-
+                    image: episode.image || imageUrl,
                 });
             });
             console.log('Episode list:', episodeList);
