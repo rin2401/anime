@@ -333,14 +333,22 @@
                 animeCard.classList.add('anime-card');
 
                 const link = document.createElement('a');
-                var url = image.playlist || image.url
+
+                var url = image.url
+
+                if (image.phimapi) {
+                    url = `/anime/artplayer/?k=${image.phimapi}`
+                } else if (image.playlist) {
+                    url = `/anime/artplayer/?id=${image.playlist}`
+                }
+
                 if (url) {
                     link.href = getAnimeUrl(url)
                 }
                 // link.target = "_blank";
 
                 const img = document.createElement('img');
-                img.src = image.image || "https://rin2401.github.io/anime/image/lazy.png";
+                img.src = image.image || "/anime/image/lazy.png";
                 img.classList.add('img-thumbnail');
 
                 link.appendChild(img);
