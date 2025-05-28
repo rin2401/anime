@@ -3,6 +3,7 @@ from firebase_admin import credentials
 from firebase_admin import db
 from tqdm.auto import tqdm
 from anilist import get_anilist_crunchyroll
+from jikan import get_anime_video
 
 DB_URL = "https://r3fire.firebaseio.com"
 
@@ -25,8 +26,11 @@ def update_anime(anime_id, title, episodes):
     items = []
     episodes = sorted(episodes, key=lambda x: x["id"])
 
-    res = get_anilist_crunchyroll(anime_id)
-    M = {x["id"]: x["thumbnail"] for x in res}
+    # res = get_anilist_crunchyroll(anime_id)
+    # M = {x["id"]: x["thumbnail"] for x in res}
+
+    res = get_anime_video(anime_id)
+    M = {str(x["mal_id"]) : x["images"]["jpg"]["image_url"] for x in res}
 
     for d in tqdm(episodes):
         id = str(d["ep"])
