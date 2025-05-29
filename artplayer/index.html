@@ -14,11 +14,9 @@
     <script src="https://cdn.jsdelivr.net/npm/artplayer@latest/dist/artplayer.js"></script>
     <script
         src="https://cdn.jsdelivr.net/npm/artplayer-plugin-hls-control@latest/dist/artplayer-plugin-hls-control.js"></script>
-    <!-- <script src="https://cdn.jsdelivr.net/npm/artplayer-playlist/dist/artplayer-plugin-playlist.min.js"></script> -->
     <script src="artplayer-plugin-playlist.browser.js"></script>
-    <!-- <script src="
-    https://cdn.jsdelivr.net/npm/artplayer-plugin-auto-thumbnail@1.0.1/dist/artplayer-plugin-auto-thumbnail.min.js
-    "></script> -->
+    <script
+        src="https://cdn.jsdelivr.net/npm/artplayer-plugin-multiple-subtitles@1.1.0/dist/artplayer-plugin-multiple-subtitles.min.js"></script>
     <style>
         html,
         body {
@@ -195,6 +193,7 @@
                     title: episode.title,
                     url: episode.file,
                     image: episode.image || imageUrl,
+                    subtitles: episode.subtitles,
                 });
             });
             console.log('Episode list:', episodeList);
@@ -203,6 +202,7 @@
             var initialIndex = M[e] ?? episodeList.length - 1;
 
             updateParams(episodeList[initialIndex])
+
 
             var art = new Artplayer({
                 container: '.artplayer-app',
@@ -232,30 +232,6 @@
                 // airplay: true,
                 theme: '#23ade5',
                 plugins: [
-                    // artplayerPluginHlsControl({
-                    //     quality: {
-                    //         // Show qualitys in control
-                    //         control: true,
-                    //         // Show qualitys in setting
-                    //         setting: true,
-                    //         // Get the quality name from level
-                    //         getName: (level) => level.height + 'P',
-                    //         // I18n
-                    //         title: 'Quality',
-                    //         auto: 'Auto',
-                    //     },
-                    //     audio: {
-                    //         // Show audios in control
-                    //         control: true,
-                    //         // Show audios in setting
-                    //         setting: true,
-                    //         // Get the audio name from track
-                    //         getName: (track) => track.name,
-                    //         // I18n
-                    //         title: 'Audio',
-                    //         auto: 'Auto',
-                    //     }
-                    // }),
                     artplayerPlaylist({
                         rebuildPlayer: false,
                         onchanged: (art, index) => {
@@ -266,9 +242,9 @@
                         showText: false,
                         playlist: episodeList,
                     }),
-                    // artplayerPluginAutoThumbnail({
-                    //     //
-                    // }),
+                    artplayerPluginMultipleSubtitles({
+                        subtitles: episodeList[initialIndex].subtitles,
+                    })
                 ],
                 customType: {
                     m3u8: playM3u8,
@@ -280,7 +256,83 @@
                     column: 10,
                     scale: 0.85,
                 },
+
             });
+
+
+            if (episodeList[initialIndex].subtitles) {
+                art.setting.add({
+                    width: 200,
+                    html: 'Subtitle',
+                    tooltip: 'Double',
+                    // icon: '<img width="22" heigth="22" src="/assets/img/subtitle.svg">',
+                    selector: [
+                        {
+                            html: 'Display',
+                            tooltip: 'Show',
+                            switch: true,
+                            onSwitch: function (item) {
+                                item.tooltip = item.switch ? 'Hide' : 'Show';
+                                art.subtitle.show = !item.switch;
+                                return !item.switch;
+                            },
+                        },
+                        {
+                            html: 'Reverse',
+                            tooltip: 'Off',
+                            switch: false,
+                            onSwitch: function (item) {
+                                item.tooltip = item.switch ? 'Off' : 'On';
+                                if (item.switch) {
+                                    art.plugins.multipleSubtitles.tracks(['chinese', 'japanese']);
+                                } else {
+                                    art.plugins.multipleSubtitles.tracks(['japanese', 'chinese']);
+
+                                }
+                                return !item.switch;
+                            },
+                        },
+                        {
+                            default: true,
+                            html: 'Double',
+                            name: 'double',
+                        },
+                        {
+                            html: 'Vietnamese',
+                            name: 'vietnamese',
+                        },
+                        {
+                            html: 'English',
+                            name: 'english',
+                        }
+                    ],
+                    onSelect: function (item) {
+                        if (item.name === 'double') {
+                            art.plugins.multipleSubtitles.reset();
+                        } else {
+                            art.plugins.multipleSubtitles.tracks([item.name]);
+                        }
+                        return item.html;
+                    },
+                })
+            }
+        }
+
+
+        const style = `
+.art-subtitle-english {
+	color: yellow;
+}
+`;
+
+        const $style = document.getElementById('artplayer-subtitle-style');
+        if ($style) {
+            $style.textContent = style;
+        } else {
+            const $style = document.createElement('style');
+            $style.id = 'artplayer-subtitle-style';
+            $style.textContent = style;
+            document.head.appendChild($style);
         }
     </script>
 </body>
