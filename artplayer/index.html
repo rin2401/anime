@@ -75,7 +75,7 @@
 
         function removeAds(m3u8, url) {
             var baseUrl = url.split("/").slice(0, -1).join("/") + "/"
-            m3u8 = m3u8.replace(/#EXT-X-DISCONTINUITY.*#EXT-X-DISCONTINUITY\n/sg, "");
+            m3u8 = m3u8.replace(/#EXT-X-DISCONTINUITY.*?#EXT-X-DISCONTINUITY\n/sg, "");
 
             m3u8 = m3u8.split('\n').map(line => {
                 if (line.startsWith('#') || line.trim() === '') {
