@@ -10,7 +10,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 from sele import fetch, driver, crawl_m3u8
-from fire import update_ep
+from fire import db
+
 
 def get_url(url):
     curl_command = f"""curl -I -L -v '{url}' \
@@ -30,7 +31,11 @@ def get_url(url):
     result = subprocess.run(curl_command, shell=True, capture_output=True)
 
     # Use latin1 to avoid decode errors with binary data in headers
-    output = result.stderr.decode('latin1') if result.stderr else result.stdout.decode('latin1')
+    output = (
+        result.stderr.decode("latin1")
+        if result.stderr
+        else result.stdout.decode("latin1")
+    )
 
     # Find all HTTP/HTTPS URLs in the output
     urls = re.findall(r'https?://.[^\s\'"<>]+', output)
@@ -56,7 +61,8 @@ def process_line(line, retries=5, sleep_sec=5):
     else:
         return line
 
-def update_m3u8(FILE, max_workers=4, sleep_sec=5, retries=5):
+
+def update_m3u8(FILE, max_workers=8, sleep_sec=5, retries=5):
     with open(FILE) as f:
         lines = [line.strip() for line in f.readlines()]
 
@@ -64,8 +70,16 @@ def update_m3u8(FILE, max_workers=4, sleep_sec=5, retries=5):
     while not done:
         print(">>> New turn")
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            lines = list(tqdm(executor.map(partial(process_line, retries=retries, sleep_sec=sleep_sec), lines), total=len(lines)))
-        
+            lines = list(
+                tqdm(
+                    executor.map(
+                        partial(process_line, retries=retries, sleep_sec=sleep_sec),
+                        lines,
+                    ),
+                    total=len(lines),
+                )
+            )
+
         done = True
         for x in lines:
             if "https://stream.googleapiscdn.com" in x:
@@ -99,20 +113,23 @@ def update_animevietsub(url, fire_path, title=None):
     m3u8_data = open(path).read()
     return update_ep(title, m3u8_data, fire_path)
 
+
 def crawl_ep(url, title=None):
     ep, id = url.rsplit(".", 1)[0].split("-")[-2:]
     if not id.isnumeric():
         return None
 
-    fire_path =  f"animevietsub/{id}"
+    fire_path = f"animevietsub/{id}"
     path = update_animevietsub(url, fire_path, title=title)
     return path
+
 
 def crawl_animevietsub(url, title=None, last=0):
     with open("animevietsub.txt", "a") as f:
         f.write(url + "\n")
     driver.get(url)
 
+    print("Wait 15s")
     WebDriverWait(driver, 15).until(
         EC.presence_of_all_elements_located((By.CSS_SELECTOR, "li.episode"))
     )
@@ -121,7 +138,7 @@ def crawl_animevietsub(url, title=None, last=0):
     urls = [link.get_attribute("href") for link in links]
     if last > 0:
         urls = urls[-last:]
-    print(urls)    
+    print(urls)
 
     lines = []
     for url in urls:
@@ -136,41 +153,74 @@ def crawl_animevietsub(url, title=None, last=0):
         path = crawl_ep(url, title=ep_title)
         if not path:
             path = url
-        
+
         line = f"{ep}: {path}"
-        lines.append(line)
         print(line)
         with open("animevietsub.txt", "a") as f:
             f.write(line + "\n")
 
-    return "\n".join(lines)
+        lines.append({"id": id, "ep": ep, "path": path, "title": ep_title})
+
+    return lines
+
 
 def animevietsub_search(query):
     url = "https://animevietsub.lol/ajax/suggest"
 
-    payload = {
-        "ajaxSearch": "1",
-        "keysearch": query
-    }
+    payload = {"ajaxSearch": "1", "keysearch": query}
     headers = {
-      'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
     }
 
     response = requests.post(url, headers=headers, data=payload)
 
-
-    res = re.findall("<a href=\"(http.*?)\"", response.text)
+    res = re.findall('<a href="(http.*?)"', response.text)
 
     return res
 
 
 if __name__ == "__main__":
+    slug = "dao-hai-tac"
     url = "https://animevietsub.lol/phim/one-piece-vua-hai-tac-a1/tap-special6-105606.html"
-    path = crawl_animevietsub(url, title="One Piece", last=100)    
+    lines = crawl_animevietsub(url, title="One Piece", last=3)
 
-    # url = "https://animevietsub.lol/phim/shin-samurai-den-yaiba-a5607/tap-01-105590.html"
-    # path = crawl_animevietsub(url, title="Shin Samurai-den YAIBA", last=True)    
-    # print(path)
+    # url = (
+    #     "https://animevietsub.lol/phim/shin-samurai-den-yaiba-a5607/tap-01-105590.html"
+    # )
+    # lines = crawl_animevietsub(url, title="Shin Samurai-den YAIBA", last=2)
+
+    ref = db.reference(f"anime/{slug}")
+    fdata = ref.get()
+    eps = set()
+
+    if fdata:
+        for i, x in fdata.items():
+            eps.add(x["id"])
+
+    lines = [x for x in lines if x["ep"] not in eps]
+
+    print(lines)
+    data = []
+    for x in lines:
+        data.append(
+            {
+                "file": x["path"],
+                "id": x["ep"],
+                "title": x["title"],
+                "type": "hls",
+            }
+        )
+
+    updates = {}
+    for item in data:
+        new_key = ref.push().key
+        updates[f"anime/{slug}/{new_key}"] = item
+
+    print(updates)
+
+    db.reference().update(updates)
+    # print(ref.get())
+    # ref.set(lines)
 
     # url = "https://animevietsub.lol/phim/gio-noi-the-wind-rises-s1-a1438/tap-01-19370.html"
     # crawl_ep(url, title="Kaze Tachinu")
