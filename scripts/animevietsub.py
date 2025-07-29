@@ -10,7 +10,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 from sele import fetch, driver, crawl_m3u8
-from fire import db
+from fire import db, update_ep
 
 
 def get_url(url):
@@ -124,7 +124,15 @@ def crawl_ep(url, title=None):
     return path
 
 
-def crawl_animevietsub(url, title=None, last=0):
+def crawl_animevietsub(url, title=None, slug=None, last=0):
+    ref = db.reference(f"anime/{slug}")
+    fdata = ref.get()
+    eps = set()
+
+    if fdata:
+        for i, x in fdata.items():
+            eps.add(x["id"])
+
     with open("animevietsub.txt", "a") as f:
         f.write(url + "\n")
     driver.get(url)
@@ -146,6 +154,9 @@ def crawl_animevietsub(url, title=None, last=0):
         if ep.isnumeric():
             ep = int(ep)
 
+        if str(ep) in eps:
+            continue
+
         ep_title = None
         if title:
             ep_title = f"{title} - {ep}"
@@ -160,6 +171,19 @@ def crawl_animevietsub(url, title=None, last=0):
             f.write(line + "\n")
 
         lines.append({"id": id, "ep": ep, "path": path, "title": ep_title})
+
+        item = {
+            "file": path,
+            "id": ep,
+            "title": ep_title,
+            "type": "hls",
+        }
+
+        updates = {}
+        new_key = str(item["id"])
+        updates[f"anime/{slug}/{new_key}"] = item
+
+        db.reference().update(updates)
 
     return lines
 
@@ -180,47 +204,16 @@ def animevietsub_search(query):
 
 
 if __name__ == "__main__":
-    slug = "dao-hai-tac"
-    url = "https://animevietsub.lol/phim/one-piece-vua-hai-tac-a1/tap-special6-105606.html"
-    lines = crawl_animevietsub(url, title="One Piece", last=3)
+    # slug = "dao-hai-tac"
+    # url = "https://animevietsub.lol/phim/one-piece-vua-hai-tac-a1/tap-special6-105606.html"
+    # lines = crawl_animevietsub(url, title="One Piece", last=3)
 
+    # slug = "177476"
     # url = (
     #     "https://animevietsub.lol/phim/shin-samurai-den-yaiba-a5607/tap-01-105590.html"
     # )
-    # lines = crawl_animevietsub(url, title="Shin Samurai-den YAIBA", last=2)
+    # lines = crawl_animevietsub(url, title="Shin Samurai-den YAIBA")
 
-    ref = db.reference(f"anime/{slug}")
-    fdata = ref.get()
-    eps = set()
-
-    if fdata:
-        for i, x in fdata.items():
-            eps.add(x["id"])
-
-    lines = [x for x in lines if x["ep"] not in eps]
-
-    print(lines)
-    data = []
-    for x in lines:
-        data.append(
-            {
-                "file": x["path"],
-                "id": x["ep"],
-                "title": x["title"],
-                "type": "hls",
-            }
-        )
-
-    updates = {}
-    for item in data:
-        new_key = ref.push().key
-        updates[f"anime/{slug}/{new_key}"] = item
-
-    print(updates)
-
-    db.reference().update(updates)
-    # print(ref.get())
-    # ref.set(lines)
-
-    # url = "https://animevietsub.lol/phim/gio-noi-the-wind-rises-s1-a1438/tap-01-19370.html"
-    # crawl_ep(url, title="Kaze Tachinu")
+    slug = "179344"
+    url = "https://animevietsub.cam/phim/kanojo-okarishimasu-4th-season-a5357/tap-01-107163.html"
+    lines = crawl_animevietsub(url, title="Kanojo Okarishimasu 4th Season", slug=slug)

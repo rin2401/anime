@@ -32,6 +32,7 @@ def get_anime_video(anime_id):
     return data
 
 if __name__ == "__main__":
-    anime_id = 20
+    import sys
+    anime_id = sys.argv[1]
     data = get_anime_video(anime_id)
-    print(data)
+    # print(data)
