@@ -45,11 +45,33 @@ def get_url(url):
             return url
 
 
+def driver_get_url(url):
+    script = """
+var url = arguments[0];
+var callback = arguments[1];
+res = await fetch(url, {
+  method: 'HEAD'
+})
+callback(res)
+"""
+    try:
+        result = driver.execute_async_script(
+            script,
+            url,
+        )
+        print(result["url"])
+        return result["url"]
+    except Exception as e:
+        pass
+
+    return None
+
+
 def process_line(line, retries=5, sleep_sec=5):
     if "https://stream.googleapiscdn.com" in line:
         # print(line)
         for attempt in range(retries):
-            new_url = get_url(line)
+            new_url = driver_get_url(line)
             if new_url:
                 # print(new_url)
                 return new_url
@@ -62,33 +84,37 @@ def process_line(line, retries=5, sleep_sec=5):
         return line
 
 
-def update_m3u8(FILE, max_workers=8, sleep_sec=5, retries=5):
+def update_m3u8(FILE, max_workers=4, sleep_sec=1, retries=1):
     with open(FILE) as f:
         lines = [line.strip() for line in f.readlines()]
 
     done = False
     while not done:
         print(">>> New turn")
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            lines = list(
-                tqdm(
-                    executor.map(
-                        partial(process_line, retries=retries, sleep_sec=sleep_sec),
-                        lines,
-                    ),
-                    total=len(lines),
+        for i in range(0, len(lines), 100):
+            batch = lines[i : i + 100]
+
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                batch = list(
+                    tqdm(
+                        executor.map(
+                            partial(process_line, retries=retries, sleep_sec=sleep_sec),
+                            batch,
+                        ),
+                        total=len(batch),
+                    )
                 )
-            )
+
+            lines[i : i + 100] = batch
+
+            with open(FILE, "w") as f:
+                f.writelines(line + "\n" for line in lines)
 
         done = True
         for x in lines:
             if "https://stream.googleapiscdn.com" in x:
                 done = False
                 break
-
-    # Ensure each line ends with a newline
-    with open(FILE, "w") as f:
-        f.writelines(line + "\n" for line in lines)
 
 
 def update_animevietsub(url, fire_path, title=None):
@@ -108,7 +134,7 @@ def update_animevietsub(url, fire_path, title=None):
         with open(path, "wb") as f:
             f.write(bytes)
 
-    update_m3u8(path)
+    update_m3u8(path, max_workers=2, sleep_sec=1, retries=1)
 
     m3u8_data = open(path).read()
     return update_ep(title, m3u8_data, fire_path)
@@ -130,7 +156,12 @@ def crawl_animevietsub(url, title=None, slug=None, last=0):
     eps = set()
 
     if fdata:
-        for i, x in fdata.items():
+        if type(fdata) == dict:
+            fdata = list(fdata.values())
+        for x in fdata:
+            if not x or not x.get("id"):
+                continue
+
             eps.add(x["id"])
 
     with open("animevietsub.txt", "a") as f:
@@ -205,15 +236,20 @@ def animevietsub_search(query):
 
 if __name__ == "__main__":
     # slug = "dao-hai-tac"
-    # url = "https://animevietsub.lol/phim/one-piece-vua-hai-tac-a1/tap-special6-105606.html"
-    # lines = crawl_animevietsub(url, title="One Piece", last=3)
+    # url = "https://animevietsub.cam/phim/one-piece-vua-hai-tac-a1/tap-special6-105606.html"
+    # lines = crawl_animevietsub(url, title="One Piece", last=3, slug=slug)
 
     # slug = "177476"
     # url = (
-    #     "https://animevietsub.lol/phim/shin-samurai-den-yaiba-a5607/tap-01-105590.html"
+    #     "https://animevietsub.cam/phim/shin-samurai-den-yaiba-a5607/tap-01-105590.html"
     # )
-    # lines = crawl_animevietsub(url, title="Shin Samurai-den YAIBA")
+    # lines = crawl_animevietsub(url, title="Shin Samurai-den YAIBA", slug=slug)
 
-    slug = "179344"
-    url = "https://animevietsub.cam/phim/kanojo-okarishimasu-4th-season-a5357/tap-01-107163.html"
-    lines = crawl_animevietsub(url, title="Kanojo Okarishimasu 4th Season", slug=slug)
+    # slug = "179344"
+    # url = "https://animevietsub.cam/phim/kanojo-okarishimasu-4th-season-a5357/tap-01-107163.html"
+    # lines = crawl_animevietsub(url, title="Kanojo Okarishimasu 4th Season", slug=slug)
+
+    roww = "101922	Kimetsu no Yaiba"
+    slug = "101922"
+    url = "https://animevietsub.cam/phim/thanh-guom-diet-quy-kimetsu-no-yaiba-i7-a3445/tap-01-66457.html"
+    lines = crawl_animevietsub(url, title="Kimetsu no Yaiba", slug=slug)
