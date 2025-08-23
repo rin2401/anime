@@ -2,12 +2,16 @@ import subprocess
 import re
 import os
 import time
+import requests
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from tqdm import tqdm
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
 from sele import fetch, driver, crawl_m3u8
 from fire import db, update_ep
@@ -234,22 +238,48 @@ def animevietsub_search(query):
     return res
 
 
+def crawl(anilist_id, last=0):
+    # Google Sheets setup
+    scope = [
+        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/drive",
+    ]
+    creds = ServiceAccountCredentials.from_json_keyfile_name("keys.json", scope)
+    client = gspread.authorize(creds)
+
+    # Change these to your sheet key and worksheet id
+    SHEET_KEY = "12q04f4hwtVQjfVSUayDsgXLGGbqrl9urm8gp556nPQA"
+    WORKSHEET_ID = 1193967919
+
+    db = client.open_by_key(SHEET_KEY)
+    sheet = db.get_worksheet_by_id(WORKSHEET_ID)
+    records = sheet.get_all_records()
+    row = None
+    for i, x in enumerate(records):
+        if str(x["id"]) == anilist_id or str(x["playlist"]) == anilist_id:
+            row = x
+            break
+    if not row:
+        return None
+
+    print(row)
+
+    if not row["url"]:
+        return None
+
+    crawl_animevietsub(row["url"], title=row["name"], slug=anilist_id, last=last)
+
+
 if __name__ == "__main__":
-    # slug = "dao-hai-tac"
-    # url = "https://animevietsub.cam/phim/one-piece-vua-hai-tac-a1/tap-special6-105606.html"
-    # lines = crawl_animevietsub(url, title="One Piece", last=3, slug=slug)
+    crawl("dao-hai-tac", last=3)
 
-    # slug = "177476"
-    # url = (
-    #     "https://animevietsub.cam/phim/shin-samurai-den-yaiba-a5607/tap-01-105590.html"
-    # )
-    # lines = crawl_animevietsub(url, title="Shin Samurai-den YAIBA", slug=slug)
+    # crawl("177476")
+    # crawl("179344")
 
-    # slug = "179344"
-    # url = "https://animevietsub.cam/phim/kanojo-okarishimasu-4th-season-a5357/tap-01-107163.html"
-    # lines = crawl_animevietsub(url, title="Kanojo Okarishimasu 4th Season", slug=slug)
+    # crawl("145139")
 
-    roww = "101922	Kimetsu no Yaiba"
-    slug = "101922"
-    url = "https://animevietsub.cam/phim/thanh-guom-diet-quy-kimetsu-no-yaiba-i7-a3445/tap-01-66457.html"
-    lines = crawl_animevietsub(url, title="Kimetsu no Yaiba", slug=slug)
+#     ids = """145139
+# 142329
+# 129874"""
+#     for i in ids.split("\n"):
+#         crawl(i.strip())
