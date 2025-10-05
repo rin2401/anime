@@ -276,10 +276,9 @@ if __name__ == "__main__":
     # crawl("177476")
     # crawl("179344")
 
-    # crawl("145139")
+    # crawl("97938")
 
-#     ids = """145139
-# 142329
-# 129874"""
-#     for i in ids.split("\n"):
-#         crawl(i.strip())
+    crawl("185660")
+    crawl("189117")
+    crawl("177937")
+    crawl("182896")
