@@ -336,6 +336,8 @@
                 return "yt/?" + url.split("?")[1]
             } else if (!url.includes("http")) {
                 return url;
+            } else if (url.includes("rophim")) {
+                return url;
             } else {
                 return "frame/#" + url;
             }
