@@ -3,3 +3,5 @@ gspread
 selenium
 webdriver-manager
 beautifulsoup4
+oauth2client
+firebase-admin
