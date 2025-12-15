@@ -72,7 +72,7 @@ callback(res)
 
 
 def process_line(line, retries=5, sleep_sec=5):
-    if "https://stream.googleapiscdn.com" in line:
+    if "googleapiscdn.com" in line:
         # print(line)
         for attempt in range(retries):
             new_url = driver_get_url(line)
@@ -272,13 +272,8 @@ def crawl(anilist_id, last=0):
 
 if __name__ == "__main__":
     crawl("dao-hai-tac", last=3)
-
-    # crawl("177476")
-    # crawl("179344")
-
-    # crawl("97938")
-
     crawl("185660")
     crawl("189117")
     crawl("177937")
     crawl("182896")
+    crawl("153800")
