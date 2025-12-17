@@ -116,7 +116,7 @@ def update_m3u8(FILE, max_workers=4, sleep_sec=1, retries=1):
 
         done = True
         for x in lines:
-            if "https://stream.googleapiscdn.com" in x:
+            if "googleapiscdn.com" in x:
                 done = False
                 break
 
