@@ -95,8 +95,10 @@ def update_m3u8(FILE, max_workers=4, sleep_sec=1, retries=1):
     done = False
     while not done:
         print(">>> New turn")
-        for i in range(0, len(lines), 100):
-            batch = lines[i : i + 100]
+        n = 10000
+
+        for i in range(0, len(lines), n):
+            batch = lines[i : i + n]
 
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 batch = list(
@@ -109,7 +111,7 @@ def update_m3u8(FILE, max_workers=4, sleep_sec=1, retries=1):
                     )
                 )
 
-            lines[i : i + 100] = batch
+            lines[i : i + n] = batch
 
             with open(FILE, "w") as f:
                 f.writelines(line + "\n" for line in lines)
@@ -271,6 +273,9 @@ def crawl(anilist_id, last=0):
 
 
 if __name__ == "__main__":
+    crawl("182333")
+    crawl("185212")
+
     crawl("dao-hai-tac", last=3)
     crawl("185660")
     crawl("189117")
