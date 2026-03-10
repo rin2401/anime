@@ -273,12 +273,26 @@ def crawl(anilist_id, last=0):
 
 
 if __name__ == "__main__":
-    crawl("182333")
-    crawl("185212")
+    crawl("172463")
+    crawl("166613")
+    crawl("201903")
+    crawl("182255")
 
-    crawl("dao-hai-tac", last=3)
-    crawl("185660")
-    crawl("189117")
-    crawl("177937")
-    crawl("182896")
-    crawl("153800")
+
+    # OLD
+
+    # crawl("20526")
+    # crawl("20752")
+
+    # crawl("154587")
+
+    # crawl("dao-hai-tac", last=3)
+
+
+
+    # crawl("185660")
+    # crawl("189117")
+    # crawl("177937")
+    # crawl("182896")
+    # crawl("153800")
+

@@ -8,3 +8,6 @@ r3fire.json
 .env
 scripts/yeuphim/
 scripts/jikan/
+client_secret.json
+*.txt
+*.html
