@@ -1,12 +1,12 @@
 const firebaseConfig = {
-    apiKey: "AIzaSyBosn42LCdgC47R7fNj4AaVsFxaz2OxItI",
+    apiKey: "AIzaSyDFHzsdG_6uJ5c_DVACJRtzjsCLvaBMM90",
     authDomain: "r3fire.firebaseapp.com",
     databaseURL: "https://r3fire.firebaseio.com",
     projectId: "r3fire",
     storageBucket: "r3fire.firebasestorage.app",
     messagingSenderId: "8089151908",
-    appId: "1:8089151908:web:939bb0805ad93a3e513931",
-    measurementId: "G-JL55RRJCDY"
+    appId: "1:8089151908:web:6aa831c8a0d6d398513931",
+    measurementId: "G-D84SEDMYWC"
 };
 
 const app = firebase.initializeApp(firebaseConfig);
