@@ -1,5 +1,5 @@
 const firebaseConfig = {
-    apiKey: "AIzaSyDFHzsdG_6uJ5c_DVACJRtzjsCLvaBMM90",
+    apiKey: "__FIREBASE_API_KEY__",
     authDomain: "r3fire.firebaseapp.com",
     databaseURL: "https://r3fire.firebaseio.com",
     projectId: "r3fire",
