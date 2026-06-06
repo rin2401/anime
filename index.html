@@ -586,23 +586,24 @@
         }
 
         window.addEventListener('load', async function () {
-            firebase.auth().onAuthStateChanged(async function (user) {
-                if (!user) {
-                    window.location.href = authUrl;
-                }
+            filterContainer.style.display = "flex"
+            initData()
 
-                console.log(user)
-                if (user.photoURL && window.location.hostname != "localhost") {
-                    userAvatar.src = user.photoURL;
-                } else {
-                    const emailHash = md5(user.email.trim().toLowerCase());
-                    const gravatarUrl = `https://www.gravatar.com/avatar/${emailHash}?d=identicon&s=200`;
-                    userAvatar.src = gravatarUrl;
-                }
-                avatarBtn.style.display = "flex"
-                filterContainer.style.display = "flex"
-                initData()
-            });
+            try {
+                firebase.auth().onAuthStateChanged(function (user) {
+                    if (!user) return;
+                    if (user.photoURL && window.location.hostname != "localhost") {
+                        userAvatar.src = user.photoURL;
+                    } else {
+                        const emailHash = md5(user.email.trim().toLowerCase());
+                        const gravatarUrl = `https://www.gravatar.com/avatar/${emailHash}?d=identicon&s=200`;
+                        userAvatar.src = gravatarUrl;
+                    }
+                    avatarBtn.style.display = "flex"
+                });
+            } catch (e) {
+                console.warn("Auth disabled:", e);
+            }
         });
 
         document.addEventListener('click', function (event) {
