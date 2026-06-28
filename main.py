@@ -1,11 +1,22 @@
+import os
 from flask import Flask, Response, render_template, Blueprint
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__,
-            static_url_path='/anime', 
+            static_url_path='/anime',
             static_folder='./',
             template_folder='')
 
 bp = Blueprint('anime', __name__, url_prefix='/anime')
+
+@bp.route('/auth/auth.js')
+def auth_js():
+    # Local dev: thay __FIREBASE_API_KEY__ bằng key trong .env (giống bước sed khi deploy)
+    with open('auth/auth.js') as f:
+        js = f.read().replace('__FIREBASE_API_KEY__', os.environ.get('FIREBASE_API_KEY', ''))
+    return Response(js, mimetype='application/javascript')
 
 @bp.route('/')
 def home():
@@ -26,6 +37,10 @@ def yt():
 @bp.route('/fb/')
 def fb():
     return render_template('fb/index.html')
+
+@bp.route('/gdrive/')
+def gdrive():
+    return render_template('gdrive/index.html')
 
 @bp.route('/auth/')
 def auth():

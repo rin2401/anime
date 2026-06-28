@@ -404,7 +404,9 @@
 
             var url = image.url
 
-            if (image.phimapi) {
+            if (image.gdrive) {
+                url = `/anime/gdrive/?id=${image.gdrive}`
+            } else if (image.phimapi) {
                 url = `/anime/artplayer/?k=${image.phimapi}`
             } else if (image.playlist) {
                 url = `/anime/artplayer/?id=${image.playlist}`

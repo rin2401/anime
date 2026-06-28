@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Drive</title>
+    <link rel="apple-touch-icon" href="/anime/image/r3_512.png">
+    <link rel="icon" type="image/png" href="/anime/image/r3_512.png">
+    <meta property="og:image" content="/anime/image/r3.png">
+
+    <style>
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #000;
+            color: #fff;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* layout: video fills screen; optional episode sidebar on the right */
+        #stage {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #frame-wrap {
+            flex: 1 1 auto;
+            position: relative;
+            min-width: 0;
+        }
+
+        #gd-iframe {
+            border: none;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* episode list (only shown in playlist mode) */
+        #episodes {
+            flex: 0 0 240px;
+            height: 100%;
+            overflow-y: auto;
+            background: #111;
+            border-left: 1px solid #222;
+            display: none;
+        }
+
+        body.has-playlist #episodes {
+            display: block;
+        }
+
+        #ep-title {
+            padding: 12px 14px;
+            font-size: 14px;
+            font-weight: 700;
+            color: #ddd;
+            border-bottom: 1px solid #222;
+            position: sticky;
+            top: 0;
+            background: #111;
+        }
+
+        .ep-item {
+            display: block;
+            width: 100%;
+            text-align: left;
+            box-sizing: border-box;
+            padding: 10px 14px;
+            background: none;
+            border: none;
+            border-bottom: 1px solid #1c1c1c;
+            color: #ccc;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .ep-item:hover {
+            background: #1d1d1d;
+        }
+
+        .ep-item.active {
+            background: #2563eb;
+            color: #fff;
+            font-weight: 700;
+        }
+
+        /* messages / errors */
+        #msg {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 24px;
+            box-sizing: border-box;
+            font-size: 15px;
+            line-height: 1.6;
+            color: #eee;
+        }
+
+        #msg a {
+            color: #60a5fa;
+        }
+
+        #msg code {
+            background: #222;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="stage">
+        <div id="frame-wrap">
+            <iframe id="gd-iframe" allowfullscreen="true"
+                allow="autoplay; encrypted-media; fullscreen; picture-in-picture"></iframe>
+        </div>
+        <div id="episodes">
+            <div id="ep-title">Danh sách tập</div>
+            <div id="ep-list"></div>
+        </div>
+    </div>
+
+    <div id="msg"></div>
+
+    <script>
+        const FIREBASE_BASE = "https://r3fire.firebaseio.com/anime";
+        const ARTWORK = "/anime/image/r3_512.png";
+
+        const iframe = document.getElementById('gd-iframe');
+        const msgEl = document.getElementById('msg');
+        const epListEl = document.getElementById('ep-list');
+        const epTitleEl = document.getElementById('ep-title');
+
+        function showError(html) {
+            msgEl.innerHTML = html;
+            msgEl.style.display = 'flex';
+        }
+
+        function hideError() {
+            msgEl.style.display = 'none';
+        }
+
+        // Extract a Drive file id from a full link or a raw id.
+        function parseDriveId(ref) {
+            if (!ref) return null;
+            ref = String(ref).trim();
+            let m = ref.match(/\/d\/([\w-]+)/);          // .../file/d/<ID>/view
+            if (m) return m[1];
+            m = ref.match(/[?&]id=([\w-]+)/);            // ...open?id=<ID> | uc?id=<ID>
+            if (m) return m[1];
+            if (/^[\w-]{20,}$/.test(ref)) return ref;    // raw id
+            return null;
+        }
+
+        function play(driveRef, title) {
+            const fid = parseDriveId(driveRef);
+            if (!fid) {
+                showError('Không tách được Google Drive file ID từ:<br><code>' +
+                    String(driveRef || '').replace(/</g, '&lt;') + '</code>');
+                return;
+            }
+            hideError();
+            iframe.src = `https://drive.google.com/file/d/${fid}/preview`;
+            if (title) {
+                document.title = title;
+                if ('mediaSession' in navigator) {
+                    navigator.mediaSession.metadata = new MediaMetadata({
+                        title: title,
+                        artwork: [{ src: ARTWORK, sizes: '512x512', type: 'image/png' }]
+                    });
+                }
+            }
+        }
+
+        // ---- Playlist mode (Firebase) ----
+        // Nguồn Drive của 1 tập: ưu tiên trường drive_id, sau đó tới file.
+        function episodeRef(ep) {
+            return ep && (ep.drive_id || ep.file);
+        }
+
+        function isDriveSource(ep) {
+            return ep && (ep.type === 'drive' || ep.drive_id ||
+                (typeof ep.file === 'string' && ep.file.indexOf('drive.google') >= 0) ||
+                parseDriveId(ep && ep.file));
+        }
+
+        function renderEpisodes(storeKey, episodes, defaultEpId) {
+            document.body.classList.add('has-playlist');
+            epListEl.innerHTML = '';
+
+            let targetId = defaultEpId || localStorage.getItem(storeKey);
+            let targetIdx = episodes.findIndex(e => String(e.id) === String(targetId));
+            if (targetIdx < 0) targetIdx = 0;
+
+            episodes.forEach((ep, idx) => {
+                const btn = document.createElement('button');
+                btn.className = 'ep-item';
+                btn.textContent = ep.title || ('Tập ' + ep.id);
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.ep-item.active').forEach(e => e.classList.remove('active'));
+                    btn.classList.add('active');
+                    localStorage.setItem(storeKey, String(ep.id));
+                    play(episodeRef(ep), ep.title);
+                });
+                epListEl.appendChild(btn);
+                if (idx === targetIdx) {
+                    btn.classList.add('active');
+                    play(episodeRef(ep), ep.title);
+                }
+            });
+        }
+
+        function loadPlaylist(animeId, defaultEpId) {
+            fetch(`${FIREBASE_BASE}/${animeId}.json`)
+                .then(r => r.json())
+                .then(data => {
+                    if (!data) { showError('Không tìm thấy dữ liệu cho id <code>' + animeId + '</code>'); return; }
+                    // Firebase node: array, hoặc object keyed theo số tập.
+                    // Giữ key làm id khi value thiếu id (vd node chỉ có {drive_id}).
+                    let entries = Array.isArray(data)
+                        ? data.map((v, i) => [i, v])
+                        : Object.entries(data);
+                    let episodes = entries
+                        .filter(([, v]) => v)
+                        .map(([k, v]) => Object.assign({ id: (v.id != null ? v.id : k) }, v))
+                        .filter(isDriveSource);
+                    // sort theo số tập nếu id là số
+                    episodes.sort((a, b) => (parseFloat(a.id) || 0) - (parseFloat(b.id) || 0));
+                    if (!episodes.length) { showError('Playlist không có tập Drive cho id <code>' + animeId + '</code>'); return; }
+                    epTitleEl.textContent = `Danh sách tập (${episodes.length})`;
+                    renderEpisodes('gdrive:last:' + animeId, episodes, defaultEpId);
+                })
+                .catch(err => {
+                    console.error(err);
+                    showError('Lỗi tải playlist: ' + err);
+                });
+        }
+
+        // ---- List mode: ?list=ref1,ref2,...  (drive ids hoặc link, ngăn bởi dấu phẩy) ----
+        // Tiêu đề tuỳ chọn: ?titles=<tên1>|<tên2>|... (URL-encoded, ngăn bởi dấu |)
+        function loadList(listParam, titlesParam, defaultIdx) {
+            const refs = listParam.split(',').map(s => s.trim()).filter(Boolean);
+            if (!refs.length) { showError('Tham số <code>list</code> rỗng.'); return; }
+            const titles = (titlesParam || '').split('|').map(s => s.trim());
+
+            const episodes = refs.map((ref, i) => ({
+                id: i,                                  // dùng index làm id
+                title: titles[i] || ('Video ' + (i + 1)),
+                file: ref
+            }));
+
+            epTitleEl.textContent = `Danh sách (${episodes.length})`;
+            // storeKey theo nội dung list để mỗi list nhớ riêng tập đang xem
+            const storeKey = 'gdrive:list:' + (refs.length + ':' + refs[0]);
+            renderEpisodes(storeKey, episodes, defaultIdx);
+        }
+
+        // ---- Entry ----
+        const params = new URLSearchParams(window.location.search);
+        const v = params.get('v');
+        const url = params.get('url');
+        const id = params.get('id');         // Firebase anime id (playlist mode)
+        const e = params.get('e');           // optional default episode id/index
+        const list = params.get('list');     // danh sách drive id/link, cách nhau bằng dấu phẩy
+        const titles = params.get('titles'); // tiêu đề tuỳ chọn, cách nhau bằng dấu |
+
+        if (id) {
+            loadPlaylist(id, e);
+        } else if (list) {
+            loadList(list, titles, e);
+        } else if (v || url) {
+            play(url || v);
+        } else {
+            showError(
+                'Thiếu tham số. Dùng một trong:<br><br>' +
+                '<code>?v=&lt;driveFileId&gt;</code><br>' +
+                '<code>?url=&lt;link Google Drive&gt;</code><br>' +
+                '<code>?list=&lt;id1,id2,id3&gt;</code> (playlist nhiều video)<br>' +
+                '<code>?id=&lt;animeId&gt;</code> (playlist từ Firebase)<br><br>' +
+                'Video cần được chia sẻ <b>"Anyone with the link"</b>. ' +
+                'Nếu chủ file tắt nhúng (embed) thì Google sẽ báo không khả dụng.'
+            );
+        }
+    </script>
+
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-1PSF8GWBEY"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+        gtag('config', 'G-1PSF8GWBEY');
+    </script>
+</body>
+
+</html>

@@ -1,5 +1,6 @@
 keys.json
 **/__pycache__
+.venv
 .DS_Store
 _metadata
 r3fire.json
@@ -10,4 +11,3 @@ scripts/yeuphim/
 scripts/jikan/
 client_secret.json
 *.txt
-*.html
