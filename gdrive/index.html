@@ -95,6 +95,33 @@
             font-weight: 700;
         }
 
+        /* Mobile: xếp dọc - video trên, danh sách tập full-width bên dưới (cuộn) */
+        @media (max-width: 768px) {
+            #stage {
+                flex-direction: column;
+            }
+
+            #frame-wrap {
+                flex: 0 0 auto;
+                width: 100%;
+                aspect-ratio: 16 / 9;
+            }
+
+            body.has-playlist #episodes {
+                flex: 1 1 auto;
+                width: 100%;
+                height: auto;
+                min-height: 0;
+                border-left: none;
+                border-top: 1px solid #222;
+            }
+
+            .ep-item {
+                padding: 13px 16px;
+                font-size: 14px;
+            }
+        }
+
         /* messages / errors */
         #msg {
             position: fixed;
