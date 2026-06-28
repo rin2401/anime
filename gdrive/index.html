@@ -204,8 +204,10 @@
 
             let targetId = defaultEpId || localStorage.getItem(storeKey);
             let targetIdx = episodes.findIndex(e => String(e.id) === String(targetId));
-            if (targetIdx < 0) targetIdx = 0;
+            // chưa xem tập nào -> chọn tập mới nhất (cuối danh sách, vì sort tăng dần)
+            if (targetIdx < 0) targetIdx = episodes.length - 1;
 
+            let activeBtn = null;
             episodes.forEach((ep, idx) => {
                 const btn = document.createElement('button');
                 btn.className = 'ep-item';
@@ -219,9 +221,12 @@
                 epListEl.appendChild(btn);
                 if (idx === targetIdx) {
                     btn.classList.add('active');
+                    activeBtn = btn;
                     play(episodeRef(ep), ep.title);
                 }
             });
+            // scroll danh sách tới tập đang xem / mới nhất
+            if (activeBtn) activeBtn.scrollIntoView({ block: 'center' });
         }
 
         function loadPlaylist(animeId, defaultEpId) {
@@ -238,8 +243,8 @@
                         .filter(([, v]) => v)
                         .map(([k, v]) => Object.assign({ id: (v.id != null ? v.id : k) }, v))
                         .filter(isDriveSource);
-                    // sort theo số tập: MỚI NHẤT (lớn nhất) trước
-                    episodes.sort((a, b) => (parseFloat(b.id) || 0) - (parseFloat(a.id) || 0));
+                    // sort tăng dần theo số tập (trên -> xuống)
+                    episodes.sort((a, b) => (parseFloat(a.id) || 0) - (parseFloat(b.id) || 0));
                     if (!episodes.length) { showError('Playlist không có tập Drive cho id <code>' + animeId + '</code>'); return; }
                     epTitleEl.textContent = `Danh sách tập (${episodes.length})`;
                     renderEpisodes('gdrive:last:' + animeId, episodes, defaultEpId);
