@@ -1,12 +1,12 @@
-const firebaseConfig = {
+  const firebaseConfig = {
     apiKey: "__FIREBASE_API_KEY__",
-    authDomain: "r3code.firebaseapp.com",
-    databaseURL: "https://r3code-default-rtdb.firebaseio.com",
-    projectId: "r3code",
-    storageBucket: "r3code.firebasestorage.app",
-    messagingSenderId: "448772272619",
-    appId: "1:448772272619:web:e563d0c41e61ef6186a9ae",
-    measurementId: "G-M5SQGDR8QV"
-};
+    authDomain: "r3fire.firebaseapp.com",
+    databaseURL: "https://r3fire.firebaseio.com",
+    projectId: "r3fire",
+    storageBucket: "r3fire.appspot.com",
+    messagingSenderId: "8089151908",
+    appId: "1:8089151908:web:ca5e233243e49085513931",
+    measurementId: "G-WBRTECMS8Y"
+  };
 
 const app = firebase.initializeApp(firebaseConfig);
