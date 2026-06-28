@@ -140,44 +140,46 @@ def read_sheet_row(sheet_id):
     return None
 
 
-def parse_ep(href):
-    """tap-001-36.html -> (1, '36'); tap-special6-105606.html -> ('special6', '105606').
+def norm_ep(text):
+    """Số tập lấy từ TEXT của nút ep (đáng tin hơn href, vì href bị bóp số cho ep
+    dạng '1150.5'). '001'->1 (int), '1150.5'->'1150.5', 'Special 6'->'Special 6'."""
+    t = (text or "").strip()
+    if not t:
+        return None
+    return int(t) if t.isdigit() else t
 
-    Trả (None, None) nếu href không đúng dạng (tránh ValueError làm hỏng cả lần crawl).
-    """
-    parts = href.rsplit(".", 1)[0].split("-")
-    if len(parts) < 2:
-        return None, None
-    ep, vid = parts[-2], parts[-1]
-    if ep.isnumeric():
-        ep = int(ep)
-    return ep, vid
+
+def fb_key(ep):
+    """Key hợp lệ cho Firebase Realtime DB (không cho . $ # [ ] /)."""
+    k = str(ep)
+    for c in ".$#[]/":
+        k = k.replace(c, "_")
+    return k
 
 
 def list_episodes(driver):
-    """Trên trang series: trả list {ep, hash, id, title} cho từng tập (dedup theo ep)."""
+    """Trên trang series: trả list {ep, hash, id} cho từng tập (ep lấy từ text nút)."""
     WebDriverWait(driver, 20).until(
         EC.presence_of_all_elements_located((By.CSS_SELECTOR, "li.episode"))
     )
     raw = driver.execute_script(
         r"""
         return [...document.querySelectorAll('li.episode a[data-hash]')].map(a => ({
-            href: a.getAttribute('href'),
             hash: a.dataset.hash,
             id: a.dataset.id,
-            title: (a.textContent || '').trim()
+            text: (a.textContent || '').trim()
         }));
         """
     )
     eps, seen = [], set()
     for x in raw:
-        if not x.get("href") or not x.get("hash"):
+        if not x.get("hash"):
             continue
-        ep, _ = parse_ep(x["href"])
+        ep = norm_ep(x.get("text"))
         if ep is None or ep in seen:
             continue
         seen.add(ep)
-        eps.append({"ep": ep, "hash": x["hash"], "id": x["id"], "title": x["title"]})
+        eps.append({"ep": ep, "hash": x["hash"], "id": x["id"]})
     return eps
 
 
@@ -201,20 +203,29 @@ def existing_drive_eps(db, anime_id):
 
 
 def ep_sort_key(x):
-    """Sort key cho 'tập mới nhất trước': số tập lớn nhất trước, special để cuối."""
-    return (1, x["ep"]) if isinstance(x["ep"], int) else (0, 0)
+    """Sort key cho 'tập mới nhất trước': số tập lớn nhất trước (gồm cả '1150.5'),
+    special/không-phải-số để cuối."""
+    try:
+        return (1, float(x["ep"]))
+    except (ValueError, TypeError):
+        return (0, 0)
 
 
-def crawl_drive(anime_id):
+DEFAULT_NUM_EPS = 100  # số tập MỚI NHẤT crawl mặc định (0 = tất cả)
+
+
+def crawl_drive(anime_id, num_eps=DEFAULT_NUM_EPS):
     """Crawl link Drive cho 1 anime -> Firebase anime/{anime_id}/{ep}/{drive_id,title}.
 
-    Chỉ truyền anime_id (id Google Sheet, cũng là key Firebase). Tự đọc Firebase để
-    biết tập nào đã có drive_id rồi bỏ qua, crawl các tập còn lại theo thứ tự
-    TẬP MỚI NHẤT TRƯỚC, push ngay sau mỗi tập (an toàn nếu gián đoạn).
+    anime_id : id Google Sheet (cũng là key Firebase).
+    num_eps  : chỉ crawl num_eps tập MỚI NHẤT (mặc định 100). 0/None = tất cả.
+    Tự đọc Firebase, bỏ qua tập đã có drive_id, crawl theo thứ tự TẬP MỚI NHẤT
+    TRƯỚC, push ngay sau mỗi tập (an toàn nếu gián đoạn).
     """
     from fire import db
 
     anime_id = str(anime_id)
+    num_eps = int(num_eps) if num_eps else 0
 
     row = read_sheet_row(anime_id)
     if not row:
@@ -235,11 +246,16 @@ def crawl_drive(anime_id):
         driver.get(row["url"])
         if not wait_cloudflare(driver):
             raise RuntimeError("Không qua được Cloudflare (title=%r)" % driver.title)
-
         eps = list_episodes(driver)
-        todo = [x for x in eps if str(x["ep"]) not in done]
-        todo.sort(key=ep_sort_key, reverse=True)  # tập mới nhất trước
-        print(f"\n{len(eps)} tập trên web | đã có {len(done)} | "
+        if not eps:
+            print("Không liệt kê được tập trên trang.")
+            return
+
+        eps.sort(key=ep_sort_key, reverse=True)  # tập mới nhất trước
+        if num_eps:
+            eps = eps[:num_eps]  # chỉ xét num_eps tập mới nhất
+        todo = [x for x in eps if fb_key(x["ep"]) not in done]
+        print(f"\n{len(eps)} tập mới nhất xét | đã có {len(done)} | "
               f"crawl {len(todo)} tập (mới nhất trước)...\n")
 
         ok = fail = 0
@@ -248,10 +264,11 @@ def crawl_drive(anime_id):
             link = res.get("link", "") if isinstance(res, dict) else ""
             drive_id = drive_id_from_link(link)
             if drive_id:
-                update = {f"anime/{anime_id}/{x['ep']}/drive_id": drive_id}
+                key = fb_key(x["ep"])
+                update = {f"anime/{anime_id}/{key}/drive_id": drive_id}
                 if name:
                     title = f"{name} - {x['ep']}"
-                    update[f"anime/{anime_id}/{x['ep']}/title"] = title
+                    update[f"anime/{anime_id}/{key}/title"] = title
                 db.reference().update(update)  # push ngay từng tập
                 ok += 1
                 print(f"  [OK]   tập {x['ep']}: {drive_id}" + (f"  | {title}" if name else ""))
@@ -267,4 +284,5 @@ def crawl_drive(anime_id):
 
 
 if __name__ == "__main__":
-    crawl_drive(sys.argv[1])
+    # avs_extract.py <animeId> [numEps]   (numEps mặc định 100, 0 = tất cả)
+    crawl_drive(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else DEFAULT_NUM_EPS)

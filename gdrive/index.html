@@ -238,8 +238,8 @@
                         .filter(([, v]) => v)
                         .map(([k, v]) => Object.assign({ id: (v.id != null ? v.id : k) }, v))
                         .filter(isDriveSource);
-                    // sort theo số tập nếu id là số
-                    episodes.sort((a, b) => (parseFloat(a.id) || 0) - (parseFloat(b.id) || 0));
+                    // sort theo số tập: MỚI NHẤT (lớn nhất) trước
+                    episodes.sort((a, b) => (parseFloat(b.id) || 0) - (parseFloat(a.id) || 0));
                     if (!episodes.length) { showError('Playlist không có tập Drive cho id <code>' + animeId + '</code>'); return; }
                     epTitleEl.textContent = `Danh sách tập (${episodes.length})`;
                     renderEpisodes('gdrive:last:' + animeId, episodes, defaultEpId);
