@@ -15,6 +15,18 @@ UA = (
     "(KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
 )
 
+# Domain animevietsub hiện hành (site xoay tên miền liên tục). Đổi DUY NHẤT chỗ này
+# khi tên miền chết; norm_host() sẽ tự viết lại mọi url .pl/.lol/.show... sang đây.
+SITE = "animevietsub.ing"
+BASE = f"https://{SITE}"
+
+
+def norm_host(url):
+    """Viết lại host animevietsub.<tld> bất kỳ trong url về SITE hiện hành."""
+    if not url:
+        return url
+    return re.sub(r"animevietsub\.[a-z]+", SITE, url)
+
 
 def make_driver():
     """Attach vào Chrome thật nếu có AVS_DEBUG_PORT, ngược lại mở Chrome mới."""
@@ -80,7 +92,7 @@ def ajax_player(driver, ep, play):
 
 def get_drive_link(driver, watch_url):
     """Trả về (drive_url, drive_id, title, ep, player_url)."""
-    driver.get(watch_url)
+    driver.get(norm_host(watch_url))
     if not wait_cloudflare(driver):
         raise RuntimeError("Không qua được Cloudflare của animevietsub (title=%r)" % driver.title)
     title = driver.title
@@ -108,7 +120,7 @@ def get_drive_link(driver, watch_url):
 # ───────────────────────── Batch: sheet → drive links → Firebase ──────────────
 # Đọc 1 dòng Google Sheet theo id → URL series animevietsub → crawl link Drive
 # của tất cả các tập → push lên Firebase /anime/{id}/{ep}/drive_id.
-# Chỉ cần animevietsub.pl (không đụng googleapiscdn) nên make_driver() mặc định
+# Chỉ cần SITE (không đụng googleapiscdn) nên make_driver() mặc định
 # là đủ, không cần attach Chrome thật.
 
 SHEET_KEY = "12q04f4hwtVQjfVSUayDsgXLGGbqrl9urm8gp556nPQA"
@@ -136,7 +148,7 @@ def read_sheet_row(sheet_id):
         if str(row.get("id")) == sheet_id or str(row.get("playlist")) == sheet_id:
             if not row.get("url"):
                 return None
-            return {"url": row["url"], "name": row.get("name")}
+            return {"url": norm_host(row["url"]), "name": row.get("name")}
     return None
 
 
@@ -155,6 +167,29 @@ def fb_key(ep):
     for c in ".$#[]/":
         k = k.replace(c, "_")
     return k
+
+
+def ensure_episode_list(driver, timeout=8):
+    """Đảm bảo trang hiện tại có danh sách tập (li.episode).
+
+    URL trang GIỚI THIỆU (`/phim/<slug>-aXXXX/`) KHÔNG có li.episode — chỉ trang
+    XEM (`.../tap-NN-<id>.html`) mới có. Nếu đang ở trang giới thiệu, tự điều hướng
+    sang link /tap- mới nhất tìm được để lấy sidebar đủ tập.
+    """
+    try:
+        WebDriverWait(driver, timeout).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "li.episode"))
+        )
+        return  # đã có danh sách tập
+    except Exception:
+        pass
+    link = driver.execute_script(
+        "var a=document.querySelector('a[href*=\"/tap-\"]');return a?a.href:null;"
+    )
+    if link:
+        print(f"  (trang giới thiệu -> chuyển sang trang xem: {link})")
+        driver.get(link)
+        wait_cloudflare(driver)
 
 
 def list_episodes(driver):
@@ -221,6 +256,10 @@ def crawl_drive(anime_id, num_eps=DEFAULT_NUM_EPS):
     num_eps  : chỉ crawl num_eps tập MỚI NHẤT (mặc định 100). 0/None = tất cả.
     Tự đọc Firebase, bỏ qua tập đã có drive_id, crawl theo thứ tự TẬP MỚI NHẤT
     TRƯỚC, push ngay sau mỗi tập (an toàn nếu gián đoạn).
+
+    Trả dict {crawled, ok, fail, existing, available} khi chạy xong (available =
+    existing + ok = số tập đã có drive_id trên Firebase), hoặc None nếu không
+    crawl được (thiếu url / url không phải animevietsub / không liệt kê được tập).
     """
     from fire import db
 
@@ -246,6 +285,7 @@ def crawl_drive(anime_id, num_eps=DEFAULT_NUM_EPS):
         driver.get(row["url"])
         if not wait_cloudflare(driver):
             raise RuntimeError("Không qua được Cloudflare (title=%r)" % driver.title)
+        ensure_episode_list(driver)  # trang giới thiệu -> trang xem nếu cần
         eps = list_episodes(driver)
         if not eps:
             print("Không liệt kê được tập trên trang.")
@@ -278,6 +318,8 @@ def crawl_drive(anime_id, num_eps=DEFAULT_NUM_EPS):
                 print(f"  [MISS] tập {x['ep']}: không ra Drive (playTech={tech})")
 
         print(f"\nTổng kết: crawl {len(todo)} | OK {ok} | miss {fail} | đã có trước {len(done)}")
+        return {"crawled": len(todo), "ok": ok, "fail": fail,
+                "existing": len(done), "available": len(done) + ok}
     finally:
         if not os.environ.get("AVS_DEBUG_PORT"):
             driver.quit()
