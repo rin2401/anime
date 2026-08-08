@@ -24,6 +24,10 @@
         body {
             width: 100vw;
             height: 100vh;
+            /* svh, KHÔNG phải dvh: trên iOS Chrome dvh == lvh (vd 828px) trong khi vùng
+               layout thật chỉ 720px -> cao vượt 108px và overflow:hidden không cho kéo tới.
+               svh luôn là trường hợp toolbar đang hiện (nhỏ nhất) nên chắc chắn vừa. */
+            height: 100svh;
         }
 
         /* layout: video fills screen; optional episode sidebar on the right */
@@ -31,6 +35,7 @@
             display: flex;
             width: 100vw;
             height: 100vh;
+            height: 100svh;
         }
 
         #frame-wrap {
@@ -51,6 +56,8 @@
             flex: 0 0 240px;
             height: 100%;
             overflow-y: auto;
+            /* relative: để offsetTop của .ep-item đo theo container cuộn này */
+            position: relative;
             background: #111;
             border-left: 1px solid #222;
             display: none;
@@ -101,10 +108,14 @@
                 flex-direction: column;
             }
 
-            #frame-wrap {
+            /* Chỉ bó chiều cao khi CÓ danh sách tập; video đơn lẻ vẫn chiếm hết màn hình.
+               65svh thay vì 16:9 cứng (~233px): player của Drive quá thấp thì control bar
+               của nó đè lên native controls của iOS, chặn tap -> không bấm fullscreen được. */
+            body.has-playlist #frame-wrap {
                 flex: 0 0 auto;
                 width: 100%;
-                aspect-ratio: 16 / 9;
+                height: 65vh;
+                height: 65svh;
             }
 
             body.has-playlist #episodes {
@@ -120,6 +131,64 @@
                 padding: 13px 16px;
                 font-size: 14px;
             }
+        }
+
+        /* Nút của riêng ta, đặt góc trên TRÁI: Drive chiếm góc trên phải (pop-out)
+           và đáy (control bar) nên trái là chỗ duy nhất không đụng. */
+        #vid-tools {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            z-index: 10;
+            display: flex;
+            gap: 6px;
+        }
+
+        #fs-btn,
+        #drive-btn {
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            border: none;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, .55);
+            color: #fff;
+            font-size: 17px;
+            line-height: 1;
+            cursor: pointer;
+            text-decoration: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        #fs-btn {
+            width: 40px;
+        }
+
+        /* iPhone không có Fullscreen API, fullscreen thật chỉ có ở app Drive (phát native) */
+        #drive-btn {
+            padding: 0 12px;
+            font-size: 13px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        #fs-btn:active,
+        #drive-btn:active {
+            background: rgba(0, 0, 0, .85);
+        }
+
+        /* Chế độ toàn màn hình: ẩn danh sách, video chiếm hết viewport.
+           Phải đặt SAU media query mobile để thắng body.has-playlist #frame-wrap. */
+        body.fs #episodes {
+            display: none;
+        }
+
+        body.fs #frame-wrap {
+            flex: 1 1 auto;
+            height: 100vh;
+            height: 100svh;
         }
 
         /* messages / errors */
@@ -154,6 +223,11 @@
         <div id="frame-wrap">
             <iframe id="gd-iframe" allowfullscreen="true"
                 allow="autoplay; encrypted-media; fullscreen; picture-in-picture"></iframe>
+            <div id="vid-tools">
+                <button id="fs-btn" type="button" aria-label="Toàn màn hình" title="Toàn màn hình">⛶</button>
+                <a id="drive-btn" target="_blank" rel="noopener"
+                    title="Mở trong app Google Drive — fullscreen thật trên iPhone">Drive ↗</a>
+            </div>
         </div>
         <div id="episodes">
             <div id="ep-title">Danh sách tập</div>
@@ -171,6 +245,52 @@
         const msgEl = document.getElementById('msg');
         const epListEl = document.getElementById('ep-list');
         const epTitleEl = document.getElementById('ep-title');
+        const epBoxEl = document.getElementById('episodes');   // container cuộn
+        const fsBtn = document.getElementById('fs-btn');
+        const driveBtn = document.getElementById('drive-btn');
+        const stageEl = document.getElementById('stage');
+
+        // Cuộn danh sách tới tập đang xem — gán scrollTop trực tiếp trên #episodes.
+        // KHÔNG dùng scrollIntoView: nó cuộn cả root viewport, trên iOS sẽ đẩy video
+        // khỏi màn hình và html/body overflow:hidden không cho kéo lại.
+        function centerActive() {
+            const act = epListEl.querySelector('.ep-item.active');
+            if (!act) return;
+            requestAnimationFrame(() => {
+                epBoxEl.scrollTop = act.offsetTop -
+                    (epBoxEl.clientHeight - act.offsetHeight) / 2;
+            });
+        }
+
+        function setFs(on) {
+            document.body.classList.toggle('fs', on);
+            fsBtn.textContent = on ? '✕' : '⛶';
+            const label = on ? 'Thoát toàn màn hình' : 'Toàn màn hình';
+            fsBtn.setAttribute('aria-label', label);
+            fsBtn.title = label;
+            // display:none làm mất scrollTop của #episodes -> canh lại khi thoát
+            if (!on) centerActive();
+        }
+
+        // Fullscreen API chỉ có ở desktop/iPad/Android. iPhone KHÔNG hỗ trợ (đã đo trên máy
+        // thật: document.fullscreenEnabled = false) nên ở đó chỉ giãn được bằng CSS; muốn
+        // fullscreen thật trên iPhone phải qua app Drive (nút "Drive ↗" phát native).
+        fsBtn.addEventListener('click', () => {
+            const on = !document.body.classList.contains('fs');
+            setFs(on);
+            if (on) {
+                if (document.fullscreenEnabled && stageEl.requestFullscreen) {
+                    stageEl.requestFullscreen().catch(() => { });
+                }
+            } else if (document.fullscreenElement) {
+                document.exitFullscreen().catch(() => { });
+            }
+        });
+
+        // thoát fullscreen bằng Esc / gesture -> đồng bộ lại UI
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement && document.body.classList.contains('fs')) setFs(false);
+        });
 
         function showError(html) {
             msgEl.innerHTML = html;
@@ -202,6 +322,8 @@
             }
             hideError();
             iframe.src = `https://drive.google.com/file/d/${fid}/preview`;
+            // /view mở app Drive nếu máy có cài -> phát native, có fullscreen thật
+            driveBtn.href = `https://drive.google.com/file/d/${fid}/view`;
             if (title) {
                 document.title = title;
                 if ('mediaSession' in navigator) {
@@ -234,7 +356,6 @@
             // chưa xem tập nào -> chọn tập mới nhất (cuối danh sách, vì sort tăng dần)
             if (targetIdx < 0) targetIdx = episodes.length - 1;
 
-            let activeBtn = null;
             episodes.forEach((ep, idx) => {
                 const btn = document.createElement('button');
                 btn.className = 'ep-item';
@@ -248,12 +369,10 @@
                 epListEl.appendChild(btn);
                 if (idx === targetIdx) {
                     btn.classList.add('active');
-                    activeBtn = btn;
                     play(episodeRef(ep), ep.title);
                 }
             });
-            // scroll danh sách tới tập đang xem / mới nhất
-            if (activeBtn) activeBtn.scrollIntoView({ block: 'center' });
+            centerActive();
         }
 
         function loadPlaylist(animeId, defaultEpId) {
