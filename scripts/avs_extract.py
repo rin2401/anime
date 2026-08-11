@@ -17,7 +17,7 @@ UA = (
 
 # Domain animevietsub hiện hành (site xoay tên miền liên tục). Đổi DUY NHẤT chỗ này
 # khi tên miền chết; norm_host() sẽ tự viết lại mọi url .pl/.lol/.show... sang đây.
-SITE = "animevietsub.ing"
+SITE = "animevietsub.mom"
 BASE = f"https://{SITE}"
 
 
