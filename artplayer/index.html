@@ -248,6 +248,12 @@
                     return
                 }
 
+                // Chỉ nhận tập CÓ m3u8. Cùng một node còn chứa tập chỉ có drive_id
+                // (do crawler Drive đẩy lên); đưa vào playlist thì url undefined.
+                if (!episode.file) {
+                    return
+                }
+
                 id = episode.id || id
                 episodeList.push({
                     id: id,
@@ -263,6 +269,11 @@
             // (Firebase không cho dấu '.' trong key) bị rơi xuống cuối danh sách.
             episodeList.sort(function (a, b) { return epNum(a.id) - epNum(b.id) });
             episodeList.forEach(function (ep, i) { M[ep.id] = i });
+
+            if (!episodeList.length) {
+                console.error('Không có tập nào có m3u8 để phát.');
+                return;
+            }
             var e = String(getUrlParameter('e'));
             // không dùng ?? : trình duyệt TV cũ (Chrome < 80) fail ngay lúc parse
             var initialIndex = (M[e] !== undefined) ? M[e] : episodeList.length - 1;

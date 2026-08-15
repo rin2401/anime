@@ -339,15 +339,16 @@
         }
 
         // ---- Playlist mode (Firebase) ----
-        // Nguồn Drive của 1 tập: ưu tiên trường drive_id, sau đó tới file.
+        // Ref để phát 1 tập: playlist Firebase luôn có drive_id; fallback file dành cho
+        // chế độ ?list= (tập dựng từ tham số URL, chỉ có file).
         function episodeRef(ep) {
             return ep && (ep.drive_id || ep.file);
         }
 
+        // Lọc playlist Firebase: chỉ nhận tập CÓ drive_id. Cùng một node còn chứa tập
+        // chỉ có m3u8 (do crawler artplayer đẩy lên) — player Drive không phát được.
         function isDriveSource(ep) {
-            return ep && (ep.type === 'drive' || ep.drive_id ||
-                (typeof ep.file === 'string' && ep.file.indexOf('drive.google') >= 0) ||
-                parseDriveId(ep && ep.file));
+            return !!(ep && ep.drive_id);
         }
 
         function renderEpisodes(storeKey, episodes, defaultEpId) {
