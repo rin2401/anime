@@ -26,18 +26,21 @@
         }
     </style>
 
-    <script src="https://code.jquery.com/jquery-3.2.1.min.js"
-        integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.6.16/dist/hls.min.js"></script>
-    <script src="/anime/player/mousetrap.min.js" charset="utf-8"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://r3fire.firebaseio.com">
+
+    <script defer src="https://cdn.jsdelivr.net/npm/hls.js@1.6.16/dist/hls.min.js"></script>
+    <script defer src="/anime/player/mousetrap.min.js" charset="utf-8"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
 </head>
 
 <body>
     <video id="video" style="width: 100%; height: 100%;" controls="" crossorigin="anonymous"></video>
-    <script src="player.js"></script>
-    <script src="/anime/auth/auth.js"></script>
+    <!-- auth.js (khởi tạo firebase) phải đứng trước player.js; cả hai defer nên chạy đúng thứ tự -->
+    <script defer src="/anime/auth/auth.js"></script>
+    <script defer src="player.js"></script>
 </body>
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-1PSF8GWBEY"></script>
 <script>
