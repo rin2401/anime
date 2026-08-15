@@ -232,6 +232,12 @@
 
 
 
+        // Số tập để sắp xếp: '7.5' -> 7.5, '07_5' -> 7.5 (key Firebase thay '.' bằng '_'),
+        // tập không đánh số ('Xem Full', 'Special 6') -> 0, xếp lên đầu.
+        function epNum(id) {
+            return parseFloat(String(id).replace(/_/g, '.')) || 0;
+        }
+
         function setupPlayer(data) {
             var M = {};
 
@@ -243,7 +249,6 @@
                 }
 
                 id = episode.id || id
-                M[id] = episodeList.length;
                 episodeList.push({
                     id: id,
                     title: episode.title,
@@ -252,6 +257,12 @@
                     subtitles: episode.subtitles,
                 });
             });
+
+            // Sắp xếp tăng dần theo số tập. Không tin thứ tự Object.entries: JS xếp
+            // key số nguyên ('1'..'12') trước mọi key chữ, nên tập lẻ lưu dạng '07_5'
+            // (Firebase không cho dấu '.' trong key) bị rơi xuống cuối danh sách.
+            episodeList.sort(function (a, b) { return epNum(a.id) - epNum(b.id) });
+            episodeList.forEach(function (ep, i) { M[ep.id] = i });
             var e = String(getUrlParameter('e'));
             // không dùng ?? : trình duyệt TV cũ (Chrome < 80) fail ngay lúc parse
             var initialIndex = (M[e] !== undefined) ? M[e] : episodeList.length - 1;
