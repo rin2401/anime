@@ -519,8 +519,17 @@ function handleShorthand(e) {
 }
 
 
+// Config cho thiết bị yếu (smart TV ít RAM, mạng chậm): buffer nhỏ, cap quality
+// theo kích thước player, giải phóng phần đã xem để không phình RAM khi xem tập dài
+var TV_HLS_CONFIG = {
+    capLevelToPlayerSize: true,
+    maxBufferLength: 20,
+    maxBufferSize: 20 * 1000 * 1000,
+    backBufferLength: 30,
+    abrEwmaDefaultEstimate: 1000000,
+};
+
 function playM3u8(url) {
-    console.log("HLS:", Hls.isSupported())
     const hlsMimeType = "application/vnd.apple.mpegurl";
 
     if (url.includes(".mp4")) {
@@ -530,11 +539,10 @@ function playM3u8(url) {
             video.play();
         });
     } else if (Hls.isSupported()) {
-        var hls = new Hls();
+        var hls = new Hls(TV_HLS_CONFIG);
         var m3u8Url = decodeURIComponent(url)
         hls.loadSource(m3u8Url);
         hls.attachMedia(video);
-        console.log(hls)
         hls.on(Hls.Events.MANIFEST_PARSED, function () {
             video.play();
             loadSavedTime(url)
@@ -551,13 +559,11 @@ function playM3u8(url) {
 
 function playM3u8Text(url, m3u8Text) {
     const hlsMimeType = "application/vnd.apple.mpegurl";
-    console.log("HLS m3u8 text:", Hls.isSupported())
     if (Hls.isSupported()) {
-        var hls = new Hls();
+        var hls = new Hls(TV_HLS_CONFIG);
         var m3u8Url = createBlobUrl(m3u8Text)
         hls.loadSource(m3u8Url);
         hls.attachMedia(video);
-        console.log(hls)
         hls.on(Hls.Events.MANIFEST_PARSED, function () {
             video.play();
             loadSavedTime(url)
@@ -621,7 +627,6 @@ function loadSavedTime(url) {
     const history = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
     if (history[url]) {
         video.currentTime = history[url];
-        console.log("Get time:", url, history[url], video.currentTime);
     }
 
     intervalId = setInterval(() => {
@@ -629,6 +634,5 @@ function loadSavedTime(url) {
             ...JSON.parse(localStorage.getItem(STORAGE_KEY)),
             [url]: parseInt(video.currentTime)
         }));
-        console.log("Saved time:", url, parseInt(video.currentTime));
     }, 5000);
 }

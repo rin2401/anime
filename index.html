@@ -9,10 +9,32 @@
     <link rel="icon" type="image/png" href="/anime/image/r3_512.png">
     <meta property="og:image" content="/anime/image/r3.png">
 
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"
-        integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://identitytoolkit.googleapis.com">
+    <link rel="preconnect" href="https://docs.google.com">
+    <link rel="preconnect" href="https://s4.anilist.co">
 
     <style>
+        /* Thay Bootstrap: cả trang chỉ dùng form-select/form-control nên tự viết cho nhẹ */
+        .form-select,
+        .form-control {
+            box-sizing: border-box;
+            padding: 6px 12px;
+            font-size: 16px;
+            font-family: inherit;
+            line-height: 1.5;
+            color: #212529;
+            background-color: #fff;
+            border: 1px solid #6c757d;
+            border-radius: 6px;
+        }
+
+        .form-select:focus,
+        .form-control:focus,
+        .search-btn:focus {
+            outline: 2px solid #60a5fa;
+        }
+
         body {
             background-color: #1a1a1a;
             color: #ffffff;
@@ -54,6 +76,17 @@
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
         }
 
+        /* Điều hướng bằng remote TV: hiệu ứng focus tương đương hover.
+           Để rule riêng, KHÔNG gộp selector: engine cũ gặp pseudo lạ sẽ bỏ cả rule. */
+        a:focus .img-thumbnail {
+            transform: scale(1.05);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .anime-ep:focus {
+            outline: 2px solid #60a5fa;
+        }
+
         .form-select {
             width: auto;
         }
@@ -61,6 +94,9 @@
         .anime-card {
             position: relative;
             display: inline-block;
+            /* TV yếu: bỏ qua layout/paint các card ngoài màn hình (engine cũ tự bỏ qua) */
+            content-visibility: auto;
+            contain-intrinsic-size: 300px 424px;
         }
 
         .anime-ep-box {
@@ -197,8 +233,9 @@
             background: #cad3db;
         }
     </style>
-    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth-compat.js"></script>
+    <!-- defer: không chặn render; các script defer chạy theo đúng thứ tự trước DOMContentLoaded -->
+    <script defer src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth-compat.js"></script>
 </head>
 
 <body>
@@ -231,11 +268,27 @@
     </div>
     <div class="image-container" id="imageContainer"></div>
 
-    <script src="/anime/auth/auth.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/blueimp-md5/2.19.0/js/md5.min.js"></script>
+    <script defer src="/anime/auth/auth.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/blueimp-md5/2.19.0/js/md5.min.js"></script>
     <script>
         const imageContainer = document.getElementById('imageContainer');
         var images = []
+
+        const SHEET_CACHE_KEY = "animeSheetCache:v1";
+
+        function loadCachedImages() {
+            try {
+                var c = JSON.parse(localStorage.getItem(SHEET_CACHE_KEY));
+                if (c && c.images && c.images.length) return c.images;
+            } catch (e) { }
+            return null;
+        }
+
+        function saveCachedImages(imgs) {
+            try {
+                localStorage.setItem(SHEET_CACHE_KEY, JSON.stringify({ t: Date.now(), images: imgs }));
+            } catch (e) { }
+        }
 
         async function fetchImageData(id, gid) {
             var url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:json&tq&gid=${gid}`;
@@ -243,7 +296,9 @@
             res = await fetch(url)
             txt = await res.text()
 
-            var jsonString = txt.match(/(?<="table":).*(?=}\);)/g)[0]
+            // Không dùng regex lookbehind: trình duyệt TV cũ (Chrome < 62) sẽ
+            // SyntaxError ngay lúc parse script -> trắng trang
+            var jsonString = txt.substring(txt.indexOf('"table":') + '"table":'.length, txt.lastIndexOf('});'))
             var data = JSON.parse(jsonString)
 
             var cols = data.cols.map(colonne => colonne.label)
@@ -264,8 +319,8 @@
                 })
                 return image
             })
-            // console.log(images)
 
+            saveCachedImages(images)
             return images
         }
 
@@ -285,6 +340,9 @@
             seasons = Array.from(seasons).sort()
 
             const categoryFilter = document.getElementById('categoryFilter');
+            // gọi lại được nhiều lần (render từ cache rồi render lại khi có data mới):
+            // giữ option "All ..." đầu tiên, xoá các option cũ
+            categoryFilter.options.length = 1;
             categories.map(category => {
                 const option = document.createElement('option');
                 option.value = category;
@@ -296,6 +354,7 @@
             });
 
             const yearFilter = document.getElementById('yearFilter');
+            yearFilter.options.length = 1;
             years.map((year, i) => {
                 const option = document.createElement('option');
                 option.value = year;
@@ -303,7 +362,6 @@
                 if (sYear == null) {
                     var currentYear = new Date().getFullYear();
                     if (i == 0 && parseInt(year) <= currentYear) {
-                        console.log(i, parseInt(year), currentYear)
                         option.selected = true;
                     }
                 } else {
@@ -315,6 +373,7 @@
             });
 
             const seasonFilter = document.getElementById('seasonFilter');
+            seasonFilter.options.length = 1;
             seasons.map(season => {
                 const option = document.createElement('option');
                 option.value = season;
@@ -368,13 +427,18 @@
                 o.classList.add('anime-ep');
                 if (idx === "❮❮") {
                     o.textContent = "❮❮";
-                    o.onclick = () => {
+                    // href="#" để focus + bấm được bằng remote TV (anchor không href thì D-pad bỏ qua)
+                    o.href = "#";
+                    o.onclick = (e) => {
+                        e.preventDefault();
                         page = Math.max(0, page - 1);
                         renderEpisodesPage(epBox, episodes, page, history);
                     };
                 } else if (idx === "❯❯") {
                     o.textContent = "❯❯";
-                    o.onclick = () => {
+                    o.href = "#";
+                    o.onclick = (e) => {
+                        e.preventDefault();
                         page = Math.min(totalPages - 1, page + 1);
                         renderEpisodesPage(epBox, episodes, page, history);
                     };
@@ -418,8 +482,14 @@
             // link.target = "_blank";
 
             const img = document.createElement('img');
-            img.src = image.image || "/anime/image/lazy.png";
             img.classList.add('img-thumbnail');
+            // chỉ tải ảnh khi cuộn tới + decode ngoài main thread; width/height
+            // khai báo trước để không giật layout khi ảnh về
+            img.loading = 'lazy';
+            img.decoding = 'async';
+            img.width = 300;
+            img.height = 424;
+            img.src = image.image || "/anime/image/lazy.png";
 
             link.appendChild(img);
 
@@ -439,7 +509,6 @@
                             return [ep, url];
                         })
 
-                    console.log("Episodes:", episodes.length)
                     renderEpisodesPage(epBox, episodes, 0, history);
                 } catch (e) {
                     console.log(e)
@@ -534,12 +603,13 @@
 
             filteredImages = filteredImages.sort((a, b) => b.status.localeCompare(a.status))
 
-            console.log(filteredImages)
-
+            // gom vào fragment, append 1 lần để tránh reflow liên tục trên TV yếu
+            const fragment = document.createDocumentFragment();
             filteredImages.map(image => {
                 const animeCard = createAnimeCard(image, history)
-                imageContainer.appendChild(animeCard);
+                fragment.appendChild(animeCard);
             })
+            imageContainer.appendChild(fragment);
         }
 
         selectedCategory.addEventListener('change', displayImages);
@@ -562,7 +632,7 @@
                 return {
                     id: item._id,
                     name: item.origin_name,
-                    image: item.poster_url?.startsWith("http") ? item.poster_url : data.data.APP_DOMAIN_CDN_IMAGE + "/" + item.poster_url,
+                    image: (item.poster_url && item.poster_url.indexOf("http") === 0) ? item.poster_url : data.data.APP_DOMAIN_CDN_IMAGE + "/" + item.poster_url,
                     category: item.type,
                     year: item.year,
                     phimapi: item.slug,
@@ -573,27 +643,67 @@
             return items
         }
 
-        async function initData() {
+        function prefetchData() {
             const q = getUrlParameter("q")
             if (q) {
-                images = await searchAnime(q)
-                populateFilters("", "", "")
-
-            } else {
-                images = await fetchImageData('12q04f4hwtVQjfVSUayDsgXLGGbqrl9urm8gp556nPQA', "1193967919");
-                populateFilters()
+                return searchAnime(q)
             }
-
-            displayImages()
+            return fetchImageData('12q04f4hwtVQjfVSUayDsgXLGGbqrl9urm8gp556nPQA', "1193967919");
         }
 
-        window.addEventListener('load', async function () {
+        // bắt đầu tải data ngay khi DOM sẵn sàng, song song với vòng check auth
+        var pendingData = null;
+
+        async function initData() {
+            const q = getUrlParameter("q")
+            const dataPromise = pendingData || prefetchData()
+            pendingData = null
+
+            if (q) {
+                images = await dataPromise
+                populateFilters("", "", "")
+                displayImages()
+                return
+            }
+
+            // có cache từ lần trước -> hiện ngay, data mới về sau sẽ render lại (stale-while-revalidate)
+            const cached = loadCachedImages()
+            var renderedFromCache = false
+            if (cached) {
+                images = cached
+                populateFilters()
+                displayImages()
+                renderedFromCache = true
+            }
+
+            try {
+                const fresh = await dataPromise
+                if (renderedFromCache && JSON.stringify(fresh) === JSON.stringify(cached)) {
+                    return
+                }
+                images = fresh
+                if (renderedFromCache) {
+                    // giữ nguyên filter user đang chọn khi render lại
+                    populateFilters(selectedYear.value, selectedCategory.value, selectedSeason.value)
+                } else {
+                    populateFilters()
+                }
+                displayImages()
+            } catch (err) {
+                console.error(err)
+                if (!renderedFromCache) throw err
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            pendingData = prefetchData()
+
             firebase.auth().onAuthStateChanged(async function (user) {
                 if (!user) {
                     window.location.href = authUrl;
+                    return;
                 }
 
-                console.log(user)
                 if (user.photoURL && window.location.hostname != "localhost") {
                     userAvatar.src = user.photoURL;
                 } else {

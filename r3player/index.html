@@ -12,9 +12,13 @@
 
     <script type="module" src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js"></script>
     <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+    <link rel="preconnect" href="https://unpkg.com" />
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+    <link rel="preconnect" href="https://r3fire.firebaseio.com" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300;400;500;600;700;800;900&display=swap"
+    <!-- chỉ tải các weight thực dùng (400/500/700) thay vì cả 8 -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&display=swap"
         rel="stylesheet" />
     <link rel="stylesheet" href="style.css" />
 </head>
@@ -114,9 +118,7 @@
             </div>
         </div>
     </div>
-    <script src="https://code.jquery.com/jquery-3.2.1.min.js"
-        integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.6.16/dist/hls.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/hls.js@1.6.16/dist/hls.min.js"></script>
     <script defer src="main.js"></script>
     <script>
 
@@ -156,18 +158,18 @@
 
         const id = getUrlParameter('id')
         const playlistUrl = `https://r3fire.firebaseio.com/anime/${id}.json`
-        fetch(playlistUrl).then(response => response.json()).then(setupPlayer)
+        // Chờ DOMContentLoaded: hls.js/main.js load bằng defer, fetch nhanh có thể
+        // về trước khi lib sẵn sàng
+        document.addEventListener('DOMContentLoaded', function () {
+            fetch(playlistUrl).then(response => response.json()).then(setupPlayer)
+        })
 
         var episodeList = [];
         var e = String(getUrlParameter('e'));
         var M = {};
         var initialIndex = 0;
 
-        console.log(e, initialIndex)
-
         function setupPlayer(data) {
-            console.log(data)
-
             Object.entries(data).forEach(([id, episode]) => {
                 if (!episode) {
                     return
@@ -180,9 +182,6 @@
                     image: imageUrl
                 });
             });
-            console.log('Episode list:', episodeList);
-            console.log(M)
-
             if (e) {
                 initialIndex = M[e] || 0;
             }

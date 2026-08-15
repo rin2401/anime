@@ -1,5 +1,15 @@
 var video = document.getElementById('video');
 
+// Config cho thiết bị yếu (smart TV ít RAM, mạng chậm): buffer nhỏ, cap quality
+// theo kích thước player, giải phóng phần đã xem để không phình RAM khi xem tập dài
+var TV_HLS_CONFIG = {
+    capLevelToPlayerSize: true,
+    maxBufferLength: 20,
+    maxBufferSize: 20 * 1000 * 1000,
+    backBufferLength: 30,
+    abrEwmaDefaultEstimate: 1000000,
+};
+
 function fetchData(url) {
     return fetch(url)
         .then((resp) => resp.ok && resp.arrayBuffer())
@@ -12,7 +22,6 @@ function waitForEvent(target, event_name) {
 }
 
 async function playM3u8(url) {
-    console.log("HLS:", Hls.isSupported())
     const hlsMimeType = "application/vnd.apple.mpegurl";
 
     if (url.includes(".mp4")) {
@@ -22,11 +31,10 @@ async function playM3u8(url) {
             video.play();
         });
     } else if (Hls.isSupported()) {
-        var hls = new Hls();
+        var hls = new Hls(TV_HLS_CONFIG);
         var m3u8Url = decodeURIComponent(url)
         hls.loadSource(m3u8Url);
         hls.attachMedia(video);
-        console.log(hls)
         hls.on(Hls.Events.MANIFEST_PARSED, function () {
             video.play();
         });
@@ -41,13 +49,11 @@ async function playM3u8(url) {
 
 function playM3u8Text(m3u8Text) {
     const hlsMimeType = "application/vnd.apple.mpegurl";
-    console.log("HLS m3u8 text:", Hls.isSupported())
     if (Hls.isSupported()) {
-        var hls = new Hls();
+        var hls = new Hls(TV_HLS_CONFIG);
         var m3u8Url = createBlobUrl(m3u8Text)
         hls.loadSource(m3u8Url);
         hls.attachMedia(video);
-        console.log(hls)
         hls.on(Hls.Events.MANIFEST_PARSED, function () {
             video.play();
         });
@@ -116,16 +122,10 @@ function removeAds(m3u8, url) {
     return m3u8
 }
 
-video.addEventListener("seeked", () => {
-    console.log(video.currentTime)
-})
-
-
 function loadRoom(roomId) {
     const roomRef = firebase.database().ref("room/" + roomId);
     roomRef.on('value', (data) => {
         const roomData = data.val();
-        console.log(roomData)
         var url = roomData.player.url
         var t = roomData.player.time
         video.addEventListener('loadedmetadata', function () {
@@ -173,7 +173,7 @@ function setMediaSession(title) {
     }
 }
 
-$(window).on('load', async function () {
+window.addEventListener('load', async function () {
     // Mousetrap.bind('space', playPause);
     Mousetrap.bind('up', volumeUp);
     Mousetrap.bind('down', volumeDown);

@@ -8,12 +8,17 @@
     <link rel="icon" type="image/png" href="/anime/image/r3_512.png">
     <meta property="og:image" content="/anime/image/r3.png">
 
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.6.16/dist/hls.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/artplayer@5.4.0/dist/artplayer.js"></script>
-    <script
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="preconnect" href="https://phimapi.com">
+    <link rel="preconnect" href="https://r3fire.firebaseio.com">
+
+    <!-- defer: không chặn render, vẫn giữ đúng thứ tự; code khởi động chạy sau DOMContentLoaded -->
+    <script defer src="https://cdn.jsdelivr.net/npm/hls.js@1.6.16/dist/hls.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/artplayer@5.4.0/dist/artplayer.js"></script>
+    <script defer
         src="https://cdn.jsdelivr.net/npm/artplayer-plugin-hls-control@1.1.0/dist/artplayer-plugin-hls-control.js"></script>
-    <script src="artplayer-plugin-playlist.browser.js"></script>
-    <script
+    <script defer src="artplayer-plugin-playlist.browser.js"></script>
+    <script defer
         src="https://cdn.jsdelivr.net/npm/artplayer-plugin-multiple-subtitles@1.1.0/dist/artplayer-plugin-multiple-subtitles.min.js"></script>
     <style>
         html,
@@ -91,10 +96,45 @@
             return m3u8
         }
 
+        // Config cho thiết bị yếu (smart TV ít RAM, mạng chậm):
+        // - capLevelToPlayerSize: không tải quality cao hơn kích thước player
+        // - buffer nhỏ + giải phóng phần đã xem để không phình RAM khi xem tập dài
+        // - abrEwmaDefaultEstimate: khởi động ~1Mbps, tránh chọn nhầm quality cao khi mạng yếu
+        var TV_HLS_CONFIG = {
+            capLevelToPlayerSize: true,
+            maxBufferLength: 20,
+            maxBufferSize: 20 * 1000 * 1000,
+            backBufferLength: 30,
+            abrEwmaDefaultEstimate: 1000000,
+        };
+
+        // Loader lọc quảng cáo trên từng playlist thay vì tải trước rồi ép 1 quality:
+        // giữ nguyên master playlist cho hls.js tự chọn level theo băng thông (ABR).
+        var _adsFilterLoader = null;
+        function getAdsFilterLoader() {
+            if (!_adsFilterLoader) {
+                _adsFilterLoader = class extends Hls.DefaultConfig.loader {
+                    load(context, config, callbacks) {
+                        if (context.type === 'manifest' || context.type === 'level') {
+                            const onSuccess = callbacks.onSuccess;
+                            callbacks.onSuccess = function (response, stats, ctx, networkDetails) {
+                                if (typeof response.data === 'string' && response.data.indexOf('#EXTINF') !== -1) {
+                                    response.data = removeAds(response.data, ctx.url);
+                                }
+                                onSuccess(response, stats, ctx, networkDetails);
+                            };
+                        }
+                        super.load(context, config, callbacks);
+                    }
+                };
+            }
+            return _adsFilterLoader;
+        }
+
         function playM3u8Text(video, m3u8, art) {
             if (Hls.isSupported()) {
                 if (art.hls) art.hls.destroy();
-                const hls = new Hls();
+                const hls = new Hls(TV_HLS_CONFIG);
                 var blob = createBlobUrl(m3u8)
                 hls.loadSource(blob);
                 hls.attachMedia(video);
@@ -106,6 +146,18 @@
         }
 
         async function playM3u8(video, url, art) {
+            if (Hls.isSupported()) {
+                if (art.hls) art.hls.destroy();
+                const hls = new Hls(Object.assign({ loader: getAdsFilterLoader() }, TV_HLS_CONFIG));
+                hls.loadSource(url);
+                hls.attachMedia(video);
+                art.hls = hls;
+                art.on('destroy', () => hls.destroy());
+                return;
+            }
+
+            // Safari native HLS: không can thiệp được request nên tải playlist,
+            // lọc quảng cáo rồi phát qua data URL như trước
             var res = await fetch(url)
             if (!res.ok) {
                 console.error(res);
@@ -123,10 +175,11 @@
                 }
                 m3u8 = await res.text()
             }
-            console.log(url)
 
             m3u8 = removeAds(m3u8, url)
-            playM3u8Text(video, m3u8, art)
+            if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = createBase64Url(m3u8);
+            }
         }
 
         async function playJson(video, url, art) {
@@ -143,35 +196,39 @@
         var imageUrl = "/anime/image/r3_512.png"
 
 
-        const id = getUrlParameter('id')
-        const k = getUrlParameter('k')
+        // Chờ DOMContentLoaded: các lib (hls.js, artplayer...) load bằng defer nên chỉ
+        // chắc chắn sẵn sàng từ thời điểm này; fetch nhanh có thể về trước khi lib load xong
+        document.addEventListener('DOMContentLoaded', function () {
+            const id = getUrlParameter('id')
+            const k = getUrlParameter('k')
 
-        if (id) {
-            const url = `https://r3fire.firebaseio.com/anime/${id}.json`
-            fetch(url).then(response => response.json()).then(setupPlayer)
-        } else if (k) {
-            const url = "https://phimapi.com/phim/" + k
-            fetch(url).then(response => response.json())
-                .then(data => {
-                    var playlist = data.episodes[0].server_data.map((item) => {
-                        var id = 1
-                        if (item.slug.includes("tap")) {
-                            let num = Number(item.slug.replace("tap-", ""));
-                            if (Number.isInteger(num)) {
-                                id = num
+            if (id) {
+                const url = `https://r3fire.firebaseio.com/anime/${id}.json`
+                fetch(url).then(response => response.json()).then(setupPlayer)
+            } else if (k) {
+                const url = "https://phimapi.com/phim/" + k
+                fetch(url).then(response => response.json())
+                    .then(data => {
+                        var playlist = data.episodes[0].server_data.map((item) => {
+                            var id = 1
+                            if (item.slug.includes("tap")) {
+                                let num = Number(item.slug.replace("tap-", ""));
+                                if (Number.isInteger(num)) {
+                                    id = num
+                                }
                             }
-                        }
 
-                        return {
-                            id: id,
-                            title: data.movie.origin_name + " - " + id,
-                            file: item.link_m3u8,
-                            image: data.movie.thumb_url || imageUrl,
-                        }
+                            return {
+                                id: id,
+                                title: data.movie.origin_name + " - " + id,
+                                file: item.link_m3u8,
+                                image: data.movie.thumb_url || imageUrl,
+                            }
+                        })
+                        setupPlayer(playlist)
                     })
-                    setupPlayer(playlist)
-                })
-        }
+            }
+        });
 
 
 
@@ -195,10 +252,9 @@
                     subtitles: episode.subtitles,
                 });
             });
-            console.log('Episode list:', episodeList);
-
             var e = String(getUrlParameter('e'));
-            var initialIndex = M[e] ?? episodeList.length - 1;
+            // không dùng ?? : trình duyệt TV cũ (Chrome < 80) fail ngay lúc parse
+            var initialIndex = (M[e] !== undefined) ? M[e] : episodeList.length - 1;
 
             updateParams(episodeList[initialIndex])
 
@@ -234,14 +290,11 @@
                     artplayerPlaylist({
                         rebuildPlayer: false,
                         onchanged: async (art, index) => {
-                            console.log("Video Change", index)
-                            console.log(art)
                             updateParams(episodeList[index])
                             var sub = artplayerPluginMultipleSubtitles({
                                 subtitles: episodeList[index].subtitles,
                             })
-                            var res = await sub(art)
-                            console.log(res)
+                            await sub(art)
                         },
                         autoNext: true,
                         showText: false,
@@ -255,13 +308,6 @@
                     m3u8: playM3u8,
                     json: playJson
                 },
-                thumbnails: {
-                    url: imageUrl,
-                    number: 60,
-                    column: 10,
-                    scale: 0.85,
-                },
-
             });
 
 

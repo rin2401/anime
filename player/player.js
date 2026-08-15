@@ -1,7 +1,16 @@
 var video = document.getElementById('video');
 
+// Config cho thiết bị yếu (smart TV ít RAM, mạng chậm): buffer nhỏ, cap quality
+// theo kích thước player, giải phóng phần đã xem để không phình RAM khi xem tập dài
+var TV_HLS_CONFIG = {
+    capLevelToPlayerSize: true,
+    maxBufferLength: 20,
+    maxBufferSize: 20 * 1000 * 1000,
+    backBufferLength: 30,
+    abrEwmaDefaultEstimate: 1000000,
+};
+
 function playM3u8(url) {
-    console.log("HLS:", Hls.isSupported())
     const hlsMimeType = "application/vnd.apple.mpegurl";
 
     if (url.includes(".mp4")) {
@@ -11,11 +20,10 @@ function playM3u8(url) {
             video.play();
         });
     } else if (Hls.isSupported()) {
-        var hls = new Hls();
+        var hls = new Hls(TV_HLS_CONFIG);
         var m3u8Url = decodeURIComponent(url)
         hls.loadSource(m3u8Url);
         hls.attachMedia(video);
-        console.log(hls)
         hls.on(Hls.Events.MANIFEST_PARSED, function () {
             video.play();
         });
@@ -30,13 +38,11 @@ function playM3u8(url) {
 
 function playM3u8Text(m3u8Text) {
     const hlsMimeType = "application/vnd.apple.mpegurl";
-    console.log("HLS m3u8 text:", Hls.isSupported())
     if (Hls.isSupported()) {
-        var hls = new Hls();
+        var hls = new Hls(TV_HLS_CONFIG);
         var m3u8Url = createBlobUrl(m3u8Text)
         hls.loadSource(m3u8Url);
         hls.attachMedia(video);
-        console.log(hls)
         hls.on(Hls.Events.MANIFEST_PARSED, function () {
             video.play();
         });
@@ -111,8 +117,6 @@ function removeAds(m3u8, url) {
     return m3u8
 }
 
-console.log(window.location.href.split("#"))
-
 var url = window.location.href.split("#")[1]
 if (url.endsWith(".json")) {
     fetch(url).then(response => response.json()).then(function (data) {
@@ -157,7 +161,6 @@ function setMediaSession(title) {
 function loadSavedTime() {
     const STORAGE_KEY = "history";
     const history = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
-    console.log("History:", history)
     if (history[url]) {
         video.currentTime = history[url];
     }
@@ -167,11 +170,10 @@ function loadSavedTime() {
             ...JSON.parse(localStorage.getItem(STORAGE_KEY)),
             [url]: parseInt(video.currentTime)
         }));
-        console.log("Saved time:", parseInt(video.currentTime));
     }, 5000);
 }
 
-$(window).on('load', function () {
+window.addEventListener('load', function () {
     // Mousetrap.bind('space', playPause);
     Mousetrap.bind('up', volumeUp);
     Mousetrap.bind('down', volumeDown);
