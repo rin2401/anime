@@ -562,7 +562,7 @@
                 return {
                     id: item._id,
                     name: item.origin_name,
-                    image: item.poster_url.startsWith("http") ? item.poster_url : data.data.APP_DOMAIN_CDN_IMAGE + "/" + item.poster_url,
+                    image: item.poster_url?.startsWith("http") ? item.poster_url : data.data.APP_DOMAIN_CDN_IMAGE + "/" + item.poster_url,
                     category: item.type,
                     year: item.year,
                     phimapi: item.slug,
