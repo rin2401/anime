@@ -9,6 +9,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
 
 UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -17,7 +18,7 @@ UA = (
 
 # Domain animevietsub hiện hành (site xoay tên miền liên tục). Đổi DUY NHẤT chỗ này
 # khi tên miền chết; norm_host() sẽ tự viết lại mọi url .pl/.lol/.show... sang đây.
-SITE = "animevietsub.mom"
+SITE = "animevietsub.vc"
 BASE = f"https://{SITE}"
 
 
@@ -175,6 +176,10 @@ def ensure_episode_list(driver, timeout=8):
     URL trang GIỚI THIỆU (`/phim/<slug>-aXXXX/`) KHÔNG có li.episode — chỉ trang
     XEM (`.../tap-NN-<id>.html`) mới có. Nếu đang ở trang giới thiệu, tự điều hướng
     sang link /tap- mới nhất tìm được để lấy sidebar đủ tập.
+
+    Chỉ nhận link /tap- NẰM TRONG đúng bộ đang mở (cùng host + cùng path series).
+    Trang giới thiệu còn có sidebar "bình luận mới" trỏ sang phim khác — lấy bừa
+    link /tap- đầu trang sẽ crawl nhầm cả bộ khác vào key Firebase của bộ này.
     """
     try:
         WebDriverWait(driver, timeout).until(
@@ -184,12 +189,24 @@ def ensure_episode_list(driver, timeout=8):
     except Exception:
         pass
     link = driver.execute_script(
-        "var a=document.querySelector('a[href*=\"/tap-\"]');return a?a.href:null;"
+        r"""
+        var p = location.pathname.replace(/\/+$/, '');
+        var cut = p.indexOf('/tap-');
+        var base = cut > -1 ? p.slice(0, cut) : p;   // /phim/<slug>-aXXXX
+        var as = document.querySelectorAll('a[href*="/tap-"]');
+        for (var i = 0; i < as.length; i++) {
+            if (as[i].hostname !== location.hostname) continue;
+            if (as[i].pathname.indexOf(base + '/tap-') === 0) return as[i].href;
+        }
+        return null;
+        """
     )
     if link:
         print(f"  (trang giới thiệu -> chuyển sang trang xem: {link})")
         driver.get(link)
         wait_cloudflare(driver)
+    else:
+        print("  (không thấy link tập nào của bộ này trên trang giới thiệu)")
 
 
 def list_episodes(driver):
@@ -286,7 +303,10 @@ def crawl_drive(anime_id, num_eps=DEFAULT_NUM_EPS):
         if not wait_cloudflare(driver):
             raise RuntimeError("Không qua được Cloudflare (title=%r)" % driver.title)
         ensure_episode_list(driver)  # trang giới thiệu -> trang xem nếu cần
-        eps = list_episodes(driver)
+        try:
+            eps = list_episodes(driver)
+        except TimeoutException:
+            eps = []  # bộ chưa có tập nào trên site
         if not eps:
             print("Không liệt kê được tập trên trang.")
             return
