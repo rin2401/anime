@@ -168,7 +168,8 @@
 
         #fs-btn,
         #drive-btn,
-        #next-btn {
+        #next-btn,
+        #hls-btn {
             height: 40px;
             display: flex;
             align-items: center;
@@ -191,7 +192,8 @@
 
         /* iPhone không có Fullscreen API, fullscreen thật chỉ có ở app Drive (phát native) */
         #drive-btn,
-        #next-btn {
+        #next-btn,
+        #hls-btn {
             padding: 0 12px;
             font-size: 13px;
             font-weight: 700;
@@ -199,7 +201,8 @@
         }
 
         /* chỉ hiện khi đang ở chế độ playlist và còn tập sau */
-        #next-btn {
+        #next-btn,
+        #hls-btn {
             display: none;
         }
 
@@ -207,9 +210,15 @@
             display: flex;
         }
 
+        /* tập này còn có nguồn m3u8 -> mở được bằng player hls (auto-next chuẩn) */
+        body.has-hls #hls-btn {
+            display: flex;
+        }
+
         #fs-btn:active,
         #drive-btn:active,
-        #next-btn:active {
+        #next-btn:active,
+        #hls-btn:active {
             background: rgba(0, 0, 0, .85);
         }
 
@@ -309,6 +318,7 @@
                 <a id="drive-btn" target="_blank" rel="noopener"
                     title="Mở trong app Google Drive — fullscreen thật trên iPhone">Drive ↗</a>
                 <button id="next-btn" type="button" title="Tập sau">Tập sau ›</button>
+                <a id="hls-btn" title="Mở bằng player HLS — tự chuyển tập chính xác khi hết">HLS ↗</a>
             </div>
             <div id="next-toast">
                 <span id="nt-text"></span>
@@ -342,6 +352,7 @@
         const fsBtn = document.getElementById('fs-btn');
         const driveBtn = document.getElementById('drive-btn');
         const nextBtn = document.getElementById('next-btn');
+        const hlsBtn = document.getElementById('hls-btn');
         const stageEl = document.getElementById('stage');
         const autoCb = document.getElementById('auto-next-cb');
         const ntText = document.getElementById('nt-text');
@@ -460,6 +471,9 @@
         let epStoreKey = '';
         let epDurationSec = 0;  // 0 = chưa biết -> dùng DEFAULT_EP_SEC
         let waitTimer = null, tickTimer = null;
+        // Tập nào của bộ này còn có nguồn m3u8 -> mở được bằng player hls,
+        // nơi bắt được sự kiện 'ended' thật nên auto-next chính xác.
+        let hlsAnimeId = '', hlsEps = {};
 
         let autoNext = localStorage.getItem(AUTO_KEY) !== '0';
         autoCb.checked = autoNext;
@@ -469,12 +483,12 @@
             scheduleAutoNext();
         });
 
-        // Ghi tập đang xem vào URL (?ep=<số tập>) để link chia sẻ / F5 giữ nguyên tập.
+        // Ghi tập đang xem vào URL (?e=<số tập>) để link chia sẻ / F5 giữ nguyên tập.
+        // Dùng tên `e` cho khớp artplayer/r3player/jwplayer, đổi player không mất tập.
         function syncUrl(epId) {
             if (!window.history || !history.replaceState) return;
             const p = new URLSearchParams(window.location.search);
-            p.delete('e');                       // tham số cũ, thay bằng ep
-            p.set('ep', String(epId));
+            p.set('e', String(epId));
             history.replaceState(null, '',
                 window.location.pathname + '?' + p.toString() + window.location.hash);
         }
@@ -530,6 +544,9 @@
             if (epStoreKey) localStorage.setItem(epStoreKey, String(ep.id));
             syncUrl(ep.id);
             document.body.classList.toggle('has-next', idx < epList.length - 1);
+            const hasHls = hlsAnimeId && hlsEps[String(ep.id)];
+            document.body.classList.toggle('has-hls', !!hasHls);
+            if (hasHls) hlsBtn.href = `/anime/artplayer/?id=${hlsAnimeId}&e=${ep.id}`;
             play(episodeRef(ep), ep.title);
             centerActive();
             scheduleAutoNext();
@@ -587,10 +604,15 @@
                     let entries = Array.isArray(data)
                         ? data.map((v, i) => [i, v])
                         : Object.entries(data);
-                    let episodes = entries
+                    const all = entries
                         .filter(([, v]) => v)
-                        .map(([k, v]) => Object.assign({ id: (v.id != null ? v.id : k) }, v))
-                        .filter(isDriveSource);
+                        .map(([k, v]) => Object.assign({ id: (v.id != null ? v.id : k) }, v));
+                    // Cùng một node có thể chứa cả tập m3u8 (crawler artplayer đẩy lên);
+                    // ghi nhận trước khi lọc để biết tập nào mở được bằng player hls.
+                    hlsAnimeId = animeId;
+                    hlsEps = {};
+                    all.forEach(ep => { if (ep.file) hlsEps[String(ep.id)] = 1; });
+                    let episodes = all.filter(isDriveSource);
                     // sort tăng dần theo số tập (trên -> xuống)
                     episodes.sort((a, b) => (parseFloat(a.id) || 0) - (parseFloat(b.id) || 0));
                     if (!episodes.length) { showError('Playlist không có tập Drive cho id <code>' + animeId + '</code>'); return; }
@@ -628,8 +650,8 @@
         const v = params.get('v');
         const url = params.get('url');
         const id = params.get('id');         // Firebase anime id (playlist mode)
-        // Tập cần mở: ?ep=<số tập>. `e` là tên cũ, giữ để link cũ không chết.
-        const e = params.get('ep') || params.get('e');
+        // Tập cần mở: ?e=<số tập> (cùng tên tham số với các player khác)
+        const e = params.get('e');
         const list = params.get('list');     // danh sách drive id/link, cách nhau bằng dấu phẩy
         const titles = params.get('titles'); // tiêu đề tuỳ chọn, cách nhau bằng dấu |
 
@@ -646,7 +668,7 @@
                 '<code>?url=&lt;link Google Drive&gt;</code><br>' +
                 '<code>?list=&lt;id1,id2,id3&gt;</code> (playlist nhiều video)<br>' +
                 '<code>?id=&lt;animeId&gt;</code> (playlist từ Firebase)<br>' +
-                '<code>&amp;ep=&lt;số tập&gt;</code> (mở đúng tập, dùng kèm id/list)<br><br>' +
+                '<code>&amp;e=&lt;số tập&gt;</code> (mở đúng tập, dùng kèm id/list)<br><br>' +
                 'Video cần được chia sẻ <b>"Anyone with the link"</b>. ' +
                 'Nếu chủ file tắt nhúng (embed) thì Google sẽ báo không khả dụng.'
             );
