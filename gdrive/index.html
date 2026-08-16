@@ -71,6 +71,10 @@
         }
 
         #ep-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
             padding: 12px 14px;
             font-size: 14px;
             font-weight: 700;
@@ -79,6 +83,21 @@
             position: sticky;
             top: 0;
             background: #111;
+        }
+
+        #auto-next-lb {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+            font-weight: 400;
+            color: #999;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+
+        #auto-next-cb {
+            margin: 0;
         }
 
         .ep-item {
@@ -148,7 +167,8 @@
         }
 
         #fs-btn,
-        #drive-btn {
+        #drive-btn,
+        #next-btn {
             height: 40px;
             display: flex;
             align-items: center;
@@ -170,16 +190,74 @@
         }
 
         /* iPhone không có Fullscreen API, fullscreen thật chỉ có ở app Drive (phát native) */
-        #drive-btn {
+        #drive-btn,
+        #next-btn {
             padding: 0 12px;
             font-size: 13px;
             font-weight: 700;
             white-space: nowrap;
         }
 
+        /* chỉ hiện khi đang ở chế độ playlist và còn tập sau */
+        #next-btn {
+            display: none;
+        }
+
+        body.has-next #next-btn {
+            display: flex;
+        }
+
         #fs-btn:active,
-        #drive-btn:active {
+        #drive-btn:active,
+        #next-btn:active {
             background: rgba(0, 0, 0, .85);
+        }
+
+        /* Toast "chuyển tập": đặt dưới #vid-tools, vẫn ở lề TRÁI vì Drive chiếm
+           góc trên phải (pop-out) và cả dải đáy (control bar). */
+        #next-toast {
+            position: absolute;
+            top: 56px;
+            left: 8px;
+            z-index: 11;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            max-width: calc(100% - 16px);
+            box-sizing: border-box;
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: rgba(0, 0, 0, .85);
+            font-size: 13px;
+            color: #eee;
+        }
+
+        body.show-next #next-toast {
+            display: flex;
+        }
+
+        #next-toast b {
+            color: #fff;
+        }
+
+        #next-toast button {
+            border: none;
+            border-radius: 6px;
+            padding: 7px 10px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        #nt-go {
+            background: #2563eb;
+            color: #fff;
+        }
+
+        #nt-stay {
+            background: #333;
+            color: #ddd;
         }
 
         /* Chế độ toàn màn hình: ẩn danh sách, video chiếm hết viewport.
@@ -230,10 +308,21 @@
                 <button id="fs-btn" type="button" aria-label="Toàn màn hình" title="Toàn màn hình">⛶</button>
                 <a id="drive-btn" target="_blank" rel="noopener"
                     title="Mở trong app Google Drive — fullscreen thật trên iPhone">Drive ↗</a>
+                <button id="next-btn" type="button" title="Tập sau">Tập sau ›</button>
+            </div>
+            <div id="next-toast">
+                <span id="nt-text"></span>
+                <button id="nt-go" type="button">Chuyển ngay</button>
+                <button id="nt-stay" type="button">Ở lại</button>
             </div>
         </div>
         <div id="episodes">
-            <div id="ep-title">Danh sách tập</div>
+            <div id="ep-title">
+                <span id="ep-title-text">Danh sách tập</span>
+                <label id="auto-next-lb" title="Hết tập thì tự chuyển sang tập sau (ước lượng theo thời lượng)">
+                    <input type="checkbox" id="auto-next-cb"> Tự chuyển
+                </label>
+            </div>
             <div id="ep-list"></div>
         </div>
     </div>
@@ -242,16 +331,20 @@
 
     <script>
         const FIREBASE_BASE = "https://r3fire.firebaseio.com/anime";
+        const ANILIST_API = "https://graphql.anilist.co";
         const ARTWORK = "/anime/image/r3_512.png";
 
         const iframe = document.getElementById('gd-iframe');
         const msgEl = document.getElementById('msg');
         const epListEl = document.getElementById('ep-list');
-        const epTitleEl = document.getElementById('ep-title');
+        const epTitleEl = document.getElementById('ep-title-text');
         const epBoxEl = document.getElementById('episodes');   // container cuộn
         const fsBtn = document.getElementById('fs-btn');
         const driveBtn = document.getElementById('drive-btn');
+        const nextBtn = document.getElementById('next-btn');
         const stageEl = document.getElementById('stage');
+        const autoCb = document.getElementById('auto-next-cb');
+        const ntText = document.getElementById('nt-text');
 
         // Cuộn danh sách tới tập đang xem — gán scrollTop trực tiếp trên #episodes.
         // KHÔNG dùng scrollIntoView: nó cuộn cả root viewport, trên iOS sẽ đẩy video
@@ -351,9 +444,103 @@
             return !!(ep && ep.drive_id);
         }
 
+        // ---- Playlist state + tự chuyển tập ----
+        // KHÔNG bắt được sự kiện "hết video": iframe drive.google.com/.../preview là
+        // cross-origin và Drive không có postMessage API -> không đọc được currentTime.
+        // Nên chỉ ƯỚC LƯỢNG: hẹn giờ theo thời lượng 1 tập (AniList) rồi hỏi lại user
+        // bằng toast đếm ngược, thay vì nhảy tập trong khi họ đang pause.
+        const DEFAULT_EP_SEC = 24 * 60;   // fallback khi AniList không có duration
+        const GRACE_SEC = 90;             // bù buffering / user pause vài nhịp
+        const COUNTDOWN_SEC = 20;         // thời gian toast đếm ngược trước khi chuyển
+        const AUTO_KEY = 'gdrive:autonext';
+
+        let epList = [];        // danh sách tập đang hiển thị
+        let epButtons = [];
+        let curIdx = -1;
+        let epStoreKey = '';
+        let epDurationSec = 0;  // 0 = chưa biết -> dùng DEFAULT_EP_SEC
+        let waitTimer = null, tickTimer = null;
+
+        let autoNext = localStorage.getItem(AUTO_KEY) !== '0';
+        autoCb.checked = autoNext;
+        autoCb.addEventListener('change', () => {
+            autoNext = autoCb.checked;
+            localStorage.setItem(AUTO_KEY, autoNext ? '1' : '0');
+            scheduleAutoNext();
+        });
+
+        // Ghi tập đang xem vào URL (?ep=<số tập>) để link chia sẻ / F5 giữ nguyên tập.
+        function syncUrl(epId) {
+            if (!window.history || !history.replaceState) return;
+            const p = new URLSearchParams(window.location.search);
+            p.delete('e');                       // tham số cũ, thay bằng ep
+            p.set('ep', String(epId));
+            history.replaceState(null, '',
+                window.location.pathname + '?' + p.toString() + window.location.hash);
+        }
+
+        function hideToast() {
+            document.body.classList.remove('show-next');
+            if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
+        }
+
+        function clearAutoNext() {
+            if (waitTimer) { clearTimeout(waitTimer); waitTimer = null; }
+            hideToast();
+        }
+
+        function scheduleAutoNext() {
+            clearAutoNext();
+            if (!autoNext || curIdx < 0 || curIdx >= epList.length - 1) return;
+            const wait = ((epDurationSec || DEFAULT_EP_SEC) + GRACE_SEC) * 1000;
+            waitTimer = setTimeout(showToast, wait);
+        }
+
+        function showToast() {
+            const nx = epList[curIdx + 1];
+            if (!nx) return;
+            const name = nx.title || ('Tập ' + nx.id);
+            let left = COUNTDOWN_SEC;
+            const paint = () => {
+                ntText.innerHTML = 'Tiếp: <b>' + name.replace(/</g, '&lt;') +
+                    '</b> sau ' + left + 's';
+            };
+            paint();
+            document.body.classList.add('show-next');
+            tickTimer = setInterval(() => {
+                left--;
+                if (left <= 0) { hideToast(); selectEpisode(curIdx + 1); return; }
+                paint();
+            }, 1000);
+        }
+
+        document.getElementById('nt-go').addEventListener('click', () => {
+            hideToast();
+            selectEpisode(curIdx + 1);
+        });
+        // "Ở lại" = user vẫn đang xem tập này -> huỷ hẳn, không nhắc lại nữa
+        document.getElementById('nt-stay').addEventListener('click', clearAutoNext);
+        nextBtn.addEventListener('click', () => selectEpisode(curIdx + 1));
+
+        function selectEpisode(idx) {
+            const ep = epList[idx];
+            if (!ep) return;
+            curIdx = idx;
+            epButtons.forEach((b, i) => b.classList.toggle('active', i === idx));
+            if (epStoreKey) localStorage.setItem(epStoreKey, String(ep.id));
+            syncUrl(ep.id);
+            document.body.classList.toggle('has-next', idx < epList.length - 1);
+            play(episodeRef(ep), ep.title);
+            centerActive();
+            scheduleAutoNext();
+        }
+
         function renderEpisodes(storeKey, episodes, defaultEpId) {
             document.body.classList.add('has-playlist');
             epListEl.innerHTML = '';
+            epList = episodes;
+            epButtons = [];
+            epStoreKey = storeKey;
 
             let targetId = defaultEpId || localStorage.getItem(storeKey);
             let targetIdx = episodes.findIndex(e => String(e.id) === String(targetId));
@@ -364,19 +551,30 @@
                 const btn = document.createElement('button');
                 btn.className = 'ep-item';
                 btn.textContent = ep.title || ('Tập ' + ep.id);
-                btn.addEventListener('click', () => {
-                    document.querySelectorAll('.ep-item.active').forEach(e => e.classList.remove('active'));
-                    btn.classList.add('active');
-                    localStorage.setItem(storeKey, String(ep.id));
-                    play(episodeRef(ep), ep.title);
-                });
+                btn.addEventListener('click', () => selectEpisode(idx));
                 epListEl.appendChild(btn);
-                if (idx === targetIdx) {
-                    btn.classList.add('active');
-                    play(episodeRef(ep), ep.title);
-                }
+                epButtons.push(btn);
             });
-            centerActive();
+            selectEpisode(targetIdx);
+        }
+
+        // Thời lượng 1 tập lấy từ AniList (id trên URL chính là AniList ID).
+        function loadDuration(animeId) {
+            if (!/^\d+$/.test(String(animeId))) return;
+            fetch(ANILIST_API, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    query: 'query($id:Int){Media(id:$id){duration}}',
+                    variables: { id: parseInt(animeId, 10) }
+                })
+            })
+                .then(r => r.json())
+                .then(d => {
+                    const mins = d && d.data && d.data.Media && d.data.Media.duration;
+                    if (mins) { epDurationSec = mins * 60; scheduleAutoNext(); }
+                })
+                .catch(() => { });   // không có duration thì dùng mặc định 24'
         }
 
         function loadPlaylist(animeId, defaultEpId) {
@@ -398,6 +596,7 @@
                     if (!episodes.length) { showError('Playlist không có tập Drive cho id <code>' + animeId + '</code>'); return; }
                     epTitleEl.textContent = `Danh sách tập (${episodes.length})`;
                     renderEpisodes('gdrive:last:' + animeId, episodes, defaultEpId);
+                    loadDuration(animeId);
                 })
                 .catch(err => {
                     console.error(err);
@@ -413,7 +612,7 @@
             const titles = (titlesParam || '').split('|').map(s => s.trim());
 
             const episodes = refs.map((ref, i) => ({
-                id: i,                                  // dùng index làm id
+                id: i + 1,                              // 1-based để ?ep=1 là video đầu
                 title: titles[i] || ('Video ' + (i + 1)),
                 file: ref
             }));
@@ -429,7 +628,8 @@
         const v = params.get('v');
         const url = params.get('url');
         const id = params.get('id');         // Firebase anime id (playlist mode)
-        const e = params.get('e');           // optional default episode id/index
+        // Tập cần mở: ?ep=<số tập>. `e` là tên cũ, giữ để link cũ không chết.
+        const e = params.get('ep') || params.get('e');
         const list = params.get('list');     // danh sách drive id/link, cách nhau bằng dấu phẩy
         const titles = params.get('titles'); // tiêu đề tuỳ chọn, cách nhau bằng dấu |
 
@@ -445,7 +645,8 @@
                 '<code>?v=&lt;driveFileId&gt;</code><br>' +
                 '<code>?url=&lt;link Google Drive&gt;</code><br>' +
                 '<code>?list=&lt;id1,id2,id3&gt;</code> (playlist nhiều video)<br>' +
-                '<code>?id=&lt;animeId&gt;</code> (playlist từ Firebase)<br><br>' +
+                '<code>?id=&lt;animeId&gt;</code> (playlist từ Firebase)<br>' +
+                '<code>&amp;ep=&lt;số tập&gt;</code> (mở đúng tập, dùng kèm id/list)<br><br>' +
                 'Video cần được chia sẻ <b>"Anyone with the link"</b>. ' +
                 'Nếu chủ file tắt nhúng (embed) thì Google sẽ báo không khả dụng.'
             );
