@@ -455,6 +455,15 @@
             return !!(ep && ep.drive_id);
         }
 
+        // Nhãn trong danh sách: chỉ "Tập <số>" cho gọn, không dùng title dài của nguồn
+        // (title vẫn giữ cho tab + media session). Key Firebase thay '.' bằng '_' nên
+        // '07_5' -> 'Tập 7.5'; id không phải số ('Xem Full') thì để nguyên.
+        function epLabel(ep) {
+            if (ep.label) return ep.label;
+            const n = parseFloat(String(ep.id).replace(/_/g, '.'));
+            return isNaN(n) ? String(ep.id) : 'Tập ' + n;
+        }
+
         // ---- Playlist state + tự chuyển tập ----
         // KHÔNG bắt được sự kiện "hết video": iframe drive.google.com/.../preview là
         // cross-origin và Drive không có postMessage API -> không đọc được currentTime.
@@ -513,7 +522,7 @@
         function showToast() {
             const nx = epList[curIdx + 1];
             if (!nx) return;
-            const name = nx.title || ('Tập ' + nx.id);
+            const name = epLabel(nx);
             let left = COUNTDOWN_SEC;
             const paint = () => {
                 ntText.innerHTML = 'Tiếp: <b>' + name.replace(/</g, '&lt;') +
@@ -567,7 +576,7 @@
             episodes.forEach((ep, idx) => {
                 const btn = document.createElement('button');
                 btn.className = 'ep-item';
-                btn.textContent = ep.title || ('Tập ' + ep.id);
+                btn.textContent = epLabel(ep);
                 btn.addEventListener('click', () => selectEpisode(idx));
                 epListEl.appendChild(btn);
                 epButtons.push(btn);
@@ -634,8 +643,10 @@
             const titles = (titlesParam || '').split('|').map(s => s.trim());
 
             const episodes = refs.map((ref, i) => ({
-                id: i + 1,                              // 1-based để ?ep=1 là video đầu
+                id: i + 1,                              // 1-based để ?e=1 là video đầu
                 title: titles[i] || ('Video ' + (i + 1)),
+                // ?titles= sinh ra để đặt tên riêng -> giữ, không ép thành "Tập N"
+                label: titles[i] || ('Video ' + (i + 1)),
                 file: ref
             }));
 
