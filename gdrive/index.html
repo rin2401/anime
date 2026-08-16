@@ -169,7 +169,8 @@
         #fs-btn,
         #drive-btn,
         #next-btn,
-        #hls-btn {
+        #hls-btn,
+        #pip-btn {
             height: 40px;
             display: flex;
             align-items: center;
@@ -193,7 +194,8 @@
         /* iPhone không có Fullscreen API, fullscreen thật chỉ có ở app Drive (phát native) */
         #drive-btn,
         #next-btn,
-        #hls-btn {
+        #hls-btn,
+        #pip-btn {
             padding: 0 12px;
             font-size: 13px;
             font-weight: 700;
@@ -202,11 +204,17 @@
 
         /* chỉ hiện khi đang ở chế độ playlist và còn tập sau */
         #next-btn,
-        #hls-btn {
+        #hls-btn,
+        #pip-btn {
             display: none;
         }
 
         body.has-next #next-btn {
+            display: flex;
+        }
+
+        /* Document PiP chỉ có ở Chrome/Edge desktop 116+ */
+        body.has-pip #pip-btn {
             display: flex;
         }
 
@@ -218,7 +226,8 @@
         #fs-btn:active,
         #drive-btn:active,
         #next-btn:active,
-        #hls-btn:active {
+        #hls-btn:active,
+        #pip-btn:active {
             background: rgba(0, 0, 0, .85);
         }
 
@@ -315,6 +324,7 @@
                 allow="autoplay; encrypted-media; fullscreen; picture-in-picture"></iframe>
             <div id="vid-tools">
                 <button id="fs-btn" type="button" aria-label="Toàn màn hình" title="Toàn màn hình">⛶</button>
+                <button id="pip-btn" type="button" title="Xem trong cửa sổ nổi">PiP</button>
                 <a id="drive-btn" target="_blank" rel="noopener"
                     title="Mở trong app Google Drive — fullscreen thật trên iPhone">Drive ↗</a>
                 <button id="next-btn" type="button" title="Tập sau">Tập sau ›</button>
@@ -353,6 +363,7 @@
         const driveBtn = document.getElementById('drive-btn');
         const nextBtn = document.getElementById('next-btn');
         const hlsBtn = document.getElementById('hls-btn');
+        const pipBtn = document.getElementById('pip-btn');
         const stageEl = document.getElementById('stage');
         const autoCb = document.getElementById('auto-next-cb');
         const ntText = document.getElementById('nt-text');
@@ -399,6 +410,46 @@
             if (!document.fullscreenElement && document.body.classList.contains('fs')) setFs(false);
         });
 
+        function setPipUi(on) {
+            pipBtn.textContent = on ? 'PiP ✕' : 'PiP';
+            pipBtn.title = on ? 'Đóng cửa sổ nổi' : 'Xem trong cửa sổ nổi';
+        }
+
+        async function togglePip() {
+            if (pipWin) { pipWin.close(); return; }
+            let w;
+            try {
+                w = await documentPictureInPicture.requestWindow({ width: 480, height: 270 });
+            } catch (err) {
+                return;   // user huỷ, hoặc mất user gesture
+            }
+            pipWin = w;
+            const st = w.document.createElement('style');
+            st.textContent = 'html,body{margin:0;height:100%;background:#000;overflow:hidden}' +
+                'iframe{border:0;width:100%;height:100%;display:block}';
+            w.document.head.appendChild(st);
+
+            pipFrame = w.document.createElement('iframe');
+            pipFrame.allow = 'autoplay; encrypted-media; fullscreen; picture-in-picture';
+            pipFrame.src = curPreview;
+            w.document.body.appendChild(pipFrame);
+            iframe.src = 'about:blank';   // tránh phát 2 nơi cùng lúc
+            setPipUi(true);
+
+            // đóng bằng nút X của cửa sổ nổi -> trả video về trang chính
+            w.addEventListener('pagehide', () => {
+                pipWin = null;
+                pipFrame = null;
+                if (curPreview) iframe.src = curPreview;
+                setPipUi(false);
+            });
+        }
+
+        if ('documentPictureInPicture' in window) {
+            document.body.classList.add('has-pip');
+            pipBtn.addEventListener('click', togglePip);
+        }
+
         function showError(html) {
             msgEl.innerHTML = html;
             msgEl.style.display = 'flex';
@@ -420,6 +471,13 @@
             return null;
         }
 
+        // Picture-in-Picture: video nằm trong iframe cross-origin của Drive nên KHÔNG
+        // gọi được video.requestPictureInPicture() — không với tới thẻ <video>. Cách duy
+        // nhất là Document PiP: mở cửa sổ nổi rồi dựng lại iframe Drive trong đó.
+        // Đánh đổi: video phát lại từ đầu, vì currentTime của iframe cross-origin cũng
+        // không đọc được để tua tới chỗ cũ.
+        let pipWin = null, pipFrame = null, curPreview = '';
+
         function play(driveRef, title) {
             const fid = parseDriveId(driveRef);
             if (!fid) {
@@ -428,7 +486,10 @@
                 return;
             }
             hideError();
-            iframe.src = `https://drive.google.com/file/d/${fid}/preview`;
+            curPreview = `https://drive.google.com/file/d/${fid}/preview`;
+            // PiP đang mở -> cửa sổ nổi là chỗ phát; đừng chạy song song ở trang chính
+            if (pipFrame) pipFrame.src = curPreview;
+            else iframe.src = curPreview;
             // /view mở app Drive nếu máy có cài -> phát native, có fullscreen thật
             driveBtn.href = `https://drive.google.com/file/d/${fid}/view`;
             if (title) {
