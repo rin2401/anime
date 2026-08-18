@@ -3,13 +3,16 @@ import re
 import sys
 import json
 import time
+import atexit
+import signal
+import subprocess
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, WebDriverException
 
 UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -29,30 +32,124 @@ def norm_host(url):
     return re.sub(r"animevietsub\.[a-z]+", SITE, url)
 
 
+# Profile riêng của crawler (KHÔNG phải Chrome cá nhân) -> dọn được thoải mái.
+PROFILE_DIR = "/tmp/cf-chrome-profile"
+
+_owned_drivers = []
+
+
+def _profile_pids():
+    """PID các tiến trình Chrome đang dùng profile crawler."""
+    r = subprocess.run(
+        ["pgrep", "-f", f"user-data-dir={PROFILE_DIR}"],
+        capture_output=True,
+        text=True,
+    )
+    return [int(x) for x in r.stdout.split() if x.strip().isdigit()]
+
+
+def kill_orphan_chrome():
+    """Dọn Chrome mồ côi còn giữ profile crawler; trả về số tiến trình đã dọn.
+
+    Khi tiến trình crawl bị kill cứng (SIGKILL / timeout), chromedriver chết
+    nhưng Chrome nó mở vẫn sống và giữ SingletonLock của profile, nên mọi lần
+    chạy sau chết với 'SessionNotCreatedException: Chrome instance exited'.
+    Profile này chỉ dùng cho crawler nên kill an toàn.
+    (Lock trỏ tới PID đã chết thì Chrome tự xử lý được, không cần xoá tay.)
+    """
+    pids = _profile_pids()
+    if not pids:
+        return 0
+    print(f"[CHROME] dọn {len(pids)} tiến trình Chrome mồ côi đang giữ {PROFILE_DIR}")
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        for pid in _profile_pids():
+            try:
+                os.kill(pid, sig)
+            except (ProcessLookupError, PermissionError):
+                pass
+        for _ in range(20):  # chờ tối đa ~5s cho chúng chết hẳn
+            if not _profile_pids():
+                return len(pids)
+            time.sleep(0.25)
+    return len(pids)
+
+
+def _quit_owned():
+    """Quit các driver do mình mở (không đụng Chrome attach qua AVS_DEBUG_PORT)."""
+    while _owned_drivers:
+        d = _owned_drivers.pop()
+        try:
+            d.quit()
+        except Exception:
+            pass
+
+
+def _on_signal(signum, frame):
+    _quit_owned()
+    sys.exit(128 + signum)
+
+
+def _register_cleanup(driver):
+    """Đảm bảo Chrome được đóng khi script thoát hoặc bị SIGTERM.
+
+    SIGINT đã chạy finally sẵn qua KeyboardInterrupt; SIGKILL thì không chặn
+    được -> lần chạy sau dựa vào kill_orphan_chrome() để tự hồi phục.
+    """
+    _owned_drivers.append(driver)
+    if len(_owned_drivers) == 1:
+        atexit.register(_quit_owned)
+        for sig in (signal.SIGTERM, signal.SIGHUP):
+            try:
+                signal.signal(sig, _on_signal)
+            except (ValueError, OSError):  # không ở main thread
+                pass
+
+
+def _hide_webdriver(driver, owned):
+    """Ẩn navigator.webdriver; lỗi thì đóng Chrome mình vừa mở để khỏi mồ côi."""
+    try:
+        driver.execute_cdp_cmd(
+            "Page.addScriptToEvaluateOnNewDocument",
+            {"source": "Object.defineProperty(navigator,'webdriver',{get:()=>undefined});"},
+        )
+    except Exception:
+        if owned:
+            try:
+                driver.quit()
+            except Exception:
+                pass
+        raise
+    return driver
+
+
 def make_driver():
     """Attach vào Chrome thật nếu có AVS_DEBUG_PORT, ngược lại mở Chrome mới."""
     opts = Options()
     port = os.environ.get("AVS_DEBUG_PORT")
     if port:
         opts.add_experimental_option("debuggerAddress", f"127.0.0.1:{port}")
+        return _hide_webdriver(webdriver.Chrome(options=opts), owned=False)
+
+    for a in [
+        "--disable-gpu",
+        "--no-sandbox",
+        "--window-size=1280,900",
+        "--autoplay-policy=no-user-gesture-required",
+        f"--user-data-dir={PROFILE_DIR}",
+    ]:
+        opts.add_argument(a)
+    opts.add_experimental_option("excludeSwitches", ["enable-automation"])
+    opts.add_argument(f"user-agent={UA}")
+
+    kill_orphan_chrome()
+    try:
         driver = webdriver.Chrome(options=opts)
-    else:
-        for a in [
-            "--disable-gpu",
-            "--no-sandbox",
-            "--window-size=1280,900",
-            "--autoplay-policy=no-user-gesture-required",
-            "--user-data-dir=/tmp/cf-chrome-profile",
-        ]:
-            opts.add_argument(a)
-        opts.add_experimental_option("excludeSwitches", ["enable-automation"])
-        opts.add_argument(f"user-agent={UA}")
+    except WebDriverException:
+        # Lần mở hỏng cũng có thể bỏ lại Chrome sống -> dọn rồi thử lại 1 lần.
+        kill_orphan_chrome()
         driver = webdriver.Chrome(options=opts)
-    driver.execute_cdp_cmd(
-        "Page.addScriptToEvaluateOnNewDocument",
-        {"source": "Object.defineProperty(navigator,'webdriver',{get:()=>undefined});"},
-    )
-    return driver
+    _register_cleanup(driver)
+    return _hide_webdriver(driver, owned=True)
 
 
 def wait_cloudflare(driver, timeout=45):
