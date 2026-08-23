@@ -62,6 +62,39 @@ pkill -f 'cf-chrome-profile'; pkill -f chromedriver; sleep 2
    nhiều bộ na ná (vd nhiều mùa), hãy để user chọn thay vì tự đoán — dùng `--dry-run` để
    xem kế hoạch trước nếu cần: `uv run python crawl_anime.py <anilist_id> --dry-run`.
 
+## Domain animevietsub chết (NXDOMAIN / ERR_NAME_NOT_RESOLVED)
+Site xoay tên miền liên tục — domain cũ có thể chết bất cứ lúc nào (2026-08-23: `.vc` NXDOMAIN
+hẳn, `.love` cũng hết hạn). Domain sống hiện tại: **`animevietsub.work`**, khai ở
+`scripts/avs_extract.py:24` (`SITE = "..."`); `norm_host()` tự viết lại mọi URL
+`animevietsub.<tld>` cũ trong Sheet về domain này khi crawl, nên **chỉ cần sửa một chỗ này**.
+
+Nếu gặp lỗi `net::ERR_NAME_NOT_RESOLVED` khi crawl, đi tìm domain sống mới bằng Chrome thật
+(curl không vượt được Cloudflare nên không dùng để xác minh):
+```bash
+cd anime/scripts && uv run python - <<'EOF'
+import time
+from avs_extract import make_driver, wait_cloudflare, kill_orphan_chrome
+for dom in ["animevietsub.tv", "animevietsub.co", "animevietsub.show"]:  # thử vài TLD phổ biến
+    kill_orphan_chrome()
+    d = make_driver()
+    try:
+        d.get(f"https://{dom}/"); wait_cloudflare(d); time.sleep(2)
+        print(dom, "->", d.title, "|", d.current_url)
+    finally:
+        d.quit()
+EOF
+```
+Domain thật sẽ redirect sang trang có title kiểu "Anime Vietsub Online - AnimeVietSub.<tld>"
+và có nội dung anime thật (thử mở 1 slug quen biết, vd `/phim/one-piece-dao-hai-tac-a1/`, xem
+tập mới nhất có khớp số tập AniList báo đã chiếu không). Domain rác/parking sẽ redirect sang
+site quảng cáo lạ (vd từng gặp `.lol` redirect sang `live.pushub.net`) hoặc trả title trống/
+đúng tên domain (chưa qua được Cloudflare / chưa trỏ đúng). Xác nhận xong thì sửa `SITE` ở
+`avs_extract.py` rồi chạy lại crawl bình thường.
+
+(Lưu ý: `anilist.py`/`animevietsub.py`/`main.py`/`sheet.py` còn hardcode riêng
+`animevietsub.lol/ajax/suggest` cho tính năng search khác — không nằm trong luồng
+`crawl_anime.py`, đổi domain ở trên không tự sửa các chỗ này.)
+
 ## Xác minh AniList ID là mùa nào
 Trước khi `--pick`, đối chiếu số tập + năm để chắc chắn chọn đúng mùa/part:
 ```bash
@@ -80,7 +113,7 @@ query theo tên AniList vô vọng). Cách lấy URL đúng: mở trang **một 
 cd anime/scripts && uv run python - <<'EOF'
 import time
 from avs_extract import make_driver, wait_cloudflare
-URL = "https://animevietsub.vc/phim/<slug-mua-da-biet>-aXXXX/"
+URL = "https://animevietsub.work/phim/<slug-mua-da-biet>-aXXXX/"  # domain sống, xem SITE ở avs_extract.py
 d = make_driver()
 try:
     d.get(URL); wait_cloudflare(d); time.sleep(2)
@@ -111,10 +144,18 @@ Monitor grep: `OK\]|MISS\]|Tổng kết|Cloudflare|Error|Traceback|Không|CHỌN
 ## Kiểm tra sau khi crawl
 Đừng chỉ tin dòng `Tổng kết` — đối chiếu số tập thật trên Firebase với số tập AniList:
 ```bash
-curl -s 'https://r3fire.firebaseio.com/anime/<id>.json' \
-  | python3 -c 'import json,sys; d=json.load(sys.stdin); print(len(d), sorted(d, key=lambda k:(len(k),k)))'
+curl -s 'https://r3fire.firebaseio.com/anime/<id>.json' | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+# Firebase trả ARRAY (index 0 = null) khi key tập là số liên tiếp từ 1, trả OBJECT
+# khi có key chữ (vd "11_END") -> phải xử lý cả hai, và bỏ phần tử null.
+eps = ({str(i): v for i, v in enumerate(d) if v} if isinstance(d, list)
+       else {k: v for k, v in (d or {}).items() if v})
+print(len(eps), sorted(eps, key=lambda k: (len(k), k)))
+'
 ```
-Tập cuối thường có key dạng `11_END`.
+Tập cuối thường có key dạng `11_END` — đó là lúc Firebase trả về object. Bộ đang phát mà
+mới có tập 1..N thì trả về array, dùng `len(d)` thẳng sẽ đếm lố (tính cả `null` ở index 0).
 
 ## Ghi chú
 - URL trong Sheet có thể là trang giới thiệu (`/phim/<slug>-aXXXX/`) — `crawl_drive` tự
