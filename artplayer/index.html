@@ -204,7 +204,7 @@
 
             if (id) {
                 const url = `https://r3fire.firebaseio.com/anime/${id}.json`
-                fetch(url).then(response => response.json()).then(setupPlayer)
+                fetch(url).then(response => response.json()).then(data => setupPlayer(data, id))
             } else if (k) {
                 const url = "https://phimapi.com/phim/" + k
                 fetch(url).then(response => response.json())
@@ -238,7 +238,9 @@
             return parseFloat(String(id).replace(/_/g, '.')) || 0;
         }
 
-        function setupPlayer(data) {
+        // animeId: key Firebase của bộ đang mở (?id=). Cần cho các tập lưu THẲNG nội
+        // dung m3u8 trong node (phim lẻ Ghibli/Shinkai...) thay vì có sẵn `file`.
+        function setupPlayer(data, animeId) {
             var M = {};
 
             var episodeList = [];
@@ -248,17 +250,23 @@
                     return
                 }
 
-                // Chỉ nhận tập CÓ m3u8. Cùng một node còn chứa tập chỉ có drive_id
-                // (do crawler Drive đẩy lên); đưa vào playlist thì url undefined.
-                if (!episode.file) {
+                // Chỉ nhận tập CÓ nguồn phát. Cùng một node còn chứa tập chỉ có
+                // drive_id (do crawler Drive đẩy lên); đưa vào playlist thì url undefined.
+                if (!episode.file && !episode.m3u8) {
                     return
                 }
+
+                // Tập kiểu cũ chỉ có `m3u8` (nội dung playlist, không phải link):
+                // trỏ về chính node đó trên Firebase để customType `json` (playJson)
+                // tải rồi phát. Không nhân bản dữ liệu sang node mới.
+                var file = episode.file ||
+                    `https://r3fire.firebaseio.com/anime/${animeId}/${id}.json`
 
                 id = episode.id || id
                 episodeList.push({
                     id: id,
                     title: episode.title,
-                    url: episode.file,
+                    url: file,
                     image: episode.image || imageUrl,
                     subtitles: episode.subtitles,
                 });
