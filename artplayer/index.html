@@ -45,11 +45,35 @@
             return urlParams.get(name);
         }
 
+        // Nhớ tập đang xem theo từng bộ (?id= hoặc ?k=). Link từ trang chủ không
+        // kèm ?e nên nếu không lưu thì lần nào mở lại cũng nhảy về tập mới nhất.
+        function getEpStoreKey() {
+            const id = getUrlParameter('id');
+            if (id) return 'artplayer:ep:id:' + id;
+            const k = getUrlParameter('k');
+            if (k) return 'artplayer:ep:k:' + k;
+            return '';
+        }
+
+        // localStorage có thể ném lỗi (private mode, TV cũ chặn storage) -> bọc try
+        function saveLastEp(id) {
+            const key = getEpStoreKey();
+            if (!key) return;
+            try { localStorage.setItem(key, String(id)); } catch (e) { }
+        }
+
+        function loadLastEp() {
+            const key = getEpStoreKey();
+            if (!key) return null;
+            try { return localStorage.getItem(key); } catch (e) { return null; }
+        }
+
         function updateParams(episode) {
             const url = new URL(window.location.href);
             url.searchParams.set('e', episode.id);
             window.history.replaceState({}, '', url);
             document.title = episode.title
+            saveLastEp(episode.id)
 
             if ('mediaSession' in navigator) {
                 navigator.mediaSession.metadata = new MediaMetadata({
@@ -282,7 +306,10 @@
                 console.error('Không có tập nào có m3u8 để phát.');
                 return;
             }
-            var e = String(getUrlParameter('e'));
+            // ?e trên URL ưu tiên nhất; không có thì lấy tập đã xem dở đã lưu
+            var e = getUrlParameter('e');
+            if (e === null) e = loadLastEp();
+            e = String(e);
             // không dùng ?? : trình duyệt TV cũ (Chrome < 80) fail ngay lúc parse
             var initialIndex = (M[e] !== undefined) ? M[e] : episodeList.length - 1;
 
