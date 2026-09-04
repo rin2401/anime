@@ -274,7 +274,7 @@
         const imageContainer = document.getElementById('imageContainer');
         var images = []
 
-        const SHEET_CACHE_KEY = "animeSheetCache:v1";
+        const SHEET_CACHE_KEY = "animeSheetCache:v2";
 
         function loadCachedImages() {
             try {
@@ -288,6 +288,17 @@
             try {
                 localStorage.setItem(SHEET_CACHE_KEY, JSON.stringify({ t: Date.now(), images: imgs }));
             } catch (e) { }
+        }
+
+        // Ảnh của cả 2 nguồn đều là bản gốc chưa resize trong khi thẻ chỉ hiển
+        // thị 300x424: poster phimapi có cái 2000x3000 / 9.5MB, cover AniList
+        // dạng PNG lên tới 749KB, poster Amazon tới 2.4MB.
+        // Bọc qua Photon lấy bản ~300px (tự trả webp cho trình duyệt mới, jpeg
+        // cho TV cũ không gửi Accept: image/webp). Lỗi thì img.onerror quay về
+        // ảnh gốc lưu ở imageRaw.
+        function thumbUrl(u) {
+            if (!u || u.indexOf("http") !== 0) return u
+            return "https://i0.wp.com/" + u.replace(/^https?:\/\//, "") + "?w=300&quality=70&ssl=1"
         }
 
         async function fetchImageData(id, gid) {
@@ -317,6 +328,10 @@
                 cols.map((col, i) => {
                     image[col] = row[i]
                 })
+                if (image.image) {
+                    image.imageRaw = image.image
+                    image.image = thumbUrl(image.image)
+                }
                 return image
             })
 
@@ -628,15 +643,6 @@
         function getUrlParameter(name) {
             const urlParams = new URLSearchParams(window.location.search);
             return urlParams.get(name);
-        }
-
-        // Poster của phimapi là ảnh gốc chưa resize: có cái 2000x3000 / 9.5MB
-        // trong khi thẻ chỉ hiển thị 300x424 -> ảnh nặng chờ rất lâu.
-        // Bọc qua Photon để lấy bản ~300px (tự trả webp cho trình duyệt mới,
-        // jpeg cho TV cũ không gửi Accept: image/webp).
-        function thumbUrl(u) {
-            if (!u || u.indexOf("http") !== 0) return u
-            return "https://i0.wp.com/" + u.replace(/^https?:\/\//, "") + "?w=300&quality=70&ssl=1"
         }
 
         async function searchAnime(q) {
