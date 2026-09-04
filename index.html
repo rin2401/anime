@@ -489,6 +489,15 @@
             img.decoding = 'async';
             img.width = 300;
             img.height = 424;
+            // Photon lỗi/chặn -> quay về ảnh gốc, cuối cùng mới tới placeholder
+            img.onerror = function () {
+                if (image.imageRaw && this.src !== image.imageRaw) {
+                    this.src = image.imageRaw;
+                    return;
+                }
+                this.onerror = null;
+                this.src = "/anime/image/lazy.png";
+            };
             img.src = image.image || "/anime/image/lazy.png";
 
             link.appendChild(img);
@@ -621,6 +630,15 @@
             return urlParams.get(name);
         }
 
+        // Poster của phimapi là ảnh gốc chưa resize: có cái 2000x3000 / 9.5MB
+        // trong khi thẻ chỉ hiển thị 300x424 -> ảnh nặng chờ rất lâu.
+        // Bọc qua Photon để lấy bản ~300px (tự trả webp cho trình duyệt mới,
+        // jpeg cho TV cũ không gửi Accept: image/webp).
+        function thumbUrl(u) {
+            if (!u || u.indexOf("http") !== 0) return u
+            return "https://i0.wp.com/" + u.replace(/^https?:\/\//, "") + "?w=300&quality=70&ssl=1"
+        }
+
         async function searchAnime(q) {
             selectedCategory.value = ""
             selectedYear.value = ""
@@ -629,10 +647,12 @@
             const res = await fetch(`https://phimapi.com/v1/api/tim-kiem?keyword=${q}&page=1&limit=64&sort_field=year&sort_order=desc`)
             const data = await res.json()
             var items = data.data.items.map(item => {
+                const poster = (item.poster_url && item.poster_url.indexOf("http") === 0) ? item.poster_url : data.data.APP_DOMAIN_CDN_IMAGE + "/" + item.poster_url
                 return {
                     id: item._id,
                     name: item.origin_name,
-                    image: (item.poster_url && item.poster_url.indexOf("http") === 0) ? item.poster_url : data.data.APP_DOMAIN_CDN_IMAGE + "/" + item.poster_url,
+                    image: thumbUrl(poster),
+                    imageRaw: poster,
                     category: item.type,
                     year: item.year,
                     phimapi: item.slug,
