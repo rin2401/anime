@@ -233,12 +233,25 @@
                 const url = "https://phimapi.com/phim/" + k
                 fetch(url).then(response => response.json())
                     .then(data => {
+                        // kkphim trả tập đúng thứ tự phát sóng, lastNum/extra bám theo đó.
+                        var lastNum = 0, extra = 0;
                         var playlist = data.episodes[0].server_data.map((item) => {
+                            // slug 'tap-07' -> 7; 'full' (phim lẻ) -> 1. Slug không mang số
+                            // ('tap-sp' = OAD chèn giữa mùa, vd Attack on Titan phần 4) lấy
+                            // id thập phân ngay sau tập có số gần nhất: SP giữa 16 và 17
+                            // -> 16.5. epNum() vốn hiểu số lẻ nên nó tự nằm đúng chỗ.
+                            // Trước đây id rơi về 1 mặc định -> đụng tập 1: playlist hiện
+                            // 2 mục "- 1" và ?e=1 phát nhầm SP.
+                            // extra/100 phòng bộ có nhiều tập đặc biệt liên tiếp (16.5, 16.51).
+                            var slug = item.slug || ''
                             var id = 1
-                            if (item.slug.includes("tap")) {
-                                let num = Number(item.slug.replace("tap-", ""));
+                            if (slug.indexOf("tap-") === 0) {
+                                let rest = slug.slice(4);
+                                let num = Number(rest);
                                 if (Number.isInteger(num)) {
-                                    id = num
+                                    id = num; lastNum = num; extra = 0
+                                } else {
+                                    id = lastNum + 0.5 + extra / 100; extra++
                                 }
                             }
 
