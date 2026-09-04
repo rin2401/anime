@@ -220,13 +220,25 @@
             transition: all 0.3s ease;
         }
 
+        /* Cùng đường kính 38px với .user-avatar cho hai nút tròn thẳng hàng.
+           Không căn icon bằng flex: WebKit cũ trên TV bỏ qua display:flex đặt
+           trên <button>, icon sẽ lệch. Icon 28px trong lòng 36px -> chừa
+           margin 4px là căn giữa chính xác, không phụ thuộc baseline. */
         .search-btn {
+            box-sizing: border-box;
+            width: 38px;
+            height: 38px;
+            padding: 0;
             border: 1px solid #6c757d;
             color: #fff;
             border-radius: 50%;
-            padding: 6px;
             cursor: pointer;
             transition: all 0.2s;
+        }
+
+        .search-btn img {
+            display: block;
+            margin: 4px;
         }
 
         .search-btn:hover {
