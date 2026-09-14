@@ -34,6 +34,7 @@ import requests
 
 from avs_extract import (
     crawl_drive,
+    read_all_sheet_rows,
     read_sheet_row,  # noqa: F401  (giữ để rõ nguồn gốc auth pattern)
     SHEET_KEY,
     WORKSHEET_ID,
@@ -50,33 +51,6 @@ def log(*a):
     msg = " ".join(str(x) for x in a)
     print(msg, flush=True)
     _LOG_LINES.append(msg)
-
-
-# ───────────────────────────── Google Sheet ──────────────────────────────────
-def read_all_rows():
-    """Đọc toàn bộ dòng của worksheet (1 lần auth)."""
-    import gspread
-
-    scope = [
-        "https://spreadsheets.google.com/feeds",
-        "https://www.googleapis.com/auth/drive",
-    ]
-    keyfile = "keys.json" if os.path.exists("keys.json") else "r3fire.json"
-
-    # Ưu tiên oauth2client (đúng pattern repo); nếu môi trường lỗi pyOpenSSL thì
-    # fallback sang google-auth.
-    try:
-        from oauth2client.service_account import ServiceAccountCredentials
-
-        creds = ServiceAccountCredentials.from_json_keyfile_name(keyfile, scope)
-    except Exception:
-        from google.oauth2.service_account import Credentials
-
-        creds = Credentials.from_service_account_file(keyfile, scopes=scope)
-
-    client = gspread.authorize(creds)
-    sheet = client.open_by_key(SHEET_KEY).get_worksheet_by_id(WORKSHEET_ID)
-    return sheet.get_all_records()
 
 
 # ───────────────────────────────── AniList ───────────────────────────────────
@@ -183,7 +157,7 @@ def main(argv):
     log(f"== crawl_releasing | {dt.datetime.now():%Y-%m-%d %H:%M:%S} | "
         f"num_eps={num_eps} this_year={include_this_year} dry_run={dry_run} ==")
 
-    rows = read_all_rows()
+    rows = read_all_sheet_rows()
     log(f"Tổng dòng trong Sheet: {len(rows)}")
 
     picked = pick_releasing(rows, include_this_year=include_this_year)

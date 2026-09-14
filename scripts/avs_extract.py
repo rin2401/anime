@@ -19,17 +19,82 @@ UA = (
     "(KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
 )
 
-# Domain animevietsub hiện hành (site xoay tên miền liên tục). Đổi DUY NHẤT chỗ này
-# khi tên miền chết; norm_host() sẽ tự viết lại mọi url .pl/.lol/.show... sang đây.
-SITE = "animevietsub.work"
-BASE = f"https://{SITE}"
+# Domain animevietsub xoay tên miền liên tục -> domain hiện hành được hỏi qua
+# bit.ly/animevietsub.tv (chủ site cập nhật link này, 301 về domain mới nhất).
+# norm_host() tự viết lại mọi url .pl/.lol/.work... về domain vừa resolve được.
+BITLY_URL = "https://bit.ly/animevietsub.tv"
+SITE_FALLBACK = "animevietsub.work"
+_SITE_CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".avs_site.json")
+_SITE_TTL = 6 * 3600
+_site_memo = {"site": None, "ts": 0.0}
+
+
+def resolve_site(refresh=False):
+    """Domain animevietsub hiện hành, hỏi qua BITLY_URL (redirect 301).
+
+    Cache 6h (memo + file .avs_site.json) để không hỏi bit.ly mỗi lần. bit.ly
+    hỏng/lỗi mạng thì dùng cache cũ, cùng chết thì fallback SITE_FALLBACK.
+    """
+    now = time.time()
+    if not refresh and _site_memo["site"] and now - _site_memo["ts"] < _SITE_TTL:
+        return _site_memo["site"]
+
+    def _read_cache():
+        try:
+            with open(_SITE_CACHE) as f:
+                return json.load(f).get("site")
+        except Exception:
+            return None
+
+    def _write_cache(host):
+        _site_memo["site"], _site_memo["ts"] = host, time.time()
+        try:
+            with open(_SITE_CACHE, "w") as f:
+                json.dump({"site": host, "ts": time.time()}, f)
+        except Exception:
+            pass
+
+    try:
+        import urllib.parse
+
+        import requests
+
+        # Follow cả chuỗi redirect (bit.ly -> ... -> domain cuối), site có khi
+        # redirect thêm vài tầng nữa nên đừng chỉ đọc Location của bit.ly.
+        r = requests.head(
+            BITLY_URL, allow_redirects=True, timeout=15, headers={"User-Agent": UA}
+        )
+
+        def _pick(u):
+            host = urllib.parse.urlparse(u).netloc
+            return host if re.fullmatch(r"animevietsub\.[a-z]+", host) else None
+
+        # Ưu tiên host cuối; chuỗi giữa có host lạ thì thử ngược từ cuối lên.
+        for u in [r.url] + [h.url for h in reversed(r.history)]:
+            host = _pick(u)
+            if host:
+                _write_cache(host)
+                return host
+    except Exception:
+        pass
+
+    stale = _read_cache()
+    if stale:
+        _site_memo.update(site=stale, ts=now)
+        return stale
+    return SITE_FALLBACK
+
+
+def base():
+    """Base URL animevietsub hiện hành."""
+    return f"https://{resolve_site()}"
 
 
 def norm_host(url):
-    """Viết lại host animevietsub.<tld> bất kỳ trong url về SITE hiện hành."""
+    """Viết lại host animevietsub.<tld> bất kỳ trong url về domain hiện hành."""
     if not url:
         return url
-    return re.sub(r"animevietsub\.[a-z]+", SITE, url)
+    return re.sub(r"animevietsub\.[a-z]+", resolve_site(), url)
 
 
 # Profile riêng của crawler (KHÔNG phải Chrome cá nhân) -> dọn được thoải mái.
@@ -122,6 +187,25 @@ def _hide_webdriver(driver, owned):
     return driver
 
 
+def _resolve_via_public_dns(host, timeout=5):
+    """Phân giải HOST qua DNS công cộng (8.8.8.8), né resolver hệ thống -
+    từng thấy resolver hệ thống trả NXDOMAIN cho animevietsub.<tld> dù domain
+    vẫn sống (8.8.8.8 vẫn ra IP bình thường). Trả None nếu không có `dig`/lỗi
+    mạng, lúc đó Chrome tự dùng resolver hệ thống như cũ."""
+    try:
+        r = subprocess.run(
+            ["dig", "@8.8.8.8", "+short", "+time=3", host, "A"],
+            capture_output=True, text=True, timeout=timeout,
+        )
+        for line in r.stdout.splitlines():
+            line = line.strip()
+            if re.fullmatch(r"\d+\.\d+\.\d+\.\d+", line):
+                return line
+    except Exception:
+        pass
+    return None
+
+
 def make_driver():
     """Attach vào Chrome thật nếu có AVS_DEBUG_PORT, ngược lại mở Chrome mới."""
     opts = Options()
@@ -138,6 +222,10 @@ def make_driver():
         f"--user-data-dir={PROFILE_DIR}",
     ]:
         opts.add_argument(a)
+    site = resolve_site()
+    ip = _resolve_via_public_dns(site)
+    if ip:
+        opts.add_argument(f"--host-resolver-rules=MAP {site} {ip}")
     opts.add_experimental_option("excludeSwitches", ["enable-automation"])
     opts.add_argument(f"user-agent={UA}")
 
@@ -248,6 +336,31 @@ def read_sheet_row(sheet_id):
                 return None
             return {"url": norm_host(row["url"]), "name": row.get("name")}
     return None
+
+
+def read_all_sheet_rows():
+    """Đọc toàn bộ dòng của worksheet (1 lần auth)."""
+    import gspread
+
+    scope = [
+        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/drive",
+    ]
+    keyfile = "keys.json" if os.path.exists("keys.json") else "r3fire.json"
+
+    # Ưu tiên oauth2client (đúng pattern repo); nếu môi trường lỗi pyOpenSSL thì
+    # fallback sang google-auth.
+    try:
+        from oauth2client.service_account import ServiceAccountCredentials
+
+        creds = ServiceAccountCredentials.from_json_keyfile_name(keyfile, scope)
+    except Exception:
+        from google.oauth2.service_account import Credentials
+
+        creds = Credentials.from_service_account_file(keyfile, scopes=scope)
+
+    client = gspread.authorize(creds)
+    return client.open_by_key(SHEET_KEY).get_worksheet_by_id(WORKSHEET_ID).get_all_records()
 
 
 def norm_ep(text):
@@ -399,6 +512,12 @@ def crawl_drive(anime_id, num_eps=DEFAULT_NUM_EPS):
         driver.get(row["url"])
         if not wait_cloudflare(driver):
             raise RuntimeError("Không qua được Cloudflare (title=%r)" % driver.title)
+        # Domain cũ có khi chỉ redirect về domain mới (site xoay tên miền liên
+        # tục) -> dùng URL thật sau redirect thay vì giả định url trong Sheet.
+        live_url = driver.current_url
+        if live_url.rstrip("/") != row["url"].rstrip("/"):
+            print(f"  redirect: {row['url']} -> {live_url}")
+            row["url"] = live_url
         ensure_episode_list(driver)  # trang giới thiệu -> trang xem nếu cần
         try:
             eps = list_episodes(driver)

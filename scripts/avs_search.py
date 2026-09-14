@@ -13,11 +13,11 @@ import sys
 import time
 import urllib.parse
 
-from avs_extract import make_driver, wait_cloudflare, BASE  # BASE = domain hiện hành
+from avs_extract import make_driver, wait_cloudflare, base  # base() = domain hiện hành
 
 
 def search(query):
-    url = f"{BASE}/tim-kiem/{urllib.parse.quote(query)}/"
+    url = f"{base()}/tim-kiem/{urllib.parse.quote(query)}/"
     driver = make_driver()
     try:
         driver.get(url)
@@ -54,7 +54,7 @@ def main(argv):
         print('Cách dùng: uv run python avs_search.py "tiêu đề"')
         return
     query = " ".join(argv)
-    print(f"Tìm: {query!r} trên {BASE}\n")
+    print(f"Tìm: {query!r} trên {base()}\n")
     results = search(query)
     if not results:
         print("Không có kết quả (hoặc bị Cloudflare chặn).")

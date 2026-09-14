@@ -11,3 +11,4 @@ scripts/yeuphim/
 scripts/jikan/
 client_secret.json
 *.txt
+.avs_site.json
