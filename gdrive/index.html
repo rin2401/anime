@@ -107,17 +107,12 @@
         }
 
         .ep-item {
-            display: block;
+            display: flex;
+            align-items: center;
             width: 100%;
-            text-align: left;
-            box-sizing: border-box;
-            padding: 10px 14px;
-            background: none;
-            border: none;
             border-bottom: 1px solid #1c1c1c;
             color: #ccc;
             font-size: 13px;
-            cursor: pointer;
         }
 
         .ep-item:hover {
@@ -128,6 +123,47 @@
             background: #2563eb;
             color: #fff;
             font-weight: 700;
+        }
+
+        /* nút chính của dòng tập: phát qua Drive (như cũ) */
+        .ep-main {
+            flex: 1 1 auto;
+            min-width: 0;
+            text-align: left;
+            box-sizing: border-box;
+            padding: 10px 14px;
+            background: none;
+            border: none;
+            color: inherit;
+            font-size: inherit;
+            font-weight: inherit;
+            font-family: inherit;
+            cursor: pointer;
+        }
+
+        /* chip HLS: tập có CẢ drive_id lẫn m3u8 -> mở được bằng player hls
+           (artplayer). Chỉ hiện khi có m3u8 (.ep-item.has-hls). */
+        .ep-hls {
+            display: none;
+            flex: 0 0 auto;
+            margin-right: 12px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            background: rgba(0, 0, 0, .4);
+            color: #9fe8a9;
+            font-size: 11px;
+            font-weight: 700;
+            text-decoration: none;
+            white-space: nowrap;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .ep-item.has-hls .ep-hls {
+            display: inline-block;
+        }
+
+        .ep-hls:active {
+            background: rgba(0, 0, 0, .7);
         }
 
         /* Mobile: xếp dọc - video trên, danh sách tập full-width bên dưới (cuộn) */
@@ -155,9 +191,13 @@
                 border-top: 1px solid #222;
             }
 
-            .ep-item {
+            .ep-main {
                 padding: 13px 16px;
                 font-size: 14px;
+            }
+
+            .ep-hls {
+                margin-right: 16px;
             }
         }
 
@@ -641,12 +681,27 @@
             if (targetIdx < 0) targetIdx = episodes.length - 1;
 
             episodes.forEach((ep, idx) => {
+                // dòng tập = div (không thể lồng <a> trong <button>):
+                // nút chính phát Drive + chip HLS mở artplayer khi tập có m3u8.
+                const row = document.createElement('div');
+                row.className = 'ep-item';
                 const btn = document.createElement('button');
-                btn.className = 'ep-item';
+                btn.className = 'ep-main';
+                btn.type = 'button';
                 btn.textContent = epLabel(ep);
                 btn.addEventListener('click', () => selectEpisode(idx));
-                epListEl.appendChild(btn);
-                epButtons.push(btn);
+                row.appendChild(btn);
+                if (hlsAnimeId && hlsEps[String(ep.id)]) {
+                    row.classList.add('has-hls');
+                    const hls = document.createElement('a');
+                    hls.className = 'ep-hls';
+                    hls.textContent = 'HLS';
+                    hls.title = 'Mở bằng player HLS (m3u8) — tự chuyển tập chính xác';
+                    hls.href = `/anime/artplayer/?id=${hlsAnimeId}&e=${ep.id}`;
+                    row.appendChild(hls);
+                }
+                epListEl.appendChild(row);
+                epButtons.push(row);
             });
             selectEpisode(targetIdx);
         }
