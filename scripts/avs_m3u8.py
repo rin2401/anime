@@ -605,7 +605,8 @@ async def probe(anime_id):
 # ───────────────────────────────── crawl ─────────────────────────────────────
 async def crawl_hls(anime_id, num_eps=DEFAULT_NUM_EPS):
     """Crawl m3u8 -> Firebase. Theo schema artplayer:
-    animevietsub/{epId} = {title, m3u8}; anime/{anime_id}/{ep} = {id,title,file,type:hls}.
+    animevietsub/{epId} = {title, m3u8}; anime/{anime_id}/{ep} = {id,title,file,type:hls}
+    (merge từng field — giữ drive_id crawler Drive đã đẩy, tập có cả 2 nguồn).
     Bỏ qua tập đã có m3u8 (field 'file'); crawl tập mới nhất trước."""
     from fire import db, update_ep
 
@@ -644,34 +645,47 @@ async def crawl_hls(anime_id, num_eps=DEFAULT_NUM_EPS):
         ok = fail = 0
         for x in todo:
             ep = x["ep"]
-            try:
-                api = await ajax_player(tab, x, "api")
-                player_url = api.get("link", "") if isinstance(api, dict) else ""
-                if not player_url or "googleapiscdn" not in player_url:
-                    raise RuntimeError("no player googleapiscdn (playTech=%s)" %
-                                       (isinstance(api, dict) and api.get("playTech")))
-                if tab_play is None:
-                    tab_play = await open_player_tab(browser, player_url, base)
-                else:
-                    await tab_play.send(cdp.page.navigate(url=player_url, referrer=base))
-                if not await wait_cf(tab_play) or not await wait_jwplayer(tab_play):
-                    raise RuntimeError("không qua CF/jwplayer trang player")
-                m3u8_url = await get_m3u8_url(tab_play)
-                if not m3u8_url:
-                    raise RuntimeError("no m3u8 trong jwplayer playlist")
-                # Shield v3: ưu tiên giải mã qua caps; fallback resolve như cũ
-                m3u8_text = None
-                caps = await wait_shield_caps(tab_play)
-                if caps:
-                    try:
-                        m3u8_text = build_shield_m3u8(caps)
-                    except Exception as e:
-                        print(f"  [!]    giải Shield thất bại ({e})", flush=True)
-                if m3u8_text is None:
-                    m3u8_text = await build_m3u8(tab_play, m3u8_url)
-            except Exception as e:
+            m3u8_text = None
+            last_err = None
+            for attempt in range(1, 4):
+                try:
+                    api = await ajax_player(tab, x, "api")
+                    player_url = api.get("link", "") if isinstance(api, dict) else ""
+                    if not player_url or "googleapiscdn" not in player_url:
+                        raise RuntimeError("no player googleapiscdn (playTech=%s)" %
+                                           (isinstance(api, dict) and api.get("playTech")))
+                    if tab_play is None:
+                        tab_play = await open_player_tab(browser, player_url, base)
+                    else:
+                        await tab_play.send(cdp.page.navigate(url=player_url, referrer=base))
+                    if not await wait_cf(tab_play) or not await wait_jwplayer(tab_play):
+                        raise RuntimeError("không qua CF/jwplayer trang player")
+                    m3u8_url = await get_m3u8_url(tab_play)
+                    if not m3u8_url:
+                        raise RuntimeError("no m3u8 trong jwplayer playlist")
+                    # Shield v3: ưu tiên giải mã qua caps; fallback resolve như cũ
+                    m3u8_text = None
+                    caps = await wait_shield_caps(tab_play)
+                    if caps:
+                        try:
+                            m3u8_text = build_shield_m3u8(caps)
+                        except Exception as e:
+                            print(f"  [!]    giải Shield thất bại ({e})", flush=True)
+                    if m3u8_text is None:
+                        m3u8_text = await build_m3u8(tab_play, m3u8_url)
+                    if _shield_warn(m3u8_text):
+                        # caps rỗng -> avs-loader chưa chạy trên lần load này,
+                        # manifest vẫn mã hoá là dữ liệu hỏng — load lại thử lại
+                        last_err = "manifest vẫn mã hoá Shield (caps rỗng)"
+                        m3u8_text = None
+                        continue
+                    break
+                except Exception as e:
+                    last_err = str(e)
+                    continue
+            if m3u8_text is None:
                 fail += 1
-                print(f"  [MISS] tập {ep}: {e}", flush=True)
+                print(f"  [MISS] tập {ep}: {last_err} (thử {attempt} lần)", flush=True)
                 continue
 
             ep_id = x["id"]
@@ -680,18 +694,15 @@ async def crawl_hls(anime_id, num_eps=DEFAULT_NUM_EPS):
             file_url = update_ep(title, m3u8_text, fire_path)
 
             key = fb_key(ep)
-            db.reference().update({
-                f"anime/{anime_id}/{key}": {
-                    "id": ep, "title": title, "file": file_url, "type": "hls",
-                },
+            # update trên node con (merge từng field) chứ KHÔNG update cha với
+            # dict cả node — thế đó sẽ ghi đè xóa drive_id mà crawler Drive đã đẩy.
+            db.reference(f"anime/{anime_id}/{key}").update({
+                "id": ep, "title": title, "file": file_url, "type": "hls",
             })
             ok += 1
             nseg = sum(1 for l in m3u8_text.splitlines()
                        if l.strip() and not l.startswith("#"))
             print(f"  [OK]   tập {ep}: {nseg} segment -> {fire_path}", flush=True)
-            warn = _shield_warn(m3u8_text)
-            if warn:
-                print(f"  [!]    tập {ep}: {warn}", flush=True)
 
         print(f"\nTổng: crawl {len(todo)} | OK {ok} | miss {fail}", flush=True)
     finally:
