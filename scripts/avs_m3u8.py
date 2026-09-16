@@ -55,6 +55,7 @@ from nodriver import cdp
 
 from avs_extract import (
     read_sheet_row, norm_ep, fb_key, ep_sort_key, DEFAULT_NUM_EPS,
+    update_sheet_url,
 )
 
 # Profile Chrome cho nodriver. Chạy song song nhiều tiến trình: set
@@ -128,12 +129,17 @@ async def wait_cf(tab, timeout=45):
     return False
 
 
-async def ensure_episode_list(tab):
+async def ensure_episode_list(tab, anime_id=None):
     """Trang GIỚI THIỆU (/phim/) không có li.episode — chuyển sang trang xem
-    (/tap-) cùng bộ; sidebar trang giới thiệu có link bộ khác, đừng lấy nhầm."""
+    (/tap-) cùng bộ; sidebar trang giới thiệu có link bộ khác, đừng lấy nhầm.
+
+    Url Sheet cũ sai slug (trang có slug khác link tập): match link /tap-
+    theo ID anime (-aNNNN trong path) thay vì theo slug; vẫn không có thì
+    nhấn nút "Xem..." của bộ này. Vào được trang xem thì ghi url đó vào
+    Sheet (update_sheet_url) để những lần sau mở thẳng đúng trang."""
     for _ in range(10):  # chờ DOM sẵn rồi mới kết luận trang thiếu episode
         if await ev(tab, "!!document.querySelector('li.episode')"):
-            return
+            return True
         await tab.sleep(1)
     link = await ev(tab, r"""(function(){
         var p = location.pathname.replace(/\/+$/, '');
@@ -146,12 +152,78 @@ async def ensure_episode_list(tab):
         }
         return null;
     })()""")
-    if link:
-        print(f"  (trang giới thiệu -> chuyển sang trang xem: {link})", flush=True)
+    how = "cùng slug"
+    if not link:
+        # slug Sheet != slug trang xem: match theo ID anime (-aNNNN/ trong path)
+        link = await ev(tab, r"""(function(){
+            var m = location.pathname.match(/-a(\d+)(?:\/|$)/);
+            if (!m) return null;
+            var as = document.querySelectorAll('a[href*="/tap-"]');
+            for (var i = 0; i < as.length; i++) {
+                if (as[i].hostname !== location.hostname) continue;
+                if (as[i].pathname.indexOf('-a' + m[1] + '/') === -1) continue;
+                return as[i].href;
+            }
+            return null;
+        })()""")
+        how = "theo ID anime"
+    if not link:
+        # phim lẻ / không có link tap- trên trang: nhấn nút "Xem..." của bộ này.
+        # Ưu tiên <a> (điều hướng được: .../xem-phim.html có danh sách tập) trước
+        # <button> (hay mở modal player — không có danh sách tập). <a> phải chứa
+        # ID anime trong href (-aNNNN/) — kẻo bắt nhầm link site-wide kiểu
+        # "Xem ngẫu nhiên" (/random-anime/); loại "Xem thêm" — link sang trang khác.
+        link = await ev(tab, r"""(function(){
+            var m = location.pathname.match(/-a(\d+)(?:\/|$)/);
+            var xem = document.querySelectorAll('a[href*="xem-phim"]');
+            for (var i = 0; i < xem.length; i++) {
+                if (xem[i].hostname !== location.hostname) continue;
+                if (m && xem[i].pathname.indexOf('-a' + m[1] + '/') === -1) continue;
+                return xem[i].href;
+            }
+            var els = document.querySelectorAll('a, button');
+            for (var j = 0; j < els.length; j++) {
+                var a = els[j];
+                if (a.tagName !== 'A' || !a.href) continue;
+                if (a.hostname !== location.hostname) continue;
+                if (m && a.pathname.indexOf('-a' + m[1] + '/') === -1) continue;
+                var t = (a.textContent || '').trim();
+                if (/^xem/i.test(t) && !/th[eê]m/i.test(t)) return a.href;
+            }
+            for (var k = 0; k < els.length; k++) {
+                var b = els[k];
+                if (b.tagName !== 'BUTTON') continue;
+                var t2 = (b.textContent || '').trim();
+                if (/^xem/i.test(t2) && !/th[eê]m/i.test(t2)) {
+                    b.click(); return 'CLICKED';
+                }
+            }
+            return null;
+        })()""")
+        how = "nút Xem"
+    if not link:
+        print("  (không thấy link tập nào của bộ này trên trang giới thiệu)",
+              flush=True)
+        return False
+    print(f"  (trang giới thiệu -> trang xem [{how}]: {link})", flush=True)
+    if link != "CLICKED":
         await tab.get(link)
-        await wait_cf(tab)
-    else:
-        print("  (không thấy link tập nào của bộ này trên trang giới thiệu)", flush=True)
+    await wait_cf(tab)
+    have = False
+    for _ in range(10):  # chờ trang xem render danh sách tập
+        have = await ev(tab, "!!document.querySelector('li.episode')")
+        if have:
+            break
+        await tab.sleep(1)
+    if have and anime_id and how != "cùng slug":
+        # url Sheet cũ không vào thẳng trang xem — ghi lại url đúng vào Sheet
+        new_url = await ev(tab, "location.href")
+        try:
+            if update_sheet_url(anime_id, new_url):
+                print(f"  (đã update url Sheet -> {new_url})", flush=True)
+        except Exception as e:
+            print(f"  (update url Sheet lỗi: {e})", flush=True)
+    return bool(have)
 
 
 async def list_episodes(tab):
@@ -556,7 +628,7 @@ async def probe(anime_id):
         if not await wait_cf(tab):
             print("=> KHÔNG qua được CF trang xem", flush=True)
             return
-        await ensure_episode_list(tab)
+        await ensure_episode_list(tab, anime_id)
         eps = await list_episodes(tab)
         print("eps:", len(eps), flush=True)
         if not eps:
@@ -648,7 +720,7 @@ async def crawl_hls(anime_id, num_eps=DEFAULT_NUM_EPS):
         await tab.get(row["url"])
         if not await wait_cf(tab):
             raise RuntimeError("Không qua CF animevietsub")
-        await ensure_episode_list(tab)
+        await ensure_episode_list(tab, anime_id)
         eps = await list_episodes(tab)
         eps.sort(key=ep_sort_key, reverse=True)
         if num_eps:

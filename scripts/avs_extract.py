@@ -363,6 +363,34 @@ def read_all_sheet_rows():
     return client.open_by_key(SHEET_KEY).get_worksheet_by_id(WORKSHEET_ID).get_all_records()
 
 
+def update_sheet_url(sheet_id, url):
+    """Ghi đè ô url của dòng có id (hoặc playlist) == sheet_id.
+
+    Crawler dùng khi url Sheet cũ sai slug / đổi domain: sau khi vào được
+    trang xem THẬT của bộ (tìm qua link tập trên trang) thì ghi lại url đó
+    để những lần sau mở thẳng đúng trang."""
+    import gspread
+    from oauth2client.service_account import ServiceAccountCredentials
+
+    scope = [
+        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/drive",
+    ]
+    keyfile = "keys.json" if os.path.exists("keys.json") else "r3fire.json"
+    creds = ServiceAccountCredentials.from_json_keyfile_name(keyfile, scope)
+    client = gspread.authorize(creds)
+    sheet = client.open_by_key(SHEET_KEY).get_worksheet_by_id(WORKSHEET_ID)
+
+    cols = list(sheet.row_values(1))
+    col = cols.index("url") + 1
+    sheet_id = str(sheet_id)
+    for i, row in enumerate(sheet.get_all_records()):
+        if str(row.get("id")) == sheet_id or str(row.get("playlist")) == sheet_id:
+            sheet.update_cell(i + 2, col, str(url))
+            return True
+    return False
+
+
 def norm_ep(text):
     """Số tập lấy từ TEXT của nút ep (đáng tin hơn href, vì href bị bóp số cho ep
     dạng '1150.5'). '001'->1 (int), '1150.5'->'1150.5', 'Special 6'->'Special 6'."""
