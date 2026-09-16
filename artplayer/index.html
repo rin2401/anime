@@ -288,6 +288,9 @@
 
             var episodeList = [];
 
+            // node không tồn tại -> Firebase trả null
+            data = data || {}
+
             Object.entries(data).forEach(([id, episode]) => {
                 if (!episode) {
                     return
@@ -322,8 +325,14 @@
             episodeList.forEach(function (ep, i) { M[ep.id] = i });
 
             if (!episodeList.length) {
+                // Bộ chỉ có drive_id (crawler Drive), chưa crawl m3u8 -> chuyển
+                // sang player Drive cùng bộ thay vì đứng ở màn hình đen.
+                if (animeId) {
+                    window.location.href = '/anime/gdrive/?id=' + animeId
+                    return
+                }
                 console.error('Không có tập nào có m3u8 để phát.');
-                return;
+                return
             }
             // ?e trên URL ưu tiên nhất; không có thì lấy tập đã xem dở đã lưu
             var e = getUrlParameter('e');
