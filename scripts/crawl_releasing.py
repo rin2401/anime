@@ -1,29 +1,37 @@
-"""Crawl link Drive cho TẤT CẢ anime đang releasing (đang chiếu) trong năm nay.
+"""Crawl TẤT CẢ anime đang releasing (đang chiếu) trong năm nay.
 
 Pipeline:
   1. Đọc Google Sheet -> các dòng có URL animevietsub + anilist_id.
   2. Hỏi AniList trạng thái từng anime, giữ lại status == RELEASING
      (mặc định) hoặc thêm cả anime startDate.year == năm nay (--this-year).
-  3. Với mỗi anime, gọi avs_extract.crawl_drive() -> push drive_id mới lên Firebase.
+  3. Với mỗi anime: mặc định gọi avs_extract.crawl_drive() -> push drive_id
+     mới lên Firebase; --m3u8 thì gọi avs_m3u8.py crawl (giải mã Shield v3)
+     -> push text m3u8 lên Firebase theo schema artplayer.
 
-CHẠY TRÊN MÁY MAC (cần Chrome thật để qua Cloudflare). Mở Chrome debug trước:
+CHẠY TRÊN MÁY MAC (cần Chrome thật để qua Cloudflare). Chế độ link Drive
+cần Chrome debug trước:
 
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
         --remote-debugging-port=9222 --user-data-dir=/tmp/avs-chrome
     # đăng nhập animevietsub trong cửa sổ Chrome đó (qua Cloudflare 1 lần)
 
+Chế độ --m3u8 KHÔNG cần Chrome debug (nodriver tự mở Chrome riêng).
+
 Rồi:
 
     cd anime/scripts
-    AVS_DEBUG_PORT=9222 uv run python crawl_releasing.py            # 100 tập mới nhất / anime
-    AVS_DEBUG_PORT=9222 uv run python crawl_releasing.py --num 0    # tất cả các tập
-    AVS_DEBUG_PORT=9222 uv run python crawl_releasing.py --this-year
-    AVS_DEBUG_PORT=9222 uv run python crawl_releasing.py --dry-run  # chỉ liệt kê, không crawl
+    AVS_DEBUG_PORT=9222 uv run python crawl_releasing.py            # 100 tập mới nhất / anime (link Drive)
+    AVS_DEBUG_PORT=9222 uv run python crawl_releasing.py --num 0    # tất cả các tập (link Drive)
+    uv run python crawl_releasing.py --m3u8                         # 100 tập mới nhất / anime (m3u8)
+    uv run python crawl_releasing.py --m3u8 --num 0                 # tất cả các tập (m3u8)
+    uv run python crawl_releasing.py --this-year
+    uv run python crawl_releasing.py --dry-run  # chỉ liệt kê, không crawl
 
 Ghi log ra: scripts/crawl_releasing_<YYYY-MM-DD>.log
 """
 
 import os
+import subprocess
 import sys
 import time
 import datetime as dt
@@ -128,11 +136,30 @@ def pick_releasing(rows, include_this_year=False):
     return picked
 
 
+# ─────────────────────────────── Crawl 1 anime ────────────────────────────────
+def crawl_m3u8(anime_id, num_eps):
+    """Crawl m3u8 cho 1 anime qua avs_m3u8.py (subprocess để mỗi bộ có Chrome
+    nodriver riêng, sạch state; output con chảy qua log() để vào file log)."""
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "avs_m3u8.py")
+    proc = subprocess.Popen(
+        [sys.executable, script, "crawl", str(anime_id), str(num_eps)],
+        cwd=os.path.dirname(script),
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, bufsize=1,
+    )
+    for line in proc.stdout:
+        log(line.rstrip("\n"))
+    code = proc.wait()
+    if code != 0:
+        raise RuntimeError(f"avs_m3u8.py crawl {anime_id} thoat {code}")
+
+
 # ───────────────────────────────── Main ──────────────────────────────────────
 def main(argv):
     num_eps = DEFAULT_NUM_EPS
     include_this_year = False
     dry_run = False
+    use_m3u8 = False
 
     i = 0
     while i < len(argv):
@@ -144,18 +171,21 @@ def main(argv):
             include_this_year = True
         elif a == "--dry-run":
             dry_run = True
+        elif a == "--m3u8":
+            use_m3u8 = True
         else:
             log(f"Bỏ qua tham số không hiểu: {a}")
         i += 1
 
-    if not os.environ.get("AVS_DEBUG_PORT") and not dry_run:
+    if not os.environ.get("AVS_DEBUG_PORT") and not dry_run and not use_m3u8:
         log(
             "CẢNH BÁO: chưa set AVS_DEBUG_PORT — sẽ mở Chrome mới và rất dễ kẹt "
             "Cloudflare. Nên mở Chrome debug và set AVS_DEBUG_PORT=9222.\n"
         )
 
     log(f"== crawl_releasing | {dt.datetime.now():%Y-%m-%d %H:%M:%S} | "
-        f"num_eps={num_eps} this_year={include_this_year} dry_run={dry_run} ==")
+        f"num_eps={num_eps} this_year={include_this_year} dry_run={dry_run} "
+        f"m3u8={use_m3u8} ==")
 
     rows = read_all_sheet_rows()
     log(f"Tổng dòng trong Sheet: {len(rows)}")
@@ -175,7 +205,10 @@ def main(argv):
     for p in picked:
         log(f"\n===== CRAWL [{p['sheet_id']}] {p['name']} =====")
         try:
-            crawl_drive(p["sheet_id"], num_eps)
+            if use_m3u8:
+                crawl_m3u8(p["sheet_id"], num_eps)
+            else:
+                crawl_drive(p["sheet_id"], num_eps)
             ok += 1
         except Exception as e:
             err += 1
