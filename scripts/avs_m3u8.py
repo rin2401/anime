@@ -63,16 +63,29 @@ PROFILE = "/tmp/nd-avs-m3u8"
 async def start_browser():
     """nodriver Chrome: không cần chromedriver nên không lệch version Chrome.
     Profile riêng giữ cookie cf_clearance giữa các lần chạy (CF chỉ challenge
-    lần đầu); headless=False vì CF hay chặn headless."""
-    return await uc.start(
-        user_data_dir=PROFILE, headless=False,
-        browser_args=[
-            "--no-sandbox",
-            "--window-size=1280,900",
-            "--autoplay-policy=no-user-gesture-required",
-            "--mute-audio",
-        ],
-    )
+    lần đầu); headless=False vì CF hay chặn headless.
+    Thử lại vài lần: chạy batch nhiều Chrome tuần tự cùng profile, lần sau
+    hay start khi Chrome lần trước chưa thoát hẳn (còn giữ profile lock)."""
+    import asyncio
+    last = None
+    for i in range(3):
+        try:
+            return await uc.start(
+                user_data_dir=PROFILE, headless=False,
+                browser_args=[
+                    "--no-sandbox",
+                    "--window-size=1280,900",
+                    "--autoplay-policy=no-user-gesture-required",
+                    "--mute-audio",
+                ],
+            )
+        except Exception as e:
+            last = e
+            if i < 2:
+                print(f"    ...Chrome chưa start ({e.__class__.__name__}), "
+                      f"thử lại sau 3s...", flush=True)
+                await asyncio.sleep(3)
+    raise last
 
 
 def stop_browser(browser):
