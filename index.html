@@ -610,10 +610,11 @@
             if (image.phimapi) {
                 addSrcButton("KK", `/anime/artplayer/?k=${image.phimapi}`);
             }
-            // Chỉ hiện nút AVS khi url Sheet là trang animevietsub — các dòng
-            // url nguồn khác (yeuphim, motchill, bilibili, youtube, facebook…)
-            // là nút AVS thừa/sai nhãn; poster click vẫn dẫn link đó như cũ.
-            if (image.url && String(image.url).indexOf("animevietsub") !== -1) {
+            // Chỉ hiện nút AVS khi url Sheet là trang animevietsub (host
+            // animevietsub.*) — các dòng url nguồn khác (yeuphim, motchill,
+            // bilibili, youtube, facebook…) là nút AVS thừa/sai nhãn; poster
+            // click vẫn dẫn link đó như cũ.
+            if (image.url && /^(https?:\/\/)?(www\.)?animevietsub\./i.test(String(image.url))) {
                 addSrcButton("AVS", getAnimeUrl(image.url));
             }
 
@@ -629,6 +630,12 @@
                             url = s.slice(1).join(":").trim();
                             return [ep, url];
                         })
+                        // Bỏ nút tập dẫn link AVS trong cột episodes (host
+                        // animevietsub.*): qua frame/ (iframe) AVS chặn không
+                        // mở được -> nút thừa. Match theo HOST chứ không substring
+                        // — kẻo dính link firebase .../animevietsub/<id>.json
+                        // (m3u8, vẫn phát được qua player/).
+                        .filter(a => !/^(https?:\/\/)?(www\.)?animevietsub\./i.test(String(a[1])))
 
                     renderEpisodesPage(epBox, episodes, 0, history, srcBox)
                 } catch (e) {
