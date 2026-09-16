@@ -538,14 +538,19 @@
             const link = document.createElement('a');
 
             // Mặc định bấm ảnh bìa -> artplayer: nguồn m3u8 của bộ đó (playlist
-            // = key Firebase legacy/anilist id) trước, rồi kkphim (phimapi),
-            // rồi m3u8 crawl mới nhất theo anilist id (gdrive). Bộ chỉ có link
-            // Drive (không crawl m3u8) sẽ được artplayer chuyển tiếp sang
-            // player Drive. Nút nguồn riêng: xem addSrcButton bên dưới.
+            // = key Firebase legacy/anilist id) trước, rồi anilist_id (key
+            // Firebase avs_m3u8 crawl — ưu tiên trước kkphim để m3u8 đã crawl
+            // được dùng, bộ chưa crawl gì sẽ rơi vào artplayer -> player Drive
+            // trống), rồi kkphim (phimapi), rồi m3u8 crawl mới nhất theo
+            // anilist id (gdrive). Bộ chỉ có link Drive (không crawl m3u8) sẽ
+            // được artplayer chuyển tiếp sang player Drive. Nút nguồn riêng:
+            // xem addSrcButton bên dưới.
             var url = image.url
 
             if (image.playlist) {
                 url = `/anime/artplayer/?id=${image.playlist}`
+            } else if (image.anilist_id) {
+                url = `/anime/artplayer/?id=${image.anilist_id}`
             } else if (image.phimapi) {
                 url = `/anime/artplayer/?k=${image.phimapi}`
             } else if (image.gdrive) {
@@ -605,7 +610,10 @@
             if (image.phimapi) {
                 addSrcButton("KK", `/anime/artplayer/?k=${image.phimapi}`);
             }
-            if (image.url) {
+            // Chỉ hiện nút AVS khi url Sheet là trang animevietsub — các dòng
+            // url nguồn khác (yeuphim, motchill, bilibili, youtube, facebook…)
+            // là nút AVS thừa/sai nhãn; poster click vẫn dẫn link đó như cũ.
+            if (image.url && String(image.url).indexOf("animevietsub") !== -1) {
                 addSrcButton("AVS", getAnimeUrl(image.url));
             }
 
