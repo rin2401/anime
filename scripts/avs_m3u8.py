@@ -725,7 +725,19 @@ async def crawl_hls(anime_id, num_eps=DEFAULT_NUM_EPS):
         eps.sort(key=ep_sort_key, reverse=True)
         if num_eps:
             eps = eps[:num_eps]
+        # AVS_M3U8_ONLY_EXISTING=1: chỉ xét tập đã có node trong Firebase (vd
+        # tập có drive_id) — bỏ qua tập AVS liệt kê mà Firebase chưa có
+        # (One Piece AVS liệt kê 1100+ tập, Firebase chỉ giữ 125).
+        if os.environ.get("AVS_M3U8_ONLY_EXISTING"):
+            eps = [x for x in eps if str(fb_key(x["ep"])) in existing]
         todo = [x for x in eps if fb_key(x["ep"]) not in done]
+        # AVS_M3U8_STRIDE="n:k": chia todo cho n tiến trình song song (kèm
+        # AVS_M3U8_PROFILE khác nhau mỗi tiến trình) — tiến trình k crawl
+        # tập vị trí i % n == k, không trùng nhau.
+        stride = os.environ.get("AVS_M3U8_STRIDE")
+        if stride:
+            n, k = stride.split(":")
+            todo = [x for i, x in enumerate(todo) if i % int(n) == int(k)]
         print(f"{len(eps)} tập xét | crawl {len(todo)} tập (mới nhất trước)\n", flush=True)
 
         tab_play = None
