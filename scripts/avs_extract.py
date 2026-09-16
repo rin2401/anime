@@ -408,6 +408,14 @@ def fb_key(ep):
     return k
 
 
+def ep_title(name, ep):
+    """Tiêu đề tập '<tên bộ> - <số tập>'. AVS đánh dấu tập cuối dạng '<n>_END'
+    (vd '12_END') — title hiển thị '12 END' cho dễ đọc; key/id Firebase vẫn
+    giữ nguyên '<n>_END' để ?e= khớp tập."""
+    label = str(ep).replace("_END", " END")
+    return f"{name} - {label}" if name else f"Tập {label}"
+
+
 def ensure_episode_list(driver, timeout=8):
     """Đảm bảo trang hiện tại có danh sách tập (li.episode).
 
@@ -571,7 +579,7 @@ def crawl_drive(anime_id, num_eps=DEFAULT_NUM_EPS):
                 key = fb_key(x["ep"])
                 update = {f"anime/{anime_id}/{key}/drive_id": drive_id}
                 if name:
-                    title = f"{name} - {x['ep']}"
+                    title = ep_title(name, x['ep'])
                     update[f"anime/{anime_id}/{key}/title"] = title
                 db.reference().update(update)  # push ngay từng tập
                 ok += 1

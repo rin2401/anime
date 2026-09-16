@@ -54,7 +54,7 @@ import nodriver as uc
 from nodriver import cdp
 
 from avs_extract import (
-    read_sheet_row, norm_ep, fb_key, ep_sort_key, DEFAULT_NUM_EPS,
+    read_sheet_row, norm_ep, fb_key, ep_sort_key, ep_title, DEFAULT_NUM_EPS,
     update_sheet_url,
 )
 
@@ -777,7 +777,7 @@ async def crawl_hls(anime_id, num_eps=DEFAULT_NUM_EPS):
 
             ep_id = x["id"]
             fire_path = f"animevietsub/{ep_id}"
-            title = f"{name} - {ep}" if name else f"Tập {ep}"
+            title = ep_title(name, ep)
             file_url = update_ep(title, m3u8_text, fire_path)
 
             key = fb_key(ep)
