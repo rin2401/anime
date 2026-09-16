@@ -57,7 +57,9 @@ from avs_extract import (
     read_sheet_row, norm_ep, fb_key, ep_sort_key, DEFAULT_NUM_EPS,
 )
 
-PROFILE = "/tmp/nd-avs-m3u8"
+# Profile Chrome cho nodriver. Chạy song song nhiều tiến trình: set
+# AVS_M3U8_PROFILE khác nhau mỗi tiến trình (cùng profile thì kẹt lock).
+PROFILE = os.environ.get("AVS_M3U8_PROFILE", "/tmp/nd-avs-m3u8")
 
 
 async def start_browser():
