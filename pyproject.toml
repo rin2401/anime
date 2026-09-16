@@ -10,6 +10,7 @@ dependencies = [
     "google-api-python-client>=2.198.0",
     "google-auth-oauthlib>=1.4.0",
     "gspread>=6.2.1",
+    "nodriver>=0.50.3",
     "oauth2client>=4.1.3",
     "python-dotenv>=1.2.2",
     "requests>=2.34.2",
