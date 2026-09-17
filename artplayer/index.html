@@ -396,6 +396,14 @@
             });
 
 
+            // ?t=<giây> seek tới mốc trong tập (chia sẻ link đang xem dở).
+            // Chỉ áp cho tập mở ban đầu; autoPlayback cũng seek trên 'ready'
+            // nhưng đăng ký trước nên listener này chạy sau và thắng.
+            var t = parseFloat(getUrlParameter('t'));
+            if (Number.isFinite(t) && t > 0) {
+                art.on('ready', function () { art.currentTime = t; });
+            }
+
             if (episodeList[initialIndex].subtitles) {
                 art.setting.add({
                     width: 200,
