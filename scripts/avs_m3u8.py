@@ -27,6 +27,12 @@ Với stream KHÔNG mã hoá, resolve segment về lh3 như cũ (build_m3u8).
 
 Chạy TRONG thư mục scripts/ (cần r3fire.json). Phụ thuộc: nodriver, certifi.
 
+Attach browser ngoài (Browser Sword, Chrome debug ...): set
+AVS_M3U8_DEBUG_PORT (hoặc AVS_DEBUG_PORT) = port CDP (vd 9222) — nodriver
+nối vào browser đó thay vì tự mở Chrome, cookie cf_clearance nằm sẵn trong
+profile của browser ngoài, crawl dùng tab mới riêng để không đụng tab đang
+mở và KHÔNG đóng browser ngoài khi kết thúc.
+
 CLI:
   uv run python avs_m3u8.py probe <animeId>          # dump m3u8 1 tập (không ghi DB)
   uv run python avs_m3u8.py crawl <animeId> [numEps]  # crawl -> Firebase
@@ -62,21 +68,34 @@ from avs_extract import (
 # AVS_M3U8_PROFILE khác nhau mỗi tiến trình (cùng profile thì kẹt lock).
 PROFILE = os.environ.get("AVS_M3U8_PROFILE", "/tmp/nd-avs-m3u8")
 
+# Attach browser ngoài (Browser Sword, Chrome debug ...): port CDP của browser
+# đó. Có giá trị thì nodriver nối vào browser có sẵn thay vì tự mở Chrome.
+DEBUG_PORT = os.environ.get("AVS_M3U8_DEBUG_PORT") or os.environ.get("AVS_DEBUG_PORT")
 
-async def start_browser():
+
+async def start_browser(debug_port=None):
     """nodriver Chrome: không cần chromedriver nên không lệch version Chrome.
     Profile riêng giữ cookie cf_clearance giữa các lần chạy (CF chỉ challenge
     lần đầu); headless=False vì CF hay chặn headless.
+    debug_port (mặc định DEBUG_PORT env): nối vào browser ngoài qua CDP
+    (cookie cf_clearance nằm sẵn trong profile browser ngoài) — bỏ qua
+    profile/args của mình. None/0 = tự mở Chrome riêng.
     Thử lại vài lần: chạy batch nhiều Chrome tuần tự cùng profile, lần sau
     hay start khi Chrome lần trước chưa thoát hẳn (còn giữ profile lock)."""
+    if debug_port is None:
+        debug_port = DEBUG_PORT
+    if debug_port:
+        return await uc.start(host="127.0.0.1", port=int(debug_port))
     import asyncio
     last = None
-    for i in range(3):
+    for i in range(5):
         try:
             return await uc.start(
                 user_data_dir=PROFILE, headless=False,
                 browser_args=[
                     "--no-sandbox",
+                    "--disable-gpu",
+                    "--disable-dev-shm-usage",  # runner CI / docker: /dev/shm nhỏ
                     "--window-size=1280,900",
                     "--autoplay-policy=no-user-gesture-required",
                     "--mute-audio",
@@ -84,18 +103,32 @@ async def start_browser():
             )
         except Exception as e:
             last = e
-            if i < 2:
+            if i < 4:
                 print(f"    ...Chrome chưa start ({e.__class__.__name__}), "
-                      f"thử lại sau 3s...", flush=True)
-                await asyncio.sleep(3)
+                      f"thử lại sau 5s...", flush=True)
+                await asyncio.sleep(5)
     raise last
 
 
-def stop_browser(browser):
+def stop_browser(browser, debug_port=None):
+    if debug_port is None:
+        debug_port = DEBUG_PORT
+    if debug_port:
+        return  # browser ngoài (Sword/Chrome debug) — không đóng, chỉ rã kết nối khi thoát tiến trình
     try:
         browser.stop()  # sync trong nodriver 0.50
     except Exception:
         pass
+
+
+async def crawl_tab(browser, debug_port=None):
+    """Tab dùng cho trang xem: khi attach browser ngoài thì mở tab mới để
+    không điều khiển tab người dùng đang mở."""
+    if debug_port is None:
+        debug_port = DEBUG_PORT
+    if debug_port:
+        return await browser.get("about:blank", new_tab=True)
+    return browser.main_tab
 
 
 async def ev(tab, js, await_promise=False):
@@ -202,8 +235,16 @@ async def ensure_episode_list(tab, anime_id=None):
         })()""")
         how = "nút Xem"
     if not link:
+        # Debug: trang load xong (title sạch) mà không có link tập — dump xem
+        # server trả gì (CF block page, redirect domain khác, 404, ...).
+        dbg = await ev(tab, r"""(function(){
+            var b = (document.body && (document.body.innerText || '')) || '';
+            return location.href + ' | title=' + document.title +
+                   ' | body=' + b.replace(/\s+/g, ' ').slice(0, 200);
+        })()""")
         print("  (không thấy link tập nào của bộ này trên trang giới thiệu)",
               flush=True)
+        print(f"  [debug] {dbg}", flush=True)
         return False
     print(f"  (trang giới thiệu -> trang xem [{how}]: {link})", flush=True)
     if link != "CLICKED":
@@ -621,9 +662,9 @@ async def probe(anime_id):
         return
     base = "/".join(row["url"].split("/")[:3]) + "/"
 
-    browser = await start_browser()
+    browser = await start_browser(DEBUG_PORT)
     try:
-        tab = browser.main_tab
+        tab = await crawl_tab(browser, DEBUG_PORT)
         await tab.get(row["url"])
         if not await wait_cf(tab):
             print("=> KHÔNG qua được CF trang xem", flush=True)
@@ -686,19 +727,25 @@ async def probe(anime_id):
         print(f"\nFINAL: {nseg} segment | hosts: {_seg_hosts(final)}", flush=True)
         print("DONE", flush=True)
     finally:
-        stop_browser(browser)
+        stop_browser(browser, DEBUG_PORT)
 
 
 # ───────────────────────────────── crawl ─────────────────────────────────────
-async def crawl_hls(anime_id, num_eps=DEFAULT_NUM_EPS):
+async def crawl_hls(anime_id, num_eps=DEFAULT_NUM_EPS, attach=True):
     """Crawl m3u8 -> Firebase. Theo schema artplayer:
     animevietsub/{epId} = {title, m3u8}; anime/{anime_id}/{ep} = {id,title,file,type:hls}
     (merge từng field — giữ drive_id crawler Drive đã đẩy, tập có cả 2 nguồn).
-    Bỏ qua tập đã có m3u8 (field 'file'); crawl tập mới nhất trước."""
+    Bỏ qua tập đã có m3u8 (field 'file'); crawl tập mới nhất trước.
+
+    attach=True (mặc định): nối browser ngoài qua DEBUG_PORT env nếu có.
+    attach=False: LUÔN mở Chrome riêng — dùng khi chạy kèm crawl Drive attach
+    browser ngoài (Sword/Electron chặn Target.createTarget nên nodriver
+    không mở được tab mới khi attach)."""
     from fire import db, update_ep
 
     anime_id = str(anime_id)
     num_eps = int(num_eps) if num_eps else 0
+    debug_port = DEBUG_PORT if attach else None
 
     row = read_sheet_row(anime_id)
     if not row or "animevietsub" not in (row.get("url") or ""):
@@ -714,9 +761,9 @@ async def crawl_hls(anime_id, num_eps=DEFAULT_NUM_EPS):
             if isinstance(v, dict) and v.get("file")}
     print(f"Anime {anime_id} | {name} | đã có file: {len(done)}", flush=True)
 
-    browser = await start_browser()
+    browser = await start_browser(debug_port)
     try:
-        tab = browser.main_tab
+        tab = await crawl_tab(browser, debug_port)
         await tab.get(row["url"])
         if not await wait_cf(tab):
             raise RuntimeError("Không qua CF animevietsub")
@@ -805,7 +852,7 @@ async def crawl_hls(anime_id, num_eps=DEFAULT_NUM_EPS):
 
         print(f"\nTổng: crawl {len(todo)} | OK {ok} | miss {fail}", flush=True)
     finally:
-        stop_browser(browser)
+        stop_browser(browser, debug_port)
 
 
 def main():

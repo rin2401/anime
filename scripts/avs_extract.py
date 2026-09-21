@@ -9,6 +9,7 @@ import subprocess
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -212,7 +213,15 @@ def make_driver():
     port = os.environ.get("AVS_DEBUG_PORT")
     if port:
         opts.add_experimental_option("debuggerAddress", f"127.0.0.1:{port}")
-        return _hide_webdriver(webdriver.Chrome(options=opts), owned=False)
+        # Browser ngoài (Chrome debug, Sword) có thể lệch version Chrome cục
+        # bộ -> Selenium Manager chọn nhầm chromedriver (vd Sword Electron 44
+        # = Chromium 152 trong khi Chrome máy là 153). Ghi đè qua AVS_CHROMEDRIVER.
+        svc = (
+            Service(executable_path=os.environ["AVS_CHROMEDRIVER"])
+            if os.environ.get("AVS_CHROMEDRIVER")
+            else None
+        )
+        return _hide_webdriver(webdriver.Chrome(options=opts, service=svc), owned=False)
 
     for a in [
         "--disable-gpu",
@@ -441,7 +450,9 @@ def ensure_episode_list(driver, timeout=8):
         var base = cut > -1 ? p.slice(0, cut) : p;   // /phim/<slug>-aXXXX
         var as = document.querySelectorAll('a[href*="/tap-"]');
         for (var i = 0; i < as.length; i++) {
-            if (as[i].hostname !== location.hostname) continue;
+            // Site hay nhảy domain giữa chừng (zip redirect sang li...) nên
+            // hostname của link có thể khác hostname trang — guard đúng bộ là
+            // pathname prefix, đừng so hostname.
             if (as[i].pathname.indexOf(base + '/tap-') === 0) return as[i].href;
         }
         return null;

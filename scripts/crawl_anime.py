@@ -1,4 +1,4 @@
-"""Crawl link Drive cho 1 anime theo AniList ID — end-to-end.
+"""Crawl link Drive + m3u8 cho 1 anime theo AniList ID — end-to-end.
 
     cd anime/scripts
     uv run python crawl_anime.py <anilist_id>              # crawl 100 tập mới nhất
@@ -16,11 +16,17 @@ Luồng:
   3. Nếu chưa                          -> search animevietsub theo tên (row.name / AniList),
      tự khớp tên; nếu không rõ thì IN danh sách + thoát code 2 để chọn --pick.
      Chọn xong -> ghi url vào Sheet -> crawl.
+  4. Crawl Drive (link drive_id) xong -> crawl tiếp m3u8 (avs_m3u8.crawl_hls,
+     field 'file' cho artplayer) — merge từng field nên drive_id giữ nguyên,
+     tập đã có m3u8 thì bỏ qua.
 
 crawl_drive dùng cột `id` làm KEY (Firebase + tra Sheet). Theo quy ước id == AniList ID;
 nếu khác, script dùng đúng `id` của dòng và cảnh báo.
 
 Cần Chrome thật để qua Cloudflare (make_driver mặc định dùng profile /tmp/cf-chrome-profile).
+Phần m3u8 luôn mở Chrome riêng của nodriver (profile /tmp/nd-avs-m3u8) — kể cả khi
+crawl Drive attach browser ngoài qua AVS_DEBUG_PORT (Sword/Electron chặn
+Target.createTarget nên nodriver không mở được tab mới khi attach).
 
 Exit codes: 0 ok | 2 cần chọn (--pick) | 3 AniList không trả tên (không tạo được dòng)
             | 4 không có tên để search | 5 search rỗng | 6 --pick ngoài phạm vi.
@@ -249,6 +255,23 @@ def main():
                   f"(card trang chủ trỏ tới player).")
         else:
             print(f"[SHEET] gdrive đã đúng ({sheet_id}).")
+
+    # ── crawl m3u8 (nguồn streaming cho artplayer) ─────────────────────────
+    #    crawl_hls merge từng field ('file'/'id'/'title'/'type') vào node tập
+    #    nên drive_id crawl Drive ở trên giữ nguyên; tập đã có m3u8 bỏ qua.
+    #    attach=False: mở Chrome riêng của nodriver — browser ngoài (Sword)
+    #    chặn Target.createTarget nên không attach được.
+    print(f"\n[CRAWL-M3U8] key={sheet_id} num={a.num} ...\n")
+    import nodriver as uc
+    from avs_m3u8 import crawl_hls
+    try:
+        uc.loop().run_until_complete(crawl_hls(sheet_id, a.num, attach=False))
+    except Exception as e:
+        # Drive đã push an toàn từng tập ở trên — lỗi m3u8 không làm mất gì,
+        # chạy lại `avs_m3u8.py crawl <id>` để bù phần m3u8 còn thiếu.
+        print(f"\n[CRAWL-M3U8] LỖI ({e.__class__.__name__}: {e}) — "
+              f"link Drive đã crawl vẫn an toàn; bù m3u8 bằng "
+              f"`uv run python avs_m3u8.py crawl {sheet_id} {a.num}`.")
 
 
 if __name__ == "__main__":

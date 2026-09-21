@@ -15,7 +15,9 @@ cần Chrome debug trước:
         --remote-debugging-port=9222 --user-data-dir=/tmp/avs-chrome
     # đăng nhập animevietsub trong cửa sổ Chrome đó (qua Cloudflare 1 lần)
 
-Chế độ --m3u8 KHÔNG cần Chrome debug (nodriver tự mở Chrome riêng).
+Chế độ --m3u8 KHÔNG cần Chrome debug (nodriver tự mở Chrome riêng); muốn
+dùng browser ngoài (Browser Sword, Chrome debug) cho m3u8 thì set
+AVS_M3U8_DEBUG_PORT (hoặc AVS_DEBUG_PORT) = port CDP của browser đó.
 
 Rồi:
 
