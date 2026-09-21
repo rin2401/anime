@@ -1,0 +1,68 @@
+name: Crawl anime hằng ngày (m3u8)
+
+# Chạy crawl_releasing.py --m3u8 trên runner ubuntu: nodriver tự mở Chrome thật
+# (headless=False) qua Xvfb để vượt Cloudflare trên host player
+# storage.googleapiscdn.com. LƯU Ý: IP runner GitHub là IP datacenter được CF
+# đánh dấu nặng — lần chạy đầu tiên nên bấm "Run workflow" (workflow_dispatch)
+# để xác nhận qua được challenge trước khi tin vào lịch cron.
+
+on:
+  schedule:
+    - cron: "0 11 * * *" # 11:00 UTC = 18:00 VN (kịp tập chiếu trong ngày)
+  workflow_dispatch:
+    inputs:
+      args:
+        description: "Tham số thêm cho crawl_releasing.py (vd: --num 0, --this-year)"
+        default: ""
+        required: false
+
+permissions:
+  contents: read
+
+# Chạy song song 2 lần dễ bị CF rate-challenge cùng lúc + ghi đè nhau
+concurrency:
+  group: crawl
+  cancel-in-progress: false
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cài Xvfb (Chrome thật đã có sẵn trên runner)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb
+          google-chrome --version
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Giải mã service account Firebase
+        env:
+          R3FIRE_JSON_B64: ${{ secrets.R3FIRE_JSON_B64 }}
+        run: |
+          echo "$R3FIRE_JSON_B64" | base64 -d > scripts/r3fire.json
+          test -s scripts/r3fire.json
+
+      - name: Crawl m3u8 các anime đang chiếu
+        env:
+          # Profile riêng: mỗi lần chạy là IP mới nên cf_clearance không tái
+          # dùng được, challenge sẽ phải qua lại từ đầu trong lần chạy này.
+          AVS_M3U8_PROFILE: /tmp/nd-avs-m3u8
+        run: |
+          cd scripts
+          xvfb-run -a --server-args="-screen 0 1280x900x24" \
+            uv run python crawl_releasing.py --m3u8 ${{ inputs.args }}
+
+      - name: Upload log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crawl-log-${{ github.run_id }}
+          path: scripts/crawl_releasing_*.log
+          if-no-files-found: ignore
+          retention-days: 14
