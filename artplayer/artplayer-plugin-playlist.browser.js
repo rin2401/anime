@@ -72,7 +72,12 @@
                         },
                         selector: options.playlist.map(function (videoInfo, index) {
                             return {
-                                html: "".concat(index + 1, ". ").concat(videoInfo.title || "Ep.".concat(index + 1)),
+                                // Chỉ hiện số tập ('1069', '1145.5'); title đầy đủ
+                                // vẫn dùng cho switchUrl/document.title. Key Firebase
+                                // thay '.' bằng '_' nên chuẩn hoá lại khi id là key.
+                                html: (videoInfo.id !== undefined && videoInfo.id !== null && videoInfo.id !== '')
+                                    ? String(videoInfo.id).replace(/_/g, '.')
+                                    : (videoInfo.title || "Ep.".concat(index + 1)),
                                 style: {
                                     textAlign: 'left'
                                 },
