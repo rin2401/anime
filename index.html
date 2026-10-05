@@ -692,6 +692,8 @@
             } else {
                 const url = new URL(window.location.href);
                 url.searchParams.set('q', searchInput.value);
+                // search mode bỏ filter nên dọn param filter cũ khỏi URL
+                ["cate", "year", "season"].forEach(key => url.searchParams.delete(key));
                 window.history.replaceState({}, '', url);
                 imageContainer.innerHTML = '';
 
@@ -744,37 +746,91 @@
             imageContainer.appendChild(fragment);
         }
 
-        selectedCategory.addEventListener('change', displayImages);
-        selectedYear.addEventListener('change', displayImages);
-        selectedSeason.addEventListener('change', displayImages);
+        // ghi filter đang chọn lên URL (?cate=&year=&season=) để share/bookmark lại đúng trạng thái
+        function syncFilterParams() {
+            const url = new URL(window.location.href);
+            [["cate", selectedCategory.value], ["year", selectedYear.value], ["season", selectedSeason.value]].forEach(([key, value]) => {
+                if (value) {
+                    url.searchParams.set(key, value);
+                } else {
+                    url.searchParams.delete(key);
+                }
+            });
+            window.history.replaceState({}, '', url);
+        }
+
+        function onFilterChange() {
+            syncFilterParams();
+            displayImages();
+        }
+        selectedCategory.addEventListener('change', onFilterChange);
+        selectedYear.addEventListener('change', onFilterChange);
+        selectedSeason.addEventListener('change', onFilterChange);
 
         function getUrlParameter(name) {
             const urlParams = new URLSearchParams(window.location.search);
             return urlParams.get(name);
         }
 
+        const SHEET_ID = '12q04f4hwtVQjfVSUayDsgXLGGbqrl9urm8gp556nPQA';
+        const SHEET_GID = "1193967919";
+
+        // Bỏ dấu + lowercase để "dao hai tac" khớp "Đảo Hải Tác", "one piece"
+        // khớp "One Piece". normalize NFD là ES6, TV cũ (Chrome 41+) vẫn chạy.
+        function normalizeText(s) {
+            return String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        }
+
         async function searchAnime(q) {
+            // q rỗng (submit ô search trống) -> coi như không search, về grid thường
+            if (!String(q || "").trim()) {
+                return fetchImageData(SHEET_ID, SHEET_GID)
+            }
+
             selectedCategory.value = ""
             selectedYear.value = ""
             selectedSeason.value = ""
 
-            const res = await fetch(`https://phimapi.com/v1/api/tim-kiem?keyword=${q}&page=1&limit=64&sort_field=year&sort_order=desc`)
-            const data = await res.json()
-            var items = data.data.items.map(item => {
-                const poster = (item.poster_url && item.poster_url.indexOf("http") === 0) ? item.poster_url : data.data.APP_DOMAIN_CDN_IMAGE + "/" + item.poster_url
-                return {
-                    id: item._id,
-                    name: item.origin_name,
-                    image: thumbUrl(poster),
-                    imageRaw: poster,
-                    category: item.type,
-                    year: item.year,
-                    phimapi: item.slug,
-                    status: ""
-                }
-            })
+            const nq = normalizeText(q)
 
-            return items
+            // Hai nguồn chạy song song, mỗi nguồn hỏng độc lập (Sheet chết vì
+            // mạng thì vẫn hiện kết quả kkphim và ngược lại):
+            // - Sheet: lọc theo tên, các card giữ nguyên nút tập/GD/KK/AVS
+            // - kkphim (phimapi): như cũ
+            const sheetPromise = fetchImageData(SHEET_ID, SHEET_GID).catch(err => {
+                console.error(err)
+                return []
+            })
+            const kkPromise = fetch(`https://phimapi.com/v1/api/tim-kiem?keyword=${q}&page=1&limit=64&sort_field=year&sort_order=desc`)
+                .then(res => res.json())
+                .then(data => data.data.items.map(item => {
+                    const poster = (item.poster_url && item.poster_url.indexOf("http") === 0) ? item.poster_url : data.data.APP_DOMAIN_CDN_IMAGE + "/" + item.poster_url
+                    return {
+                        id: item._id,
+                        name: item.origin_name,
+                        image: thumbUrl(poster),
+                        imageRaw: poster,
+                        category: item.type,
+                        year: item.year,
+                        phimapi: item.slug,
+                        status: ""
+                    }
+                }))
+                .catch(err => {
+                    console.error(err)
+                    return []
+                })
+
+            const [sheet, kkItems] = await Promise.all([sheetPromise, kkPromise])
+
+            const sheetHits = sheet.filter(img => img.name && normalizeText(img.name).indexOf(nq) !== -1)
+            // Bộ đã có trong Sheet (cùng slug kkphim) thì bỏ bản kkphim trùng —
+            // bản Sheet có sẵn nút tập/GD/playlist đầy đủ hơn
+            const sheetSlugs = {}
+            sheetHits.map(img => { if (img.phimapi) sheetSlugs[img.phimapi] = true })
+            const kkHits = kkItems.filter(item => !sheetSlugs[item.phimapi])
+
+            return sheetHits.concat(kkHits)
         }
 
         function prefetchData() {
@@ -782,7 +838,7 @@
             if (q) {
                 return searchAnime(q)
             }
-            return fetchImageData('12q04f4hwtVQjfVSUayDsgXLGGbqrl9urm8gp556nPQA', "1193967919");
+            return fetchImageData(SHEET_ID, SHEET_GID);
         }
 
         // bắt đầu tải data ngay khi DOM sẵn sàng, song song với vòng check auth
@@ -801,11 +857,16 @@
             }
 
             // có cache từ lần trước -> hiện ngay, data mới về sau sẽ render lại (stale-while-revalidate)
+            // phục hồi filter từ param URL (?cate=&year=&season=), thiếu thì dùng mặc định như populateFilters
+            const urlCate = getUrlParameter("cate") || "TV Show";
+            const urlYear = getUrlParameter("year");
+            const urlSeason = getUrlParameter("season") || "";
+
             const cached = loadCachedImages()
             var renderedFromCache = false
             if (cached) {
                 images = cached
-                populateFilters()
+                populateFilters(urlYear, urlCate, urlSeason)
                 displayImages()
                 renderedFromCache = true
             }
@@ -820,7 +881,7 @@
                     // giữ nguyên filter user đang chọn khi render lại
                     populateFilters(selectedYear.value, selectedCategory.value, selectedSeason.value)
                 } else {
-                    populateFilters()
+                    populateFilters(urlYear, urlCate, urlSeason)
                 }
                 displayImages()
             } catch (err) {
