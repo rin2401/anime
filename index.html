@@ -851,7 +851,10 @@
 
             if (q) {
                 images = await dataPromise
-                populateFilters("", "", "")
+                // search mode vẫn phục hồi filter từ URL (?cate=&year=&season=):
+                // user đổi filter trong lúc xem kết quả search thì param đã được ghi
+                // qua syncFilterParams, reload/share link phải giữ đúng trạng thái đó
+                populateFilters(getUrlParameter("year") || "", getUrlParameter("cate") || "", getUrlParameter("season") || "")
                 displayImages()
                 return
             }
