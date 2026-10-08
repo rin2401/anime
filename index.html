@@ -397,9 +397,11 @@
             var seasons = new Set();
 
             images.map(image => {
-                categories.add(image.category);
-                years.add(image.year);
-                seasons.add(image.season);
+                // bỏ qua giá trị rỗng/null (kkphim không có season) — kẻo thành option rác
+                // "undefined" trong select, chọn nó là grid trống
+                if (image.category) categories.add(image.category);
+                if (image.year) years.add(image.year);
+                if (image.season) seasons.add(image.season);
             });
 
             categories = Array.from(categories).sort()
@@ -414,7 +416,8 @@
                 const option = document.createElement('option');
                 option.value = category;
                 option.textContent = category;
-                if (category == sCate) {
+                // giá trị URL thay dấu cách bằng '-' nên so khớp cả 2 dạng
+                if (category == sCate || toUrlParam(category) == sCate) {
                     option.selected = true;
                 }
                 categoryFilter.appendChild(option);
@@ -445,7 +448,7 @@
                 const option = document.createElement('option');
                 option.value = season;
                 option.textContent = season;
-                if (season == sSeason) {
+                if (season == sSeason || toUrlParam(season) == sSeason) {
                     option.selected = true;
                 }
                 seasonFilter.appendChild(option);
@@ -746,12 +749,17 @@
             imageContainer.appendChild(fragment);
         }
 
+        // giá trị filter trên URL dùng '-' thay dấu cách (?cate=TV-Show) — link sạch dễ share
+        function toUrlParam(value) {
+            return String(value || "").replace(/ /g, "-")
+        }
+
         // ghi filter đang chọn lên URL (?cate=&year=&season=) để share/bookmark lại đúng trạng thái
         function syncFilterParams() {
             const url = new URL(window.location.href);
             [["cate", selectedCategory.value], ["year", selectedYear.value], ["season", selectedSeason.value]].forEach(([key, value]) => {
                 if (value) {
-                    url.searchParams.set(key, value);
+                    url.searchParams.set(key, toUrlParam(value));
                 } else {
                     url.searchParams.delete(key);
                 }
