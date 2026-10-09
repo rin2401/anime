@@ -534,31 +534,51 @@
             }
         }
 
-        function createAnimeCard(image, history) {
+        // URL player mặc định của 1 dòng Sheet theo priority nguồn:
+        // playlist (key Firebase artplayer) > anilist_id (key crawl m3u8) >
+        // phimapi (slug kkphim) > gdrive (anilist id node Drive/m3u8).
+        // Dùng cho cả poster click lẫn nút mùa của card gom mùa.
+        function playerUrl(image) {
+            if (image.playlist) {
+                return `/anime/artplayer/?id=${image.playlist}`
+            } else if (image.anilist_id) {
+                return `/anime/artplayer/?id=${image.anilist_id}`
+            } else if (image.phimapi) {
+                return `/anime/artplayer/?k=${image.phimapi}`
+            } else if (image.gdrive) {
+                return `/anime/artplayer/?id=${image.gdrive}`
+            }
+            return image.url || ""
+        }
+
+        // Các mùa của 1 bộ sort theo năm rồi tên — "Phần 2" đứng sau
+        // "Phần 1", "Part 2" sau phần gốc (tên mùa là tiền tố của tên gốc)
+        function sortSeriesMembers(members) {
+            return members.slice().sort(function (a, b) {
+                var ya = parseInt(a.year) || 0;
+                var yb = parseInt(b.year) || 0;
+                if (ya != yb) return ya - yb;
+                return String(a.name || "").localeCompare(String(b.name || ""));
+            });
+        }
+
+        // Card gom mùa hiển thị tên bộ không kèm nhãn mùa: "Breaking Bad"
+        // thay vì "Breaking Bad (Season 1)"
+        function stripSeasonSuffix(name) {
+            return String(name || "").replace(/\s*\((?:Season|Phần)\s*\d+\)\s*$/i, "")
+        }
+
+        function createAnimeCard(image, history, seasons) {
             const animeCard = document.createElement('div');
             animeCard.classList.add('anime-card');
 
             const link = document.createElement('a');
 
-            // Mặc định bấm ảnh bìa -> artplayer: nguồn m3u8 của bộ đó (playlist
-            // = key Firebase legacy/anilist id) trước, rồi anilist_id (key
-            // Firebase avs_m3u8 crawl — ưu tiên trước kkphim để m3u8 đã crawl
-            // được dùng, bộ chưa crawl gì sẽ rơi vào artplayer -> player Drive
-            // trống), rồi kkphim (phimapi), rồi m3u8 crawl mới nhất theo
-            // anilist id (gdrive). Bộ chỉ có link Drive (không crawl m3u8) sẽ
-            // được artplayer chuyển tiếp sang player Drive. Nút nguồn riêng:
-            // xem addSrcButton bên dưới.
-            var url = image.url
-
-            if (image.playlist) {
-                url = `/anime/artplayer/?id=${image.playlist}`
-            } else if (image.anilist_id) {
-                url = `/anime/artplayer/?id=${image.anilist_id}`
-            } else if (image.phimapi) {
-                url = `/anime/artplayer/?k=${image.phimapi}`
-            } else if (image.gdrive) {
-                url = `/anime/artplayer/?id=${image.gdrive}`
-            }
+            // Mặc định bấm ảnh bìa -> artplayer theo priority nguồn của
+            // playerUrl() (playlist > anilist_id > kkphim > gdrive). Bộ chỉ
+            // có link Drive (không crawl m3u8) sẽ được artplayer chuyển tiếp
+            // sang player Drive. Nút nguồn riêng: xem addSrcButton bên dưới.
+            var url = playerUrl(image)
 
             if (url) {
                 link.href = getAnimeUrl(url)
@@ -621,7 +641,22 @@
                 addSrcButton("AVS", getAnimeUrl(image.url));
             }
 
-            if (image.episodes) {
+            // Card gom mùa (seasons = danh sách dòng các mùa đã sort): hàng
+            // nút P1..Pn thay cho nút nguồn + nút tập — nút nguồn của từng
+            // mùa đã nằm sẵn trong player của mùa đó. Nút mùa dẫn thẳng
+            // player của dòng tương ứng theo priority playerUrl().
+            if (seasons) {
+                seasons.map(function (member, i) {
+                    const o = document.createElement('a');
+                    o.classList.add('anime-ep');
+                    o.href = getAnimeUrl(playerUrl(member));
+                    const t = document.createElement('span');
+                    t.classList.add('anime-ep-text');
+                    t.textContent = "P" + (i + 1);
+                    o.appendChild(t);
+                    epBox.appendChild(o);
+                });
+            } else if (image.episodes) {
                 try {
                     const episodes = image.episodes
                         .split("\n")
@@ -663,7 +698,8 @@
             if (image.name) {
                 const nameLabel = document.createElement('div');
                 nameLabel.classList.add('anime-name-label');
-                nameLabel.textContent = image.name;
+                // card gom mùa: bỏ nhãn "(Season 1)" khỏi tên bộ
+                nameLabel.textContent = seasons ? stripSeasonSuffix(image.name) : image.name;
                 animeCard.appendChild(nameLabel);
             }
 
@@ -740,11 +776,35 @@
 
             filteredImages = filteredImages.sort((a, b) => b.status.localeCompare(a.status))
 
+            // Gom các dòng cùng bộ (cột series) thành 1 card duy nhất: dòng
+            // đại diện là dòng có id == series (mùa 1), các mùa còn lại thành
+            // nút P1..Pn trên card. Card hiện khi BẤT KỲ mùa nào khớp filter
+            // (năm/mùa chiếu) — bộ trải nhiều năm vẫn tìm thấy ở mọi năm;
+            // nút mùa luôn đủ mọi mùa (lấy từ toàn bộ images, không qua filter).
+            var seriesAll = {};
+            images.map(image => {
+                var s = String(image.series || "").trim();
+                if (s) {
+                    if (!seriesAll[s]) seriesAll[s] = [];
+                    seriesAll[s].push(image);
+                }
+            });
+            var seenSeries = {};
+
             // gom vào fragment, append 1 lần để tránh reflow liên tục trên TV yếu
             const fragment = document.createDocumentFragment();
             filteredImages.map(image => {
-                const animeCard = createAnimeCard(image, history)
-                fragment.appendChild(animeCard);
+                var s = String(image.series || "").trim();
+                if (s) {
+                    if (seenSeries[s]) return;
+                    seenSeries[s] = true;
+                    var members = sortSeriesMembers(seriesAll[s]);
+                    // dòng đại diện: id == series (mùa 1); fallback dòng đầu
+                    var rep = members.filter(m => String(m.id) == s)[0] || members[0];
+                    fragment.appendChild(createAnimeCard(rep, history, members));
+                } else {
+                    fragment.appendChild(createAnimeCard(image, history));
+                }
             })
             imageContainer.appendChild(fragment);
         }

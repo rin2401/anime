@@ -225,6 +225,83 @@
 
         var imageUrl = "/anime/image/r3_512.png"
 
+        // ── Đổi mùa trong player ──
+        // Sheet catalog (bản published gviz, như trang chủ) là nguồn group:
+        // các dòng cùng giá trị cột `series` là các mùa của một bộ. Mở player
+        // bằng ?id= (playlist/gdrive/anilist id) hoặc ?k= (slug kkphim) → tìm
+        // dòng tương ứng → các dòng cùng series thành mục "Mùa" trong setting
+        // panel; chọn mùa = điều hướng sang URL player của mùa đó (mỗi mùa vẫn
+        // là node Firebase / slug kkphim riêng nên tiến độ xem giữ nguyên).
+        const SHEET_ID = '12q04f4hwtVQjfVSUayDsgXLGGbqrl9urm8gp556nPQA';
+        const SHEET_GID = "1193967919";
+
+        function playerUrlFromRow(row) {
+            if (row.playlist) return '/anime/artplayer/?id=' + row.playlist;
+            if (row.anilist_id) return '/anime/artplayer/?id=' + row.anilist_id;
+            if (row.phimapi) return '/anime/artplayer/?k=' + row.phimapi;
+            if (row.gdrive) return '/anime/artplayer/?id=' + row.gdrive;
+            return '';
+        }
+
+        function fetchSheetRows() {
+            var url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&tq&gid=${SHEET_GID}`;
+            return fetch(url).then(res => res.text()).then(txt => {
+                // Không dùng regex lookbehind: trình duyệt TV cũ (Chrome < 62)
+                // SyntaxError ngay lúc parse script -> trắng trang
+                var jsonString = txt.substring(txt.indexOf('"table":') + '"table":'.length, txt.lastIndexOf('});'))
+                var data = JSON.parse(jsonString)
+                var cols = data.cols.map(col => col.label)
+                return data.rows.map(r => {
+                    var row = {}
+                    cols.map((col, i) => {
+                        var cel = r.c[i]
+                        row[col] = cel ? (cel.f ? cel.f : cel.v) : ''
+                    })
+                    return row
+                })
+            })
+        }
+
+        // Promise -> danh sách mùa [{url, label, current}] của bộ đang mở,
+        // đã sort theo (year, name); [] khi bộ 1 mùa / không có trong Sheet.
+        function seasonSelector(id, k) {
+            return fetchSheetRows().then(rows => {
+                var rid = String(id || '');
+                var match = null;
+                rows.map(row => {
+                    if (rid && (String(row.playlist) == rid || String(row.gdrive) == rid
+                        || String(row.anilist_id) == rid)) {
+                        match = row;
+                    } else if (!rid && k && String(row.phimapi) == String(k)) {
+                        match = row;
+                    }
+                });
+                // fallback cuối: ?id= trỏ thẳng cột id (không qua playlist)
+                if (!match && rid) {
+                    rows.map(row => { if (String(row.id) == rid) match = row });
+                }
+                if (!match) return [];
+
+                var series = String(match.series || '').trim();
+                if (!series) return [];
+
+                var members = rows.filter(row => String(row.series || '').trim() == series)
+                    .sort((a, b) => {
+                        var ya = parseInt(a.year) || 0, yb = parseInt(b.year) || 0;
+                        if (ya != yb) return ya - yb;
+                        return String(a.name || '').localeCompare(String(b.name || ''));
+                    });
+                return members.map((m, i) => ({
+                    url: playerUrlFromRow(m),
+                    label: 'Mùa ' + (i + 1),
+                    current: m === match,
+                }));
+            }).catch(err => {
+                console.error(err);
+                return [];
+            })
+        }
+
 
         // Chờ DOMContentLoaded: các lib (hls.js, artplayer...) load bằng defer nên chỉ
         // chắc chắn sẵn sàng từ thời điểm này; fetch nhanh có thể về trước khi lib load xong
@@ -402,6 +479,27 @@
                 },
             });
 
+
+            // Mục "Mùa" trong setting panel (chỉ thêm khi bộ có >= 2 mùa):
+            // chọn mùa = điều hướng sang URL player của mùa đó
+            seasonSelector(getUrlParameter('id'), getUrlParameter('k')).then(seasons => {
+                if (!seasons || seasons.length < 2) return;
+                art.setting.add({
+                    width: 200,
+                    html: 'Mùa',
+                    tooltip: (seasons.filter(s => s.current)[0] || {}).label || '',
+                    selector: seasons.map((s, i) => ({
+                        html: s.label,
+                        name: String(i),
+                        default: s.current,
+                    })),
+                    onSelect: function (item) {
+                        var s = seasons[Number(item.name)];
+                        if (s && s.url) window.location.href = s.url;
+                        return item.html;
+                    },
+                })
+            });
 
             // ?t=<giây> seek tới mốc trong tập (chia sẻ link đang xem dở).
             // Chỉ áp cho tập mở ban đầu; autoPlayback cũng seek trên 'ready'
