@@ -402,10 +402,13 @@ def update_sheet_url(sheet_id, url):
 
 def norm_ep(text):
     """Số tập lấy từ TEXT của nút ep (đáng tin hơn href, vì href bị bóp số cho ep
-    dạng '1150.5'). '001'->1 (int), '1150.5'->'1150.5', 'Special 6'->'Special 6'."""
+    dạng '1150.5'). '001'->1 (int), '1150.5'->'1150.5', 'Special 6'->'Special 6'.
+    Phim lẻ: nút 'Xem Full' = cả bộ phim -> tập 1 (key/id '1', title '<tên> - 1')."""
     t = (text or "").strip()
     if not t:
         return None
+    if t.lower() in ("xem full", "full"):
+        return 1
     return int(t) if t.isdigit() else t
 
 
@@ -419,9 +422,9 @@ def fb_key(ep):
 
 def ep_title(name, ep):
     """Tiêu đề tập '<tên bộ> - <số tập>'. AVS đánh dấu tập cuối dạng '<n>_END'
-    (vd '12_END') — title hiển thị '12 END' cho dễ đọc; key/id Firebase vẫn
-    giữ nguyên '<n>_END' để ?e= khớp tập."""
-    label = str(ep).replace("_END", " END")
+    (vd '12_END') — key/id Firebase vẫn giữ nguyên '<n>_END' để ?e= khớp tập;
+    title chỉ hiển thị số ('<tên> - 12'), không kèm nhãn END."""
+    label = str(ep).replace("_END", "")
     return f"{name} - {label}" if name else f"Tập {label}"
 
 

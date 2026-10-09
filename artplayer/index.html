@@ -42,6 +42,16 @@
 
         /* Select đổi mùa trên control bar: nền tối hoà với player, không
            chiếm cao quá control bar (mặc định select cao theo font OS) */
+        /* Số tập hiện tại trên control bar, cạnh select mùa */
+        .art-ep-num {
+            color: #fff;
+            font-size: 14px;
+            line-height: 28px;
+            margin: 0 6px;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+            white-space: nowrap;
+        }
+
         .art-season-select {
             background: rgba(0, 0, 0, 0.5);
             color: #fff;
@@ -381,12 +391,22 @@
             return parseFloat(String(id).replace(/_/g, '.')) || 0;
         }
 
+        // Nhãn số tập trên control bar: key Firebase "24_END" -> "Tập 24"
+        // (bỏ nhãn END, chỉ hiện số tập)
+        function epNumText(id) {
+            return 'Tập ' + String(id).replace(/_?END$/i, '');
+        }
+
         // animeId: key Firebase của bộ đang mở (?id=). Cần cho các tập lưu THẲNG nội
         // dung m3u8 trong node (phim lẻ Ghibli/Shinkai...) thay vì có sẵn `file`.
         function setupPlayer(data, animeId) {
             var M = {};
 
             var episodeList = [];
+            // span "Tập N" trên control bar — gán text sau khi art tạo xong,
+            // playlist onchanged (định nghĩa trước trong config) cũng cập
+            // nhật qua biến này
+            var epNumEl = document.createElement('span');
 
             // node không tồn tại -> Firebase trả null
             data = data || {}
@@ -439,7 +459,8 @@
             if (e === null) e = loadLastEp();
             e = String(e);
             // không dùng ?? : trình duyệt TV cũ (Chrome < 80) fail ngay lúc parse
-            var initialIndex = (M[e] !== undefined) ? M[e] : episodeList.length - 1;
+            // chưa xem (?e= không có, không có tập đã lưu) -> mặc định TẬP 1
+            var initialIndex = (M[e] !== undefined) ? M[e] : 0;
 
             updateParams(episodeList[initialIndex])
 
@@ -476,6 +497,9 @@
                         rebuildPlayer: false,
                         onchanged: async (art, index) => {
                             updateParams(episodeList[index])
+                            if (epNumEl) {
+                                epNumEl.textContent = epNumText(episodeList[index].id);
+                            }
                             var sub = artplayerPluginMultipleSubtitles({
                                 subtitles: episodeList[index].subtitles,
                             })
@@ -496,16 +520,32 @@
             });
 
 
-            // Nút logo r3mina trên control bar -> về trang chủ (như nút logo
-            // của jwplayer)
+            // Cụm bên phải control bar xếp theo thứ tự: logo r3mina -> select
+            // mùa -> số tập hiện tại. index là key chèn theo vị trí (so >=
+            // với index phần tử có sẵn; core dùng 30/40/70, plugin 9) —
+            // KHÔNG dùng 0: `e.index || this.id` nuốt giá trị falsy.
+            // Nút logo r3mina -> về trang chủ (như nút logo của jwplayer)
             art.controls.add({
                 name: 'r3mina',
                 position: 'right',
+                index: 1,
                 html: '<img src="/anime/image/r3_player.png" alt="r3mina" style="height: 26px; width: 26px;">',
                 tooltip: 'r3mina',
                 click: function () {
                     window.location.href = '/anime'
                 },
+            });
+
+            // Số tập đang xem ("Tập 24", key _END hiển thị "24 END"), cập
+            // nhật khi playlist đổi tập
+            epNumEl.className = 'art-ep-num';
+            epNumEl.textContent = epNumText(episodeList[initialIndex].id);
+            art.controls.add({
+                name: 'epnum',
+                position: 'right',
+                index: 3,
+                html: epNumEl,
+                tooltip: 'Tập hiện tại',
             });
 
             // Chọn mùa ngay trên control bar (thay vì giấu trong setting
@@ -529,6 +569,7 @@
                 art.controls.add({
                     name: 'season',
                     position: 'right',
+                    index: 2,
                     html: select,
                     tooltip: 'Mùa',
                 });
