@@ -496,6 +496,18 @@
             });
 
 
+            // Nút logo r3mina trên control bar -> về trang chủ (như nút logo
+            // của jwplayer)
+            art.controls.add({
+                name: 'r3mina',
+                position: 'right',
+                html: '<img src="/anime/image/r3_player.png" alt="r3mina" style="height: 26px; width: 26px;">',
+                tooltip: 'r3mina',
+                click: function () {
+                    window.location.href = '/anime'
+                },
+            });
+
             // Chọn mùa ngay trên control bar (thay vì giấu trong setting
             // panel): <select> luôn hiện, chọn mùa = điều hướng sang URL
             // player của mùa đó. Chỉ thêm khi bộ có >= 2 mùa.
