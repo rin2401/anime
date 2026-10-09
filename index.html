@@ -140,6 +140,27 @@
             color: #ffffff;
         }
 
+        /* Nút P của mùa hiện tại trên card gom: nền xanh nổi bật khỏi
+           hàng nút mùa (định nghĩa SAU .anime-ep để ghi đè nền đen) */
+        .anime-ep-cur {
+            background: #60a5fa;
+        }
+
+        /* Nhãn tên mùa hiện tại, chiếm riêng 1 hàng trên cluster nút
+           của card gom mùa (flex-basis 100% đẩy các nút xuống hàng dưới) */
+        .anime-season-label {
+            flex-basis: 100%;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 600;
+            color: #ffffff;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+            padding-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
         /* Nút nguồn GD / KK / AVS đứng TRƯỚC các nút số tập trong hàng tập
            (xem addSrcButton): GD -> player Drive, KK -> artplayer kkphim,
            AVS -> trang animevietsub. Nền đậm hơn nút tập cho dễ phân biệt. */
@@ -568,9 +589,27 @@
             return String(name || "").replace(/\s*\((?:Season|Phần)\s*\d+\)\s*$/i, "")
         }
 
-        function createAnimeCard(image, history, seasons) {
+        // Nhãn tên mùa hiện tại trên card gom: lấy phần nhãn mùa trong tên
+        // dòng ("3rd Season", "(Season 2)", "(Phần 1)"); tên không có nhãn
+        // mùa thì fallback "Mùa N" theo thứ tự sort của các mùa
+        function seasonLabel(name, idx) {
+            var s = String(name || "");
+            var m = s.match(/(\d+(?:st|nd|rd|th)\s*Season)/i) || s.match(/\(((?:Season|Phần|Mùa)\s*\d+)\)/i);
+            return m ? m[1] : ("Mùa " + (idx + 1));
+        }
+
+        function createAnimeCard(image, history, seasons, current) {
             const animeCard = document.createElement('div');
             animeCard.classList.add('anime-card');
+
+            // Card gom mùa: "mùa hiện tại" = dòng khớp filter đang xem
+            // (current) — poster, nút nguồn GD/KK/AVS và nút P được highlight
+            // theo mùa này. Ảnh bìa + tên bộ vẫn lấy từ dòng đại diện (mùa 1)
+            // cho ổn định khi đổi filter. Card đơn: current bỏ qua.
+            var show = (seasons && current) ? current : image;
+            // mùa hiện tại không có nguồn phát nào (playerUrl rỗng, vd dòng
+            // chỉ có ảnh bìa) -> poster + nút nguồn quay về dòng đại diện
+            if (seasons && !playerUrl(show)) show = image;
 
             const link = document.createElement('a');
 
@@ -578,7 +617,7 @@
             // playerUrl() (playlist > anilist_id > kkphim > gdrive). Bộ chỉ
             // có link Drive (không crawl m3u8) sẽ được artplayer chuyển tiếp
             // sang player Drive. Nút nguồn riêng: xem addSrcButton bên dưới.
-            var url = playerUrl(image)
+            var url = playerUrl(show)
 
             if (url) {
                 link.href = getAnimeUrl(url)
@@ -627,29 +666,38 @@
                 srcBox.appendChild(o);
             }
 
-            if (image.gdrive) {
-                addSrcButton("GD", `/anime/gdrive/?id=${image.gdrive}`);
+            if (show.gdrive) {
+                addSrcButton("GD", `/anime/gdrive/?id=${show.gdrive}`);
             }
-            if (image.phimapi) {
-                addSrcButton("KK", `/anime/artplayer/?k=${image.phimapi}`);
+            if (show.phimapi) {
+                addSrcButton("KK", `/anime/artplayer/?k=${show.phimapi}`);
             }
             // Chỉ hiện nút AVS khi url Sheet là trang animevietsub (host
             // animevietsub.*) — các dòng url nguồn khác (yeuphim, motchill,
             // bilibili, youtube, facebook…) là nút AVS thừa/sai nhãn; poster
             // click vẫn dẫn link đó như cũ.
-            if (image.url && /^(https?:\/\/)?(www\.)?animevietsub\./i.test(String(image.url))) {
-                addSrcButton("AVS", getAnimeUrl(image.url));
+            if (show.url && /^(https?:\/\/)?(www\.)?animevietsub\./i.test(String(show.url))) {
+                addSrcButton("AVS", getAnimeUrl(show.url));
             }
 
-            // Card gom mùa (seasons = danh sách dòng các mùa đã sort): giữ
-            // nguyên hàng nút nguồn GD/KK/AVS của dòng đại diện (mùa 1),
-            // thêm hàng nút P1..Pn đằng sau. Nút mùa dẫn thẳng player của
-            // dòng tương ứng theo priority playerUrl().
+            // Card gom mùa (seasons = danh sách dòng các mùa đã sort): nhãn
+            // tên mùa hiện tại trên cùng, hàng nút nguồn GD/KK/AVS của mùa
+            // hiện tại, rồi nút P1..Pn — nút của mùa hiện tại được highlight.
+            // Nút mùa dẫn thẳng player của dòng tương ứng theo playerUrl().
             if (seasons) {
+                var curIdx = 0;
+                seasons.map(function (m, i) {
+                    if (String(m.id) == String(show.id)) curIdx = i;
+                });
+                const labelEl = document.createElement('div');
+                labelEl.classList.add('anime-season-label');
+                labelEl.textContent = seasonLabel(show.name, curIdx);
+                epBox.appendChild(labelEl);
                 epBox.appendChild(srcBox);
                 seasons.map(function (member, i) {
                     const o = document.createElement('a');
                     o.classList.add('anime-ep');
+                    if (i == curIdx) o.classList.add('anime-ep-cur');
                     o.href = getAnimeUrl(playerUrl(member));
                     const t = document.createElement('span');
                     t.classList.add('anime-ep-text');
@@ -802,7 +850,9 @@
                     var members = sortSeriesMembers(seriesAll[s]);
                     // dòng đại diện: id == series (mùa 1); fallback dòng đầu
                     var rep = members.filter(m => String(m.id) == s)[0] || members[0];
-                    fragment.appendChild(createAnimeCard(rep, history, members));
+                    // mùa hiện tại = dòng khớp filter (image) — highlight nút P
+                    // + nhãn tên mùa + nút nguồn/poster theo mùa này
+                    fragment.appendChild(createAnimeCard(rep, history, members, image));
                 } else {
                     fragment.appendChild(createAnimeCard(image, history));
                 }
