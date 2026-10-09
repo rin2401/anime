@@ -68,6 +68,18 @@
             padding: 20px;
         }
 
+        /* tiêu đề section kết quả search ("Từ Sheet" / "Từ kkphim"):
+           flex-basis 100% chiếm trọn 1 hàng trong flex-wrap */
+        .search-section-label {
+            flex-basis: 100%;
+            text-align: center;
+            font-size: 18px;
+            font-weight: 700;
+            color: #cad3db;
+            padding-top: 10px;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        }
+
         .img-thumbnail {
             width: 300px;
             height: 424px;
@@ -810,7 +822,32 @@
             imageContainer.innerHTML = '';
             const history = JSON.parse(localStorage.getItem("history")) || {};
 
-            var filteredImages = images.filter(image => {
+            // search mode: kết quả gắn nhãn nguồn _search ('sheet' | 'kk') —
+            // chia 2 section, dòng Sheet (nút tập/GD/KK đầy đủ) trước
+            if (images.length && images.some(i => i._search)) {
+                appendSearchSection(imageContainer, "Từ Sheet", images.filter(i => i._search == "sheet"), history);
+                appendSearchSection(imageContainer, "Từ kkphim", images.filter(i => i._search == "kk"), history);
+                return;
+            }
+            imageContainer.appendChild(buildCardsFragment(images, history));
+        }
+
+        // tiêu đề 1 section kết quả search (flex-basis 100% chiếm trọn hàng
+        // trong image-container flex-wrap), kèm số kết quả
+        function appendSearchSection(container, title, list, history) {
+            const fragment = buildCardsFragment(list, history);
+            if (!fragment.childNodes.length) return;
+            const h = document.createElement('div');
+            h.classList.add('search-section-label');
+            h.textContent = title + " (" + fragment.childNodes.length + ")";
+            container.appendChild(h);
+            container.appendChild(fragment);
+        }
+
+        // lọc theo filter đang chọn + gom các dòng cùng bộ (cột series) thành
+        // card, trả về fragment card (dùng chung grid thường và 2 section search)
+        function buildCardsFragment(list, history) {
+            var filteredImages = list.filter(image => {
                 return (
                     (!selectedCategory.value || image.category == selectedCategory.value) &&
                     (!selectedYear.value || image.year == selectedYear.value) &&
@@ -818,20 +855,15 @@
                 );
             });
 
-            // const q = getUrlParameter("q")
-            // if (q) {
-            //     filteredImages = filteredImages.filter(image => image.name.toLowerCase().includes(q.toLowerCase()))
-            // }
-
             filteredImages = filteredImages.sort((a, b) => b.status.localeCompare(a.status))
 
             // Gom các dòng cùng bộ (cột series) thành 1 card duy nhất: dòng
             // đại diện là dòng có id == series (mùa 1), các mùa còn lại thành
             // nút P1..Pn trên card. Card hiện khi BẤT KỲ mùa nào khớp filter
             // (năm/mùa chiếu) — bộ trải nhiều năm vẫn tìm thấy ở mọi năm;
-            // nút mùa luôn đủ mọi mùa (lấy từ toàn bộ images, không qua filter).
+            // nút mùa luôn đủ mọi mùa (lấy từ toàn bộ list, không qua filter).
             var seriesAll = {};
-            images.map(image => {
+            list.map(image => {
                 var s = String(image.series || "").trim();
                 if (s) {
                     if (!seriesAll[s]) seriesAll[s] = [];
@@ -857,7 +889,7 @@
                     fragment.appendChild(createAnimeCard(image, history));
                 }
             })
-            imageContainer.appendChild(fragment);
+            return fragment;
         }
 
         // giá trị filter trên URL dùng '-' thay dấu cách (?cate=TV-Show) — link sạch dễ share
@@ -948,6 +980,11 @@
             const sheetSlugs = {}
             sheetHits.map(img => { if (img.phimapi) sheetSlugs[img.phimapi] = true })
             const kkHits = kkItems.filter(item => !sheetSlugs[item.phimapi])
+
+            // gắn nhãn nguồn để displayImages chia 2 section "Từ Sheet" /
+            // "Từ kkphim" (xem appendSearchSection)
+            sheetHits.map(img => { img._search = "sheet" })
+            kkHits.map(item => { item._search = "kk" })
 
             return sheetHits.concat(kkHits)
         }
