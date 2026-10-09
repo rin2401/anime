@@ -176,24 +176,6 @@
             background: #60a5fa;
         }
 
-        /* Nhãn tên mùa hiện tại, chiếm riêng 1 hàng trên cluster nút
-           của card gom mùa (flex-basis 100% đẩy các nút xuống hàng dưới).
-           Nền mờ như nút tập để chữ trắng đọc được trên poster sáng */
-        .anime-season-label {
-            flex-basis: 100%;
-            text-align: center;
-            font-size: 12px;
-            font-weight: 600;
-            color: #ffffff;
-            background: rgba(0, 0, 0, 0.5);
-            border-radius: 8px;
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-            padding: 3px 6px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
         /* Nút nguồn GD / KK / AVS đứng TRƯỚC các nút số tập trong hàng tập
            (xem addSrcButton): GD -> player Drive, KK -> artplayer kkphim,
            AVS -> trang animevietsub. Nền đậm hơn nút tập cho dễ phân biệt. */
@@ -647,21 +629,6 @@
             });
         }
 
-        // Card gom mùa hiển thị tên bộ không kèm nhãn mùa: "Breaking Bad"
-        // thay vì "Breaking Bad (Season 1)"
-        function stripSeasonSuffix(name) {
-            return String(name || "").replace(/\s*\((?:Season|Phần)\s*\d+\)\s*$/i, "")
-        }
-
-        // Nhãn tên mùa hiện tại trên card gom: lấy phần nhãn mùa trong tên
-        // dòng ("3rd Season", "(Season 2)", "(Phần 1)"); tên không có nhãn
-        // mùa thì fallback "Mùa N" theo thứ tự sort của các mùa
-        function seasonLabel(name, idx) {
-            var s = String(name || "");
-            var m = s.match(/(\d+(?:st|nd|rd|th)\s*Season)/i) || s.match(/\(((?:Season|Phần|Mùa)\s*\d+)\)/i);
-            return m ? m[1] : ("Mùa " + (idx + 1));
-        }
-
         function createAnimeCard(image, history, seasons, current) {
             const animeCard = document.createElement('div');
             animeCard.classList.add('anime-card');
@@ -744,19 +711,15 @@
                 addSrcButton("AVS", getAnimeUrl(show.url));
             }
 
-            // Card gom mùa (seasons = danh sách dòng các mùa đã sort): nhãn
-            // tên mùa hiện tại trên cùng, hàng nút nguồn GD/KK/AVS của mùa
-            // hiện tại, rồi nút P1..Pn — nút của mùa hiện tại được highlight.
+            // Card gom mùa (seasons = danh sách dòng các mùa đã sort): hàng
+            // nút nguồn GD/KK/AVS của mùa hiện tại + nút P1..Pn, nút của mùa
+            // hiện tại được highlight (tên mùa nằm ở header trên cùng).
             // Nút mùa dẫn thẳng player của dòng tương ứng theo playerUrl().
             if (seasons) {
                 var curIdx = 0;
                 seasons.map(function (m, i) {
                     if (String(m.id) == String(show.id)) curIdx = i;
                 });
-                const labelEl = document.createElement('div');
-                labelEl.classList.add('anime-season-label');
-                labelEl.textContent = seasonLabel(show.name, curIdx);
-                epBox.appendChild(labelEl);
                 epBox.appendChild(srcBox);
                 seasons.map(function (member, i) {
                     const o = document.createElement('a');
@@ -811,8 +774,10 @@
             if (image.name) {
                 const nameLabel = document.createElement('div');
                 nameLabel.classList.add('anime-name-label');
-                // card gom mùa: bỏ nhãn "(Season 1)" khỏi tên bộ
-                nameLabel.textContent = seasons ? stripSeasonSuffix(image.name) : image.name;
+                // card gom mùa: header trên cùng ghi đúng tên mùa HIỆN TẠI
+                // trong Sheet (show.name, vd "… 3rd Season") thay vì tên bộ
+                // đã bỏ suffix — khớp với nút P được highlight
+                nameLabel.textContent = seasons ? String(show.name || image.name || "") : image.name;
                 animeCard.appendChild(nameLabel);
             }
 
