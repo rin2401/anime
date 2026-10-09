@@ -641,11 +641,12 @@
                 addSrcButton("AVS", getAnimeUrl(image.url));
             }
 
-            // Card gom mùa (seasons = danh sách dòng các mùa đã sort): hàng
-            // nút P1..Pn thay cho nút nguồn + nút tập — nút nguồn của từng
-            // mùa đã nằm sẵn trong player của mùa đó. Nút mùa dẫn thẳng
-            // player của dòng tương ứng theo priority playerUrl().
+            // Card gom mùa (seasons = danh sách dòng các mùa đã sort): giữ
+            // nguyên hàng nút nguồn GD/KK/AVS của dòng đại diện (mùa 1),
+            // thêm hàng nút P1..Pn đằng sau. Nút mùa dẫn thẳng player của
+            // dòng tương ứng theo priority playerUrl().
             if (seasons) {
+                epBox.appendChild(srcBox);
                 seasons.map(function (member, i) {
                     const o = document.createElement('a');
                     o.classList.add('anime-ep');

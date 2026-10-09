@@ -39,6 +39,22 @@
         .art-video-player {
             --art-padding: 0 !important;
         }
+
+        /* Select đổi mùa trên control bar: nền tối hoà với player, không
+           chiếm cao quá control bar (mặc định select cao theo font OS) */
+        .art-season-select {
+            background: rgba(0, 0, 0, 0.5);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            border-radius: 4px;
+            padding: 2px 6px;
+            margin: 0 6px;
+            font-size: 14px;
+            line-height: 20px;
+            height: 28px;
+            outline: none;
+            cursor: pointer;
+        }
     </style>
 </head>
 
@@ -480,25 +496,30 @@
             });
 
 
-            // Mục "Mùa" trong setting panel (chỉ thêm khi bộ có >= 2 mùa):
-            // chọn mùa = điều hướng sang URL player của mùa đó
+            // Chọn mùa ngay trên control bar (thay vì giấu trong setting
+            // panel): <select> luôn hiện, chọn mùa = điều hướng sang URL
+            // player của mùa đó. Chỉ thêm khi bộ có >= 2 mùa.
             seasonSelector(getUrlParameter('id'), getUrlParameter('k')).then(seasons => {
                 if (!seasons || seasons.length < 2) return;
-                art.setting.add({
-                    width: 200,
-                    html: 'Mùa',
-                    tooltip: (seasons.filter(s => s.current)[0] || {}).label || '',
-                    selector: seasons.map((s, i) => ({
-                        html: s.label,
-                        name: String(i),
-                        default: s.current,
-                    })),
-                    onSelect: function (item) {
-                        var s = seasons[Number(item.name)];
-                        if (s && s.url) window.location.href = s.url;
-                        return item.html;
-                    },
-                })
+                var select = document.createElement('select');
+                select.className = 'art-season-select';
+                seasons.map((s, i) => {
+                    var o = document.createElement('option');
+                    o.value = String(i);
+                    o.textContent = s.label;
+                    if (s.current) o.selected = true;
+                    select.appendChild(o);
+                });
+                select.addEventListener('change', function () {
+                    var s = seasons[Number(select.value)];
+                    if (s && s.url) window.location.href = s.url;
+                });
+                art.controls.add({
+                    name: 'season',
+                    position: 'right',
+                    html: select,
+                    tooltip: 'Mùa',
+                });
             });
 
             // ?t=<giây> seek tới mốc trong tập (chia sẻ link đang xem dở).
