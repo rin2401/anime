@@ -21,7 +21,14 @@
     <link rel="preconnect" href="https://s4.anilist.co">
 
     <style>
-        /* Thay Bootstrap: cả trang chỉ dùng form-select/form-control nên tự viết cho nhẹ */
+        /* Trang nền tối: khai báo color-scheme để UA dark mode không ép đảo
+           màu form control (select/input) — nền tối chữ tối đọc không ra */
+        :root {
+            color-scheme: dark;
+        }
+
+        /* Thay Bootstrap: cả trang chỉ dùng form-select/form-control nên tự viết cho nhẹ.
+           Nền tối chữ trắng khớp theme #1a1a1a — kể cả UA dark mode cũng đọc rõ. */
         .form-select,
         .form-control {
             box-sizing: border-box;
@@ -29,10 +36,21 @@
             font-size: 16px;
             font-family: inherit;
             line-height: 1.5;
-            color: #212529;
-            background-color: #fff;
+            color: #ffffff;
+            background-color: #2b2f33;
             border: 1px solid #6c757d;
             border-radius: 6px;
+        }
+
+        /* engine cũ (TV) không ăn color-scheme: tô luôn option trong popup */
+        .form-select option,
+        .form-control option {
+            color: #ffffff;
+            background-color: #2b2f33;
+        }
+
+        .form-control::placeholder {
+            color: #9aa3ab;
         }
 
         .form-select:focus,
@@ -159,15 +177,18 @@
         }
 
         /* Nhãn tên mùa hiện tại, chiếm riêng 1 hàng trên cluster nút
-           của card gom mùa (flex-basis 100% đẩy các nút xuống hàng dưới) */
+           của card gom mùa (flex-basis 100% đẩy các nút xuống hàng dưới).
+           Nền mờ như nút tập để chữ trắng đọc được trên poster sáng */
         .anime-season-label {
             flex-basis: 100%;
             text-align: center;
             font-size: 12px;
             font-weight: 600;
             color: #ffffff;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 8px;
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-            padding-bottom: 2px;
+            padding: 3px 6px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -315,7 +336,7 @@
         }
 
         .search-btn:hover {
-            background: #cad3db;
+            background: #444;
         }
 
         /* Nút home logo r3mina đầu navbar: bấm về trang chủ (bỏ search/filter,
@@ -339,7 +360,7 @@
         }
 
         .home-btn:hover {
-            background: #cad3db;
+            background: #444;
         }
 
         .home-btn:focus {
@@ -369,7 +390,7 @@
             <input type="text" id="search-input" class="form-control" placeholder="Search anime...">
             <button class="search-btn" id="searchBtn">
                 <img width="28px" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24'
-                    %3E%3Cpath stroke='%23000' stroke-linecap='round' stroke-linejoin='round' stroke-width='2'
+                    %3E%3Cpath stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2'
                     d='M15.796 15.811 21 21m-3-10.5a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z' /%3E%3C/svg%3E"
                     alt="Search">
             </button>
