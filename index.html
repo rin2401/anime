@@ -317,6 +317,34 @@
         .search-btn:hover {
             background: #cad3db;
         }
+
+        /* Nút home logo r3mina đầu navbar: bấm về trang chủ (bỏ search/filter,
+           về mặc định TV Show + năm hiện tại). Cùng đường kính 38px với
+           .search-btn/.user-avatar cho cả hàng nút tròn thẳng hàng. */
+        .home-btn {
+            box-sizing: border-box;
+            width: 38px;
+            height: 38px;
+            padding: 0;
+            border: 1px solid #6c757d;
+            color: #fff;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .home-btn img {
+            display: block;
+            margin: 4px;
+        }
+
+        .home-btn:hover {
+            background: #cad3db;
+        }
+
+        .home-btn:focus {
+            outline: 2px solid #60a5fa;
+        }
     </style>
     <!-- defer: không chặn render; các script defer chạy theo đúng thứ tự trước DOMContentLoaded -->
     <script defer src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
@@ -325,6 +353,9 @@
 
 <body>
     <div id="filter-container">
+        <button class="home-btn" id="homeBtn" title="Trang chủ">
+            <img width="28px" src="/anime/image/r3_player.png" alt="r3mina">
+        </button>
         <select id="categoryFilter" class="form-select">
             <option value="">All Categories</option>
         </select>
@@ -815,6 +846,12 @@
         });
         searchBtn.addEventListener('click', async () => {
             await handleSearch()
+        });
+
+        // nút home logo: về trang chủ mặc định (bỏ ?q= và filter về TV Show
+        // + năm hiện tại) — cùng hành vi logo r3mina trên control bar player
+        document.getElementById('homeBtn').addEventListener('click', function () {
+            window.location.href = "/anime"
         });
 
         function displayImages() {
