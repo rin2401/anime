@@ -77,6 +77,15 @@
             text-align: left;
         }
 
+        /* Mobile hẹp: ẩn nút logo r3mina — control bar stock không đủ chỗ cho
+           hết cụm nút phải, logo chiếm ~56px không thiết yếu trên điện thoại
+           (desktop vẫn hiện). */
+        @media (max-width: 700px) {
+            .art-control-r3mina {
+                display: none !important;
+            }
+        }
+
     </style>
 </head>
 
