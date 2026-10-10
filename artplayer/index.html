@@ -66,34 +66,52 @@
             cursor: pointer;
         }
 
-        /* Mobile hẹp: 1 hàng control bar không đủ chỗ cho toàn bộ cụm nút
-           (play/prev/next/volume/time + logo/mùa/tập/playlist/setting/pip/
-           fullscreen ~670px) -> wrap 2 hàng: cụm trái hàng 1, cụm phải
-           (logo -> fullscreen) hàng dưới căn phải. !important để thắng style
-           Artplayer runtime chèn sau (min-width nút = --art-control-height). */
+        /* Mobile hẹp: ép toàn bộ 12 nút vào 1 hàng (iPhone 11 = 414px) —
+           nút core = svg 22px + padding .art-icon 7px, playlist thêm padding
+           10px nên phải thu nhỏ cả ba. !important để thắng style Artplayer
+           runtime chèn sau <style> trang (min-width nút = --art-control-height
+           46px, logo img inline 26px). */
         @media (max-width: 700px) {
-            .art-controls {
-                flex-wrap: wrap !important;
-                height: auto !important;
-                min-height: var(--art-control-height);
-            }
-
-            .art-controls-right {
-                flex-basis: 100% !important;
-            }
-
             .art-control {
-                min-width: 36px !important;
-                min-height: 36px !important;
+                min-width: 24px !important;
+                min-height: 28px !important;
+            }
+
+            .art-control svg {
+                width: 18px !important;
+                height: 18px !important;
+            }
+
+            .art-icon {
+                width: 26px !important;
+                height: 26px !important;
+                padding: 4px !important;
+            }
+
+            .art-control-playlist {
+                padding: 0 4px !important;
+            }
+
+            .art-control img {
+                height: 18px !important;
+                width: 18px !important;
+            }
+
+            .art-control-time {
+                font-size: 11px !important;
+                padding: 0 2px !important;
             }
 
             .art-season-select {
-                max-width: 88px !important;
+                max-width: 50px !important;
+                font-size: 11px !important;
+                padding: 2px 3px !important;
+                margin: 0 3px !important;
             }
 
             .art-ep-num {
-                font-size: 12px !important;
-                margin: 0 4px !important;
+                font-size: 11px !important;
+                margin: 0 2px !important;
             }
         }
     </style>
