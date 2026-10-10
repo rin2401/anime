@@ -141,12 +141,18 @@
                 // lần lượt: ảnh qua Photon CDN (re-encode JPEG chuẩn) -> ảnh
                 // gốc -> logo web (same-origin, chắc chắn hiện).
                 var token = ++_msToken;
+                // Debug lock screen iOS: &msart=logo -> CHỈ entry logo
+                // same-origin; &msart=square -> CHỈ 1 entry poster Photon
+                // crop vuông 512x512. Đúng 1 entry, không phụ gia.
+                var msArt = getUrlParameter('msart');
+                var debugRaw = msArt === 'logo' || msArt === 'square';
                 // Ảnh CDN nguồn có khi daemon của iOS không fetch được -> lấy
                 // qua Photon (trang chủ đã dùng cho grid, ổn định). Ảnh same-
-                // origin giữ nguyên.
-                var artworkSrc = function (src) {
+                // origin giữ nguyên. dim -> crop vuông chính xác (resize=).
+                var artworkSrc = function (src, dim) {
                     if (!src || src.indexOf('http') !== 0 || src.indexOf(location.origin) === 0) return src;
-                    return 'https://i0.wp.com/' + src.replace(/^https?:\/\//, '') + '?w=720&ssl=1';
+                    var q = dim ? 'resize=' + dim + ',' + dim : 'w=720';
+                    return 'https://i0.wp.com/' + src.replace(/^https?:\/\//, '') + '?' + q + '&ssl=1';
                 };
                 var setArtwork = function (src, w, h) {
                     if (token !== _msToken) return;
@@ -156,12 +162,14 @@
                     // entry to có sẵn. Khai thêm entry 512x512 cùng src để iOS
                     // tự scale ảnh nhỏ lên (thừa với logo r3_512).
                     var artwork = [{ src: src, sizes: w + 'x' + h, type: type }];
-                    if (w !== 512 || h !== 512)
-                        artwork.push({ src: src, sizes: '512x512', type: type });
-                    if (src !== imageUrl) {
-                        // Logo same-origin đứng CUỐI: nếu mọi entry ảnh phim
-                        // daemon không fetch được thì còn hiện logo thay ô xám
-                        artwork.push({ src: imageUrl, sizes: '512x512', type: 'image/png' });
+                    if (!debugRaw) {
+                        if (w !== 512 || h !== 512)
+                            artwork.push({ src: src, sizes: '512x512', type: type });
+                        if (src !== imageUrl) {
+                            // Logo same-origin đứng CUỐI: nếu mọi entry ảnh phim
+                            // daemon không fetch được thì còn hiện logo thay ô xám
+                            artwork.push({ src: imageUrl, sizes: '512x512', type: 'image/png' });
+                        }
                     }
                     navigator.mediaSession.metadata = new MediaMetadata({
                         title: episode.title,
@@ -185,7 +193,15 @@
                     };
                     img.src = src;
                 };
-                probeArtwork([artworkSrc(episode.image), episode.image, imageUrl].filter(Boolean));
+                var srcs;
+                if (msArt === 'logo') {
+                    srcs = [imageUrl];
+                } else if (msArt === 'square') {
+                    srcs = [artworkSrc(episode.image, 512)];
+                } else {
+                    srcs = [artworkSrc(episode.image), episode.image, imageUrl];
+                }
+                probeArtwork(srcs.filter(Boolean));
             }
         }
         function createBlobUrl(data, mimeType = "application/vnd.apple.mpegurl") {
