@@ -143,9 +143,16 @@
                 var setArtwork = function (src, w, h) {
                     if (token !== _msToken) return;
                     var type = /\.png($|\?)/i.test(src) ? 'image/png' : 'image/jpeg';
+                    // Ảnh nguồn nhỏ (poster ~100px) khai đúng size nhỏ thì iOS
+                    // lock screen TỪ CHỐI hiện (ô xám) — ảnh to vẫn chạy vì
+                    // entry to có sẵn. Khai thêm entry 512x512 cùng src để iOS
+                    // tự scale ảnh nhỏ lên (thừa với logo r3_512).
+                    var artwork = [{ src: src, sizes: w + 'x' + h, type: type }];
+                    if (w !== 512 || h !== 512)
+                        artwork.push({ src: src, sizes: '512x512', type: type });
                     navigator.mediaSession.metadata = new MediaMetadata({
                         title: episode.title,
-                        artwork: [{ src: src, sizes: w + 'x' + h, type: type }],
+                        artwork: artwork,
                     });
                 };
                 var probeArtwork = function (src) {
@@ -442,7 +449,9 @@
                     id: id,
                     title: data.movie.origin_name + " - " + id,
                     file: item.link_m3u8,
-                    image: data.movie.thumb_url || imageUrl,
+                    // poster dọc trước — thumb_url nhiều bộ là ảnh 4K ngang
+                    // (3840x2160) mà lock screen iOS không render nổi
+                    image: data.movie.poster_url || data.movie.thumb_url || imageUrl,
                 }
             })
         }
