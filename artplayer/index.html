@@ -606,8 +606,12 @@
                             var item = document.createElement('div');
                             item.className = 'art-selector-item art-season-ep';
                             // cùng quy ước hiển thị với item của plugin: key
-                            // Firebase thay '.' bằng '_', tập cuối _END hiện trần số
-                            item.textContent = String(ep.id).replace(/_/g, '.').replace(/\.END$/i, '');
+                            // Firebase thay '.' bằng '_', hậu tố END mọi biến thể
+                            // ('2_END', '2.end', '2.End', '2 END', '2-End') hiện
+                            // trần số; yêu cầu dấu ngăn trước END để không nuốt
+                            // từ thường chứa 'end' (vd 'legend')
+                            item.textContent = String(ep.id).replace(/_/g, '.')
+                                .replace(/[\s._-]+end\s*$/i, '').trim();
                             item.title = ep.title || '';
                             item.style.textAlign = 'left';
                             item.addEventListener('click', ev => {

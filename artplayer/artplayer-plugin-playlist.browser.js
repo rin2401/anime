@@ -75,9 +75,11 @@
                                 // Chỉ hiện số tập ('1069', '1145.5'); title đầy đủ
                                 // vẫn dùng cho switchUrl/document.title. Key Firebase
                                 // thay '.' bằng '_' nên chuẩn hoá lại khi id là key;
-                                // tập cuối gắn hậu tố _END ('24_END') hiện trần '24'.
+                                // hậu tố END mọi biến thể ('2_END', '2.end', '2.End',
+                                // '2 END', '2-End') hiện trần số — yêu cầu dấu ngăn
+                                // trước END để không nuốt từ thường chứa 'end'.
                                 html: (videoInfo.id !== undefined && videoInfo.id !== null && videoInfo.id !== '')
-                                    ? String(videoInfo.id).replace(/_/g, '.').replace(/\.END$/i, '')
+                                    ? String(videoInfo.id).replace(/_/g, '.').replace(/[\s._-]+end\s*$/i, '').trim()
                                     : (videoInfo.title || "Ep.".concat(index + 1)),
                                 style: {
                                     textAlign: 'left'
