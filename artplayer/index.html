@@ -121,6 +121,10 @@
             try { return localStorage.getItem(key); } catch (e) { return null; }
         }
 
+        // Token chặn race: đổi tập liên tiếp thì probe của tập cũ trả sau không
+        // được ghi đè artwork của tập đang phát
+        var _msToken = 0;
+
         function updateParams(episode) {
             const url = new URL(window.location.href);
             url.searchParams.set('e', episode.id);
@@ -129,19 +133,27 @@
             saveLastEp(episode.id)
 
             if ('mediaSession' in navigator) {
-                navigator.mediaSession.metadata = new MediaMetadata({
-                    title: episode.title,
-                    artwork: [
-                        {
-                            src: episode.image, sizes: '512x512',
-                            type: 'image/png'
-                        },
-                        // {
-                        //     src: '/anime/image/r3_128.png', sizes: '128x128',
-                        //     type: 'image/png'
-                        // },
-                    ]
-                });
+                // Poster của tập (AVS/kkphim) hay bị chặn hotlink / 404 /
+                // mixed-content -> iOS hiện ô xám rỗng trên lock screen. Probe
+                // trước: load được thì dùng poster phim, hỏng thì fallback logo
+                // web (same-origin, chắc chắn hiện).
+                var token = ++_msToken;
+                var setArtwork = function (src) {
+                    if (token !== _msToken) return;
+                    var type = /\.png($|\?)/i.test(src) ? 'image/png' : 'image/jpeg';
+                    navigator.mediaSession.metadata = new MediaMetadata({
+                        title: episode.title,
+                        artwork: [{ src: src, sizes: '512x512', type: type }],
+                    });
+                };
+                if (episode.image) {
+                    var probe = new Image();
+                    probe.onload = function () { setArtwork(episode.image); };
+                    probe.onerror = function () { setArtwork(imageUrl); };
+                    probe.src = episode.image;
+                } else {
+                    setArtwork(imageUrl);
+                }
             }
         }
         function createBlobUrl(data, mimeType = "application/vnd.apple.mpegurl") {
