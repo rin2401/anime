@@ -58,7 +58,9 @@
         }
 
         .art-selector-list .art-season-select {
-            width: calc(100% - 16px);
+            /* panel .art-selector-list là absolute co theo content nên % width
+               không có mốc — gán px tường minh, panel tự rộng theo select */
+            width: 150px;
             margin: 10px auto 6px;
             background: #2b2f33;
             border-color: rgba(255, 255, 255, 0.35);
