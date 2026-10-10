@@ -199,7 +199,15 @@
                 } else if (msArt === 'square') {
                     srcs = [artworkSrc(episode.image, 512)];
                 } else {
-                    srcs = [artworkSrc(episode.image), episode.image, imageUrl];
+                    // Mặc định: poster Photon crop VUÔNG 512x512 đứng đầu — cấu
+                    // hình đã xác nhận render trên lock screen iPhone (đúng
+                    // sizes, CORS đủ); sau đó 720, ảnh gốc, logo đối chữa
+                    srcs = [
+                        artworkSrc(episode.image, 512),
+                        artworkSrc(episode.image),
+                        episode.image,
+                        imageUrl,
+                    ];
                 }
                 probeArtwork(srcs.filter(Boolean));
             }
