@@ -134,26 +134,36 @@
 
             if ('mediaSession' in navigator) {
                 // Poster của tập (AVS/kkphim) hay bị chặn hotlink / 404 /
-                // mixed-content -> iOS hiện ô xám rỗng trên lock screen. Probe
-                // trước: load được thì dùng poster phim, hỏng thì fallback logo
-                // web (same-origin, chắc chắn hiện).
+                // mixed-content -> iOS hiện ô xám rỗng trên lock screen; khai
+                // sizes LỆCH kích thước thật (vd 512x512 cho ảnh nhỏ) iOS cũng
+                // từ chối hiện. Probe từng nguồn: load được thì khai ĐÚNG
+                // kích thước tự nhiên; poster hỏng thì fallback sang logo web
+                // (same-origin, chắc chắn hiện).
                 var token = ++_msToken;
-                var setArtwork = function (src) {
+                var setArtwork = function (src, w, h) {
                     if (token !== _msToken) return;
                     var type = /\.png($|\?)/i.test(src) ? 'image/png' : 'image/jpeg';
                     navigator.mediaSession.metadata = new MediaMetadata({
                         title: episode.title,
-                        artwork: [{ src: src, sizes: '512x512', type: type }],
+                        artwork: [{ src: src, sizes: w + 'x' + h, type: type }],
                     });
                 };
-                if (episode.image) {
-                    var probe = new Image();
-                    probe.onload = function () { setArtwork(episode.image); };
-                    probe.onerror = function () { setArtwork(imageUrl); };
-                    probe.src = episode.image;
-                } else {
-                    setArtwork(imageUrl);
-                }
+                var probeArtwork = function (src) {
+                    var img = new Image();
+                    img.onload = function () {
+                        if (token !== _msToken) return;
+                        // Ảnh degenerate không có kích thước nội tại -> đừng khai 0x0
+                        var w = img.naturalWidth || 512;
+                        var h = img.naturalHeight || w;
+                        setArtwork(src, w, h);
+                    };
+                    img.onerror = function () {
+                        if (token !== _msToken) return;
+                        if (src !== imageUrl) probeArtwork(imageUrl);
+                    };
+                    img.src = src;
+                };
+                probeArtwork(episode.image || imageUrl);
             }
         }
         function createBlobUrl(data, mimeType = "application/vnd.apple.mpegurl") {
