@@ -124,6 +124,11 @@
         // Token chặn race: đổi tập liên tiếp thì probe của tập cũ trả sau không
         // được ghi đè artwork của tập đang phát
         var _msToken = 0;
+        // Poster của bộ đọc từ Sheet (cột image — AniList CDN cho anime,
+        // phimimg cho kkphim); có muộn hơn lần set artwork đầu (Sheet fetch
+        // async) -> updateArtwork được gọi lại khi Sheet về
+        var sheetImage = '';
+        var currentEpisode = null;
 
         function updateParams(episode) {
             const url = new URL(window.location.href);
@@ -131,86 +136,93 @@
             window.history.replaceState({}, '', url);
             document.title = episode.title
             saveLastEp(episode.id)
+            currentEpisode = episode;
+            updateArtwork(episode);
+        }
 
-            if ('mediaSession' in navigator) {
-                // Poster của tập (AVS/kkphim) hay bị chặn hotlink / 404 /
-                // mixed-content, hoặc CDN nguồn bị media daemon của iOS
-                // (lock screen) fetch không được dù WebKit trong trang load
-                // được -> iOS hiện ô xám rỗng. Khai sizes LỆCH kích thước
-                // thật (vd 512x512 cho ảnh 4K) iOS cũng từ chối hiện. Probe
-                // lần lượt: ảnh qua Photon CDN (re-encode JPEG chuẩn) -> ảnh
-                // gốc -> logo web (same-origin, chắc chắn hiện).
-                var token = ++_msToken;
-                // Debug lock screen iOS: &msart=logo -> CHỈ entry logo
-                // same-origin; &msart=square -> CHỈ 1 entry poster Photon
-                // crop vuông 512x512. Đúng 1 entry, không phụ gia.
-                var msArt = getUrlParameter('msart');
-                var debugRaw = msArt === 'logo' || msArt === 'square';
-                // Ảnh CDN nguồn có khi daemon của iOS không fetch được -> lấy
-                // qua Photon (trang chủ đã dùng cho grid, ổn định). Ảnh same-
-                // origin giữ nguyên. dim -> crop vuông chính xác (resize=).
-                var artworkSrc = function (src, dim) {
-                    if (!src || src.indexOf('http') !== 0 || src.indexOf(location.origin) === 0) return src;
-                    var q = dim ? 'resize=' + dim + ',' + dim : 'w=720';
-                    return 'https://i0.wp.com/' + src.replace(/^https?:\/\//, '') + '?' + q + '&ssl=1';
-                };
-                var setArtwork = function (src, w, h) {
-                    if (token !== _msToken) return;
-                    var type = /\.png($|\?)/i.test(src) ? 'image/png' : 'image/jpeg';
-                    // Ảnh nguồn nhỏ (poster ~100px) khai đúng size nhỏ thì iOS
-                    // lock screen TỪ CHỐI hiện (ô xám) — ảnh to vẫn chạy vì
-                    // entry to có sẵn. Khai thêm entry 512x512 cùng src để iOS
-                    // tự scale ảnh nhỏ lên (thừa với logo r3_512).
-                    var artwork = [{ src: src, sizes: w + 'x' + h, type: type }];
-                    if (!debugRaw) {
-                        if (w !== 512 || h !== 512)
-                            artwork.push({ src: src, sizes: '512x512', type: type });
-                        if (src !== imageUrl) {
-                            // Logo same-origin đứng CUỐI: nếu mọi entry ảnh phim
-                            // daemon không fetch được thì còn hiện logo thay ô xám
-                            artwork.push({ src: imageUrl, sizes: '512x512', type: 'image/png' });
-                        }
+        function updateArtwork(episode) {
+            if (!episode || !('mediaSession' in navigator)) return;
+            // Poster của tập (AVS/kkphim) hay bị chặn hotlink / 404 /
+            // mixed-content, hoặc CDN nguồn bị media daemon của iOS
+            // (lock screen) fetch không được dù WebKit trong trang load
+            // được -> iOS hiện ô xám rỗng. Khai sizes LỆCH kích thước
+            // thật (vd 512x512 cho ảnh 4K) iOS cũng từ chối hiện. Probe
+            // lần lượt: ảnh qua Photon CDN (re-encode JPEG chuẩn) -> ảnh
+            // gốc -> logo web (same-origin, chắc chắn hiện).
+            var token = ++_msToken;
+            // Debug lock screen iOS: &msart=logo -> CHỈ entry logo
+            // same-origin; &msart=square -> CHỈ 1 entry poster Photon
+            // crop vuông 512x512. Đúng 1 entry, không phụ gia.
+            var msArt = getUrlParameter('msart');
+            var debugRaw = msArt === 'logo' || msArt === 'square';
+            // Ảnh CDN nguồn có khi daemon của iOS không fetch được -> lấy
+            // qua Photon (trang chủ đã dùng cho grid, ổn định). Ảnh same-
+            // origin giữ nguyên. dim -> crop vuông chính xác (resize=).
+            var artworkSrc = function (src, dim) {
+                if (!src || src.indexOf('http') !== 0 || src.indexOf(location.origin) === 0) return src;
+                var q = dim ? 'resize=' + dim + ',' + dim : 'w=720';
+                return 'https://i0.wp.com/' + src.replace(/^https?:\/\//, '') + '?' + q + '&ssl=1';
+            };
+            var setArtwork = function (src, w, h) {
+                if (token !== _msToken) return;
+                var type = /\.png($|\?)/i.test(src) ? 'image/png' : 'image/jpeg';
+                // Ảnh nguồn nhỏ (poster ~100px) khai đúng size nhỏ thì iOS
+                // lock screen TỪ CHỐI hiện (ô xám) — ảnh to vẫn chạy vì
+                // entry to có sẵn. Khai thêm entry 512x512 cùng src để iOS
+                // tự scale ảnh nhỏ lên (thừa với logo r3_512).
+                var artwork = [{ src: src, sizes: w + 'x' + h, type: type }];
+                if (!debugRaw) {
+                    if (w !== 512 || h !== 512)
+                        artwork.push({ src: src, sizes: '512x512', type: type });
+                    if (src !== imageUrl) {
+                        // Logo same-origin đứng CUỐI: nếu mọi entry ảnh phim
+                        // daemon không fetch được thì còn hiện logo thay ô xám
+                        artwork.push({ src: imageUrl, sizes: '512x512', type: 'image/png' });
                     }
-                    navigator.mediaSession.metadata = new MediaMetadata({
-                        title: episode.title,
-                        artwork: artwork,
-                    });
-                };
-                var probeArtwork = function (srcs) {
-                    if (!srcs.length) return;
-                    var src = srcs[0];
-                    var img = new Image();
-                    img.onload = function () {
-                        if (token !== _msToken) return;
-                        // Ảnh degenerate không có kích thước nội tại -> đừng khai 0x0
-                        var w = img.naturalWidth || 512;
-                        var h = img.naturalHeight || w;
-                        setArtwork(src, w, h);
-                    };
-                    img.onerror = function () {
-                        if (token !== _msToken) return;
-                        probeArtwork(srcs.slice(1));
-                    };
-                    img.src = src;
-                };
-                var srcs;
-                if (msArt === 'logo') {
-                    srcs = [imageUrl];
-                } else if (msArt === 'square') {
-                    srcs = [artworkSrc(episode.image, 512)];
-                } else {
-                    // Mặc định: poster Photon crop VUÔNG 512x512 đứng đầu — cấu
-                    // hình đã xác nhận render trên lock screen iPhone (đúng
-                    // sizes, CORS đủ); sau đó 720, ảnh gốc, logo đối chữa
-                    srcs = [
-                        artworkSrc(episode.image, 512),
-                        artworkSrc(episode.image),
-                        episode.image,
-                        imageUrl,
-                    ];
                 }
-                probeArtwork(srcs.filter(Boolean));
+                navigator.mediaSession.metadata = new MediaMetadata({
+                    title: episode.title,
+                    artwork: artwork,
+                });
+            };
+            var probeArtwork = function (srcs) {
+                if (!srcs.length) return;
+                var src = srcs[0];
+                var img = new Image();
+                img.onload = function () {
+                    if (token !== _msToken) return;
+                    // Ảnh degenerate không có kích thước nội tại -> đừng khai 0x0
+                    var w = img.naturalWidth || 512;
+                    var h = img.naturalHeight || w;
+                    setArtwork(src, w, h);
+                };
+                img.onerror = function () {
+                    if (token !== _msToken) return;
+                    probeArtwork(srcs.slice(1));
+                };
+                img.src = src;
+            };
+            var srcs;
+            if (msArt === 'logo') {
+                srcs = [imageUrl];
+            } else if (msArt === 'square') {
+                srcs = [artworkSrc(episode.image, 512)];
+            } else {
+                // Mặc định: poster Photon crop VUÔNG 512x512 đứng đầu — cấu
+                // hình đã xác nhận render trên lock screen iPhone (đúng
+                // sizes, CORS đủ). Ưu tiên poster Sheet (AniList CDN, không
+                // bị chặn hotlink như poster tập AVS); sau đó 720, ảnh gốc,
+                // logo đối chữa
+                var imgs = [];
+                if (sheetImage) imgs.push(sheetImage);
+                if (episode.image && episode.image !== sheetImage) imgs.push(episode.image);
+                srcs = [];
+                imgs.map(function (im) { srcs.push(artworkSrc(im, 512)); });
+                if (imgs.length) srcs.push(artworkSrc(imgs[0]));
+                if (imgs.length) srcs.push(imgs[0]);
+                srcs.push(imageUrl);
             }
+            probeArtwork(srcs.filter(Boolean));
         }
         function createBlobUrl(data, mimeType = "application/vnd.apple.mpegurl") {
             const blob = new Blob([data], { type: mimeType });
@@ -395,6 +407,9 @@
                 if (!match && rid) {
                     rows.map(row => { if (String(row.id) == rid) match = row });
                 }
+                // Poster của bộ từ cột image Sheet (AniList CDN cho anime,
+                // phimimg cho kkphim) — nguồn artwork lock screen ổn định
+                if (match) sheetImage = String(match.image || '').trim();
                 if (!match) return [];
 
                 var series = String(match.series || '').trim();
@@ -655,6 +670,10 @@
             // (node Firebase / slug kkphim riêng nên tiến độ xem giữ nguyên).
             // Chỉ làm khi bộ có >= 2 mùa.
             seasonSelector(getUrlParameter('id'), getUrlParameter('k')).then(seasons => {
+                // Sheet về xong: nếu dòng tương ứng có poster (cột image) mà
+                // artwork đang là logo đối chữa (poster tập bị chặn) -> probe
+                // lại với nguồn mới (poster AniList CDN / phimimg)
+                if (sheetImage) updateArtwork(currentEpisode);
                 if (!seasons || seasons.length < 2) return;
                 var list = art.controls.playlist.querySelector('.art-selector-list');
                 if (!list) return;
