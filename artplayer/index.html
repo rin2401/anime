@@ -504,6 +504,10 @@
 
             updateParams(episodeList[initialIndex])
 
+            // Chạm giữa màn hình trên MOBILE = play/pause: artplayer mặc định
+            // tắt MOBILE_CLICK_PLAY nên tap không làm gì (desktop không bị ảnh
+            // hưởng — click giữa vẫn toggle sẵn, double-click fullscreen).
+            Artplayer.MOBILE_CLICK_PLAY = true;
 
             var art = new Artplayer({
                 container: '.artplayer-app',
