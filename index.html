@@ -997,12 +997,42 @@
 
             const [sheet, kkItems] = await Promise.all([sheetPromise, kkPromise])
 
-            const sheetHits = sheet.filter(img => img.name && normalizeText(img.name).indexOf(nq) !== -1)
-            // Bộ đã có trong Sheet (cùng slug kkphim) thì bỏ bản kkphim trùng —
-            // bản Sheet có sẵn nút tập/GD/playlist đầy đủ hơn
-            const sheetSlugs = {}
-            sheetHits.map(img => { if (img.phimapi) sheetSlugs[img.phimapi] = true })
-            const kkHits = kkItems.filter(item => !sheetSlugs[item.phimapi])
+            // slug kkphim -> dòng Sheet tương ứng (toàn bộ Sheet, không chỉ dòng
+            // khớp tên): kết quả kkphim mà bộ đó CÓ trong Sheet được thay bằng bản
+            // Sheet (đầy đủ nút tập/GD/playlist) và đẩy lên section "Từ Sheet"
+            // đầu trang — tên Sheet là romaji nên từ khóa tiếng Việt ("dao hai
+            // tac") chỉ khớp qua kkphim, khi đó vẫn phải hiện bản Sheet lên trên.
+            const sheetBySlug = {}
+            sheet.map(img => { if (img.phimapi) sheetBySlug[img.phimapi] = img })
+
+            // Nhiều dòng Sheet (anime crawl AVS) không điền slug kkphim, khi đó
+            // khớp kk item qua TÊN đã normalize (bỏ dấu + bỏ ký tự đặc biệt):
+            // kk "One Piece" -> dòng Sheet "One Piece" (slug rỗng).
+            const sheetByName = {}
+            sheet.map(img => {
+                var key = normalizeText(img.name).replace(/[^a-z0-9]/g, "")
+                if (key && !sheetByName[key]) sheetByName[key] = img
+            })
+            const kkToSheet = item =>
+                sheetBySlug[item.phimapi] ||
+                sheetByName[normalizeText(item.name).replace(/[^a-z0-9]/g, "")]
+
+            // section đầu: dòng Sheet khớp tên với từ khóa + dòng Sheet tương
+            // ứng của kết quả kkphim (trùng slug hoặc trùng tên). Dedupe theo
+            // object — 1 dòng chỉ 1 lần.
+            const seen = new Set()
+            const sheetHits = []
+            const pushSheet = img => {
+                if (!seen.has(img)) {
+                    seen.add(img)
+                    sheetHits.push(img)
+                }
+            }
+            sheet.filter(img => img.name && normalizeText(img.name).indexOf(nq) !== -1).map(pushSheet)
+            kkItems.map(item => { if (kkToSheet(item)) pushSheet(kkToSheet(item)) })
+
+            // section sau: kết quả kkphim không có trong Sheet
+            const kkHits = kkItems.filter(item => !kkToSheet(item))
 
             // gắn nhãn nguồn để displayImages chia 2 section "Từ Sheet" /
             // "Từ kkphim" (xem appendSearchSection)
