@@ -56,31 +56,6 @@
             cursor: pointer;
         }
 
-        /* Mobile hẹp: 1 hàng control bar không đủ chỗ cho toàn bộ cụm nút
-           (play/prev/next/volume/time + logo/mùa/playlist/setting/pip/
-           fullscreen ~620px) -> wrap 2 hàng: cụm trái hàng 1, cụm phải
-           (logo -> fullscreen) hàng dưới căn phải. !important để thắng style
-           Artplayer runtime chèn sau (min-width nút = --art-control-height). */
-        @media (max-width: 700px) {
-            .art-controls {
-                flex-wrap: wrap !important;
-                height: auto !important;
-                min-height: var(--art-control-height);
-            }
-
-            .art-controls-right {
-                flex-basis: 100% !important;
-            }
-
-            .art-control {
-                min-width: 36px !important;
-                min-height: 36px !important;
-            }
-
-            .art-season-select {
-                max-width: 88px !important;
-            }
-        }
     </style>
 </head>
 
