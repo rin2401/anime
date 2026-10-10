@@ -40,37 +40,14 @@
             --art-padding: 0 !important;
         }
 
-        /* Select đổi mùa trong dropdown danh sách tập (hàng đầu tiên của
-           .art-selector-list, hiện khi hover/tap nút playlist): gần full
-           bề ngang panel */
-        .art-season-select {
-            background: rgba(0, 0, 0, 0.5);
-            color: #fff;
-            border: 1px solid rgba(255, 255, 255, 0.25);
-            border-radius: 4px;
-            padding: 2px 6px;
-            margin: 0 6px;
-            font-size: 14px;
-            line-height: 20px;
-            height: 28px;
-            outline: none;
-            cursor: pointer;
-        }
-
-        .art-selector-list .art-season-select {
-            /* không đặt width: panel .art-selector-list là absolute co theo
-               content, select tự rộng đúng bằng option dài nhất ("Mùa 3"…);
-               đặt % width sẽ mất mốc làm select bị cắt, px cứng lại thừa chỗ */
-            margin: 10px auto 6px;
-            background: #2b2f33;
-            border-color: rgba(255, 255, 255, 0.35);
-            color: #ffffff;
-            color-scheme: dark;
-        }
-
-        .art-selector-list .art-season-select option {
-            color: #ffffff;
-            background: #2b2f33;
+        /* Header nhóm mùa trong dropdown danh sách tập (gộp tập mọi mùa vào
+           chung list): dòng chữ mờ phía trên từng khối tập của mùa */
+        .art-selector-list .art-season-header {
+            padding: 8px 15px 4px;
+            color: #9aa0a6;
+            font-size: 12px;
+            width: 100%;
+            text-align: left;
         }
 
     </style>
@@ -336,6 +313,26 @@
             })
         }
 
+        // Danh sách tập của một mùa khác trong cùng series: parse query từ URL
+        // player của mùa đó (?id= node Firebase hoặc ?k= slug kkphim) rồi map
+        // giống hệt luồng chính — để ?e= trên URL đích khớp M[] của player mùa đó.
+        function fetchSeasonEpisodes(season) {
+            var q = new URLSearchParams(season.url.split('?')[1] || '');
+            var pid = q.get('id');
+            if (pid) {
+                return fetch(`https://r3fire.firebaseio.com/anime/${pid}.json`)
+                    .then(res => res.json())
+                    .then(data => mapEpisodes(data, pid));
+            }
+            var k = q.get('k');
+            if (k) {
+                return fetch('https://phimapi.com/phim/' + k)
+                    .then(res => res.json())
+                    .then(data => mapEpisodes(kkphimEpisodes(data)));
+            }
+            return Promise.resolve([]);
+        }
+
 
         // Chờ DOMContentLoaded: các lib (hls.js, artplayer...) load bằng defer nên chỉ
         // chắc chắn sẵn sàng từ thời điểm này; fetch nhanh có thể về trước khi lib load xong
@@ -349,47 +346,48 @@
             } else if (k) {
                 const url = "https://phimapi.com/phim/" + k
                 fetch(url).then(response => response.json())
-                    .then(data => {
-                        // kkphim trả tập đúng thứ tự phát sóng, lastNum/extra bám theo đó.
-                        var lastNum = 0, extra = 0;
-                        var playlist = data.episodes[0].server_data.map((item) => {
-                            // Lấy số tập từ TÊN trước ('Tập 1004.5' -> 1004.5): kkphim bỏ
-                            // dấu chấm trong slug (tap-10045) nên slug 5 chữ số parse thành
-                            // 10045, các tập .5 rơi xuống cuối danh sách. Tên luôn ghi đúng
-                            // nhãn; chỉ về slug khi tên không có số.
-                            // slug 'tap-07' -> 7; 'full' (phim lẻ) -> 1. Slug không mang số
-                            // ('tap-sp' = OAD chèn giữa mùa, vd Attack on Titan phần 4) lấy
-                            // id thập phân ngay sau tập có số gần nhất: SP giữa 16 và 17
-                            // -> 16.5. epNum() vốn hiểu số lẻ nên nó tự nằm đúng chỗ.
-                            // Trước đây id rơi về 1 mặc định -> đụng tập 1: playlist hiện
-                            // 2 mục "- 1" và ?e=1 phát nhầm SP.
-                            // extra/100 phòng bộ có nhiều tập đặc biệt liên tiếp (16.5, 16.51).
-                            var slug = item.slug || ''
-                            var id = 1
-                            var nm = (item.name || '').match(/(\d+(?:\.\d+)?)/)
-                            if (nm) {
-                                id = parseFloat(nm[1]); lastNum = id; extra = 0
-                            } else if (slug.indexOf("tap-") === 0) {
-                                let rest = slug.slice(4);
-                                let num = Number(rest);
-                                if (Number.isInteger(num)) {
-                                    id = num; lastNum = num; extra = 0
-                                } else {
-                                    id = lastNum + 0.5 + extra / 100; extra++
-                                }
-                            }
-
-                            return {
-                                id: id,
-                                title: data.movie.origin_name + " - " + id,
-                                file: item.link_m3u8,
-                                image: data.movie.thumb_url || imageUrl,
-                            }
-                        })
-                        setupPlayer(playlist)
-                    })
+                    .then(data => setupPlayer(kkphimEpisodes(data)))
             }
         });
+
+        // kkphim trả tập đúng thứ tự phát sóng, lastNum/extra bám theo đó.
+        function kkphimEpisodes(data) {
+            var lastNum = 0, extra = 0;
+            return data.episodes[0].server_data.map((item) => {
+                // Lấy số tập từ TÊN trước ('Tập 1004.5' -> 1004.5): kkphim bỏ
+                // dấu chấm trong slug (tap-10045) nên slug 5 chữ số parse thành
+                // 10045, các tập .5 rơi xuống cuối danh sách. Tên luôn ghi đúng
+                // nhãn; chỉ về slug khi tên không có số.
+                // slug 'tap-07' -> 7; 'full' (phim lẻ) -> 1. Slug không mang số
+                // ('tap-sp' = OAD chèn giữa mùa, vd Attack on Titan phần 4) lấy
+                // id thập phân ngay sau tập có số gần nhất: SP giữa 16 và 17
+                // -> 16.5. epNum() vốn hiểu số lẻ nên nó tự nằm đúng chỗ.
+                // Trước đây id rơi về 1 mặc định -> đụng tập 1: playlist hiện
+                // 2 mục "- 1" và ?e=1 phát nhầm SP.
+                // extra/100 phòng bộ có nhiều tập đặc biệt liên tiếp (16.5, 16.51).
+                var slug = item.slug || ''
+                var id = 1
+                var nm = (item.name || '').match(/(\d+(?:\.\d+)?)/)
+                if (nm) {
+                    id = parseFloat(nm[1]); lastNum = id; extra = 0
+                } else if (slug.indexOf("tap-") === 0) {
+                    let rest = slug.slice(4);
+                    let num = Number(rest);
+                    if (Number.isInteger(num)) {
+                        id = num; lastNum = num; extra = 0
+                    } else {
+                        id = lastNum + 0.5 + extra / 100; extra++
+                    }
+                }
+
+                return {
+                    id: id,
+                    title: data.movie.origin_name + " - " + id,
+                    file: item.link_m3u8,
+                    image: data.movie.thumb_url || imageUrl,
+                }
+            })
+        }
 
 
 
@@ -399,11 +397,12 @@
             return parseFloat(String(id).replace(/_/g, '.')) || 0;
         }
 
-        // animeId: key Firebase của bộ đang mở (?id=). Cần cho các tập lưu THẲNG nội
-        // dung m3u8 trong node (phim lẻ Ghibli/Shinkai...) thay vì có sẵn `file`.
-        function setupPlayer(data, animeId) {
-            var M = {};
-
+        // Map node Firebase HOẶC mảng kkphim (cả hai có dạng {id, title,
+        // file/m3u8, image}) thành danh sách tập có `url` phát được. Duyệt bằng
+        // Object.entries để dùng chung cho cả object lẫn array. animeId: key
+        // Firebase của bộ đang mở (?id=). Cần cho các tập lưu THẲNG nội dung
+        // m3u8 trong node (phim lẻ Ghibli/Shinkai...) thay vì có sẵn `file`.
+        function mapEpisodes(data, animeId) {
             var episodeList = [];
 
             // node không tồn tại -> Firebase trả null
@@ -440,6 +439,13 @@
             // key số nguyên ('1'..'12') trước mọi key chữ, nên tập lẻ lưu dạng '07_5'
             // (Firebase không cho dấu '.' trong key) bị rơi xuống cuối danh sách.
             episodeList.sort(function (a, b) { return epNum(a.id) - epNum(b.id) });
+            return episodeList;
+        }
+
+        function setupPlayer(data, animeId) {
+            var M = {};
+
+            var episodeList = mapEpisodes(data, animeId);
             episodeList.forEach(function (ep, i) { M[ep.id] = i });
 
             if (!episodeList.length) {
@@ -532,29 +538,50 @@
                 },
             });
 
-            // Chọn mùa nằm trong dropdown danh sách tập: hover/tap nút
-            // playlist -> panel .art-selector-list hiện ra, select mùa là
-            // hàng đầu tiên. Chọn mùa = điều hướng sang URL player của mùa
-            // đó (mỗi mùa là node Firebase / slug kkphim riêng). Chỉ thêm
-            // khi bộ có >= 2 mùa.
+            // Gộp danh sách tập của TẤT CẢ các mùa vào chung panel playlist:
+            // plugin render sẵn tập mùa hiện tại; các mùa còn lại (header
+            // "Mùa N" + item tập) inject thêm vào .art-selector-list. Bấm tập
+            // mùa khác = điều hướng sang URL player của mùa đó kèm ?e=<tập>
+            // (node Firebase / slug kkphim riêng nên tiến độ xem giữ nguyên).
+            // Chỉ làm khi bộ có >= 2 mùa.
             seasonSelector(getUrlParameter('id'), getUrlParameter('k')).then(seasons => {
                 if (!seasons || seasons.length < 2) return;
                 var list = art.controls.playlist.querySelector('.art-selector-list');
                 if (!list) return;
-                var select = document.createElement('select');
-                select.className = 'art-season-select';
-                seasons.map((s, i) => {
-                    var o = document.createElement('option');
-                    o.value = String(i);
-                    o.textContent = s.label;
-                    if (s.current) o.selected = true;
-                    select.appendChild(o);
+
+                var curIdx = 0;
+                seasons.forEach((s, i) => { if (s.current) curIdx = i });
+
+                Promise.all(seasons.map(s => {
+                    if (s.current) return Promise.resolve(null);
+                    return fetchSeasonEpisodes(s).catch(() => []);
+                })).then(results => {
+                    // Khối item của plugin nằm liền nhau: các mùa TRƯỚC mùa
+                    // hiện tại chèn trước khối (trướcRef là item đầu tiên),
+                    // các mùa sau nối vào cuối panel.
+                    var beforeRef = list.querySelector('.art-selector-item');
+                    seasons.forEach((s, i) => {
+                        var after = i > curIdx;
+                        var header = document.createElement('div');
+                        header.className = 'art-season-header';
+                        header.textContent = s.label;
+                        list.insertBefore(header, after ? null : beforeRef);
+                        (results[i] || []).forEach(ep => {
+                            var item = document.createElement('div');
+                            item.className = 'art-selector-item art-season-ep';
+                            // cùng quy ước hiển thị với item của plugin: key
+                            // Firebase thay '.' bằng '_'
+                            item.textContent = String(ep.id).replace(/_/g, '.');
+                            item.title = ep.title || '';
+                            item.style.textAlign = 'left';
+                            item.addEventListener('click', ev => {
+                                ev.stopPropagation();
+                                window.location.href = s.url + '&e=' + encodeURIComponent(ep.id);
+                            });
+                            list.insertBefore(item, after ? null : beforeRef);
+                        });
+                    });
                 });
-                select.addEventListener('change', function () {
-                    var s = seasons[Number(select.value)];
-                    if (s && s.url) window.location.href = s.url;
-                });
-                list.insertBefore(select, list.firstChild);
             });
 
             // ?t=<giây> seek tới mốc trong tập (chia sẻ link đang xem dở).
