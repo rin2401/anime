@@ -42,16 +42,6 @@
 
         /* Select đổi mùa trên control bar: nền tối hoà với player, không
            chiếm cao quá control bar (mặc định select cao theo font OS) */
-        /* Số tập hiện tại trên control bar, cạnh select mùa */
-        .art-ep-num {
-            color: #fff;
-            font-size: 14px;
-            line-height: 28px;
-            margin: 0 6px;
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-            white-space: nowrap;
-        }
-
         .art-season-select {
             background: rgba(0, 0, 0, 0.5);
             color: #fff;
@@ -66,7 +56,7 @@
             cursor: pointer;
         }
 
-        /* Mobile hẹp: ép toàn bộ 12 nút vào 1 hàng (iPhone 11 = 414px) —
+        /* Mobile hẹp: ép toàn bộ 11 nút vào 1 hàng (iPhone 11 = 414px) —
            nút core = svg 22px + padding .art-icon 7px, playlist thêm padding
            10px nên phải thu nhỏ cả ba. !important để thắng style Artplayer
            runtime chèn sau <style> trang (min-width nút = --art-control-height
@@ -107,11 +97,6 @@
                 font-size: 11px !important;
                 padding: 2px 3px !important;
                 margin: 0 3px !important;
-            }
-
-            .art-ep-num {
-                font-size: 11px !important;
-                margin: 0 2px !important;
             }
         }
     </style>
@@ -440,22 +425,12 @@
             return parseFloat(String(id).replace(/_/g, '.')) || 0;
         }
 
-        // Nhãn số tập trên control bar: key Firebase "24_END" -> "Tập 24"
-        // (bỏ nhãn END, chỉ hiện số tập)
-        function epNumText(id) {
-            return 'Tập ' + String(id).replace(/_?END$/i, '');
-        }
-
         // animeId: key Firebase của bộ đang mở (?id=). Cần cho các tập lưu THẲNG nội
         // dung m3u8 trong node (phim lẻ Ghibli/Shinkai...) thay vì có sẵn `file`.
         function setupPlayer(data, animeId) {
             var M = {};
 
             var episodeList = [];
-            // span "Tập N" trên control bar — gán text sau khi art tạo xong,
-            // playlist onchanged (định nghĩa trước trong config) cũng cập
-            // nhật qua biến này
-            var epNumEl = document.createElement('span');
 
             // node không tồn tại -> Firebase trả null
             data = data || {}
@@ -546,9 +521,6 @@
                         rebuildPlayer: false,
                         onchanged: async (art, index) => {
                             updateParams(episodeList[index])
-                            if (epNumEl) {
-                                epNumEl.textContent = epNumText(episodeList[index].id);
-                            }
                             var sub = artplayerPluginMultipleSubtitles({
                                 subtitles: episodeList[index].subtitles,
                             })
@@ -569,10 +541,10 @@
             });
 
 
-            // Cụm bên phải control bar xếp theo thứ tự: logo r3mina -> select
-            // mùa -> số tập hiện tại. index là key chèn theo vị trí (so >=
-            // với index phần tử có sẵn; core dùng 30/40/70, plugin 9) —
-            // KHÔNG dùng 0: `e.index || this.id` nuốt giá trị falsy.
+            // Cụm bên phải control bar: logo r3mina -> select mùa. index là
+            // key chèn theo vị trí (so >= với index phần tử có sẵn; core dùng
+            // 30/40/70, plugin 9) — KHÔNG dùng 0: `e.index || this.id` nuốt
+            // giá trị falsy.
             // Nút logo r3mina -> về trang chủ (như nút logo của jwplayer)
             art.controls.add({
                 name: 'r3mina',
@@ -583,18 +555,6 @@
                 click: function () {
                     window.location.href = '/anime'
                 },
-            });
-
-            // Số tập đang xem ("Tập 24", key _END hiển thị "24 END"), cập
-            // nhật khi playlist đổi tập
-            epNumEl.className = 'art-ep-num';
-            epNumEl.textContent = epNumText(episodeList[initialIndex].id);
-            art.controls.add({
-                name: 'epnum',
-                position: 'right',
-                index: 3,
-                html: epNumEl,
-                tooltip: 'Tập hiện tại',
             });
 
             // Chọn mùa ngay trên control bar (thay vì giấu trong setting
