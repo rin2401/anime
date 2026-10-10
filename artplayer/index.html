@@ -40,8 +40,9 @@
             --art-padding: 0 !important;
         }
 
-        /* Select đổi mùa trên control bar: nền tối hoà với player, không
-           chiếm cao quá control bar (mặc định select cao theo font OS) */
+        /* Select đổi mùa trong dropdown danh sách tập (hàng đầu tiên của
+           .art-selector-list, hiện khi hover/tap nút playlist): gần full
+           bề ngang panel */
         .art-season-select {
             background: rgba(0, 0, 0, 0.5);
             color: #fff;
@@ -54,6 +55,11 @@
             height: 28px;
             outline: none;
             cursor: pointer;
+        }
+
+        .art-selector-list .art-season-select {
+            width: calc(100% - 16px);
+            margin: 10px auto 6px;
         }
 
     </style>
@@ -498,10 +504,11 @@
             });
 
 
-            // Cụm bên phải control bar: logo r3mina -> select mùa. index là
-            // key chèn theo vị trí (so >= với index phần tử có sẵn; core dùng
-            // 30/40/70, plugin 9) — KHÔNG dùng 0: `e.index || this.id` nuốt
-            // giá trị falsy.
+            // Cụm bên phải control bar: chỉ còn logo r3mina (select mùa đã
+            // chuyển vào dropdown danh sách tập, xem phần seasonSelector
+            // phía dưới). index là key chèn theo vị trí (so >= với index
+            // phần tử có sẵn; core dùng 30/40/70, plugin 9) — KHÔNG dùng 0:
+            // `e.index || this.id` nuốt giá trị falsy.
             // Nút logo r3mina -> về trang chủ (như nút logo của jwplayer)
             art.controls.add({
                 name: 'r3mina',
@@ -514,11 +521,15 @@
                 },
             });
 
-            // Chọn mùa ngay trên control bar (thay vì giấu trong setting
-            // panel): <select> luôn hiện, chọn mùa = điều hướng sang URL
-            // player của mùa đó. Chỉ thêm khi bộ có >= 2 mùa.
+            // Chọn mùa nằm trong dropdown danh sách tập: hover/tap nút
+            // playlist -> panel .art-selector-list hiện ra, select mùa là
+            // hàng đầu tiên. Chọn mùa = điều hướng sang URL player của mùa
+            // đó (mỗi mùa là node Firebase / slug kkphim riêng). Chỉ thêm
+            // khi bộ có >= 2 mùa.
             seasonSelector(getUrlParameter('id'), getUrlParameter('k')).then(seasons => {
                 if (!seasons || seasons.length < 2) return;
+                var list = art.controls.playlist.querySelector('.art-selector-list');
+                if (!list) return;
                 var select = document.createElement('select');
                 select.className = 'art-season-select';
                 seasons.map((s, i) => {
@@ -532,13 +543,7 @@
                     var s = seasons[Number(select.value)];
                     if (s && s.url) window.location.href = s.url;
                 });
-                art.controls.add({
-                    name: 'season',
-                    position: 'right',
-                    index: 2,
-                    html: select,
-                    tooltip: 'Mùa',
-                });
+                list.insertBefore(select, list.firstChild);
             });
 
             // ?t=<giây> seek tới mốc trong tập (chia sẻ link đang xem dở).
