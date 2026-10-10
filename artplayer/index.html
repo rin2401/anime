@@ -40,13 +40,41 @@
             --art-padding: 0 !important;
         }
 
-        /* Header nhóm mùa trong dropdown danh sách tập (gộp tập mọi mùa vào
-           chung list): dòng chữ mờ phía trên từng khối tập của mùa */
+        /* Panel playlist dạng lưới: các tập là ô nút nhỏ wrap nhiều ô mỗi
+           hàng (dễ xem hơn danh sách dọc), header mùa in đậm chiếm trọn 1
+           hàng để tách nhóm. Panel .art-selector-list absolute cần width tường
+           minh thì wrap mới hoạt động; neo phải để không tràn mép player.
+           !important thắng CSS artplayer chèn SAU <style> trang. */
+        .art-control-selector .art-selector-list {
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+            justify-content: flex-start !important;
+            align-items: center !important;
+            width: 264px !important;
+            padding: 4px !important;
+            box-sizing: border-box !important;
+            left: auto !important;
+            right: 0 !important;
+        }
+
+        .art-control-selector .art-selector-list .art-selector-item {
+            width: auto !important;
+            min-width: 36px !important;
+            padding: 4px 6px !important;
+            margin: 3px !important;
+            flex-shrink: 0 !important;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+        }
+
         .art-selector-list .art-season-header {
-            padding: 8px 15px 4px;
-            color: #9aa0a6;
-            font-size: 12px;
-            width: 100%;
+            flex-basis: 100% !important;
+            width: 100% !important;
+            padding: 8px 3px 2px !important;
+            font-weight: 700;
+            color: #e5e7eb;
+            font-size: 13px;
             text-align: left;
         }
 
