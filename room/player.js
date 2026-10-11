@@ -306,20 +306,25 @@ window.addEventListener('load', function () {
     var codeLabel = document.getElementById('room-code');
     if (codeLabel) codeLabel.textContent = id;
     watchRoom(id);
-    // Chat: dùng chung room/chat.js, panel nằm trong #chat-panel (trang tự ẩn/hiện)
+    // Chat: dùng chung room/chat.js, panel nằm trong sidebar #chat-side
     if (typeof RoomChat !== 'undefined') {
         RoomChat.mount(document.getElementById('chat-panel'), function () { return id; });
         bindChatToggle();
     }
 });
 
-// Nút 💬 góc phải trên: bật/tắt panel chat (mobile bấm nhanh, không che video)
+// Nút 💬 góc phải trên: bật/tắt sidebar chat (bên cạnh video trên màn rộng,
+// khối dưới video trên mobile — không đè phim). Màn rộng >=900px mở sẵn.
 function bindChatToggle() {
     var btn = document.getElementById('chat-toggle');
-    var panel = document.getElementById('chat-panel-wrap');
-    if (!btn || !panel) return;
+    var layout = document.getElementById('room-layout');
+    if (!btn || !layout) return;
     btn.addEventListener('click', function () {
-        var on = panel.classList.toggle('open');
+        var on = layout.classList.toggle('chat-open');
         btn.classList.toggle('active', on);
     });
+    if (window.innerWidth >= 900) {
+        layout.classList.add('chat-open');
+        btn.classList.add('active');
+    }
 }

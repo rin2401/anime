@@ -21,20 +21,78 @@
             margin: 0;
         }
 
+        /* ── Layout phòng: chat là SIDEBAR, không đè video ──
+           Desktop (màn rộng): video co lại, chat thành cột bên phải.
+           Mobile hẹp (<=900px): video 16:9 trên, chat dưới (kiểu YouTube
+           live) — mọi lúc phim không bị che. Fullscreen thật: sidebar nằm
+           ngoài cây fullscreen element nên tạm ẩn — chấp nhận, chat là phụ. */
+        #room-layout {
+            position: fixed;
+            inset: 0;
+            display: flex;
+        }
+
+        #video-area {
+            flex: 1;
+            min-width: 0;
+            position: relative;
+        }
+
         .artplayer-app {
             position: absolute;
-            top: 0;
-            right: 0;
-            bottom: 0;
-            left: 0;
-            margin: auto;
+            inset: 0;
             width: 100%;
             height: 100%;
         }
 
-        /* Badge góc trái dưới: mã phòng + nhãn đang phát */
+        #chat-side {
+            display: none;
+            width: 300px;
+            max-width: 40vw;
+            flex-direction: column;
+            background: #14161a;
+            border-left: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        #room-layout.chat-open #chat-side {
+            display: flex;
+        }
+
+        #chat-panel {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+        }
+
+        @media (max-width: 900px) {
+            #room-layout {
+                flex-direction: column;
+            }
+
+            /* video 16:9 tràn mép, trần 56vh để chat luôn có chỗ dưới nó */
+            #video-area {
+                flex: 0 0 auto;
+                height: min(calc(100vw * 9 / 16), 56vh);
+            }
+
+            .artplayer-app {
+                position: relative;
+                inset: auto;
+            }
+
+            #chat-side {
+                width: 100%;
+                max-width: none;
+                flex: 1;
+                border-left: 0;
+                border-top: 1px solid rgba(255, 255, 255, 0.08);
+            }
+        }
+
+        /* Badge góc trái trong vùng video: mã phòng + nhãn đang phát */
         #room-badge {
-            position: fixed;
+            position: absolute;
             left: 10px;
             bottom: 10px;
             max-width: 60%;
@@ -51,7 +109,7 @@
             font-weight: 700;
         }
 
-        /* Nút 💬 + panel chat: panel mở tràn mép phải, đè video, tắt nhanh */
+        /* Nút 💬 góc phải trên: bật/tắt sidebar chat */
         #chat-toggle {
             position: fixed;
             top: calc(10px + env(safe-area-inset-top));
@@ -70,25 +128,6 @@
         #chat-toggle.active {
             background: #23ade5;
         }
-
-        #chat-panel-wrap {
-            position: fixed;
-            top: calc(10px + env(safe-area-inset-top));
-            right: 10px;
-            width: min(320px, 85vw);
-            height: min(70vh, 480px);
-            border-radius: 12px;
-            background: rgba(20, 22, 26, 0.92);
-            display: none;
-            flex-direction: column;
-            z-index: 29;
-            -webkit-user-select: text;
-            user-select: text;
-        }
-
-        #chat-panel-wrap.open {
-            display: flex;
-        }
     </style>
 
     <link rel="preconnect" href="https://cdn.jsdelivr.net">
@@ -103,10 +142,14 @@
 </head>
 
 <body>
-    <div class="artplayer-app"></div>
-    <div id="room-badge"><span id="room-code"></span> <span id="room-label">Đang kết nối phòng…</span></div>
+    <div id="room-layout">
+        <div id="video-area">
+            <div class="artplayer-app"></div>
+            <div id="room-badge"><span id="room-code"></span> <span id="room-label">Đang kết nối phòng…</span></div>
+        </div>
+        <aside id="chat-side"><div id="chat-panel"></div></aside>
+    </div>
     <button id="chat-toggle" type="button" aria-label="Chat">💬</button>
-    <div id="chat-panel-wrap"><div id="chat-panel" style="display:flex;flex-direction:column;flex:1;min-height:0;"></div></div>
     <!-- auth.js (khởi tạo firebase) phải đứng trước chat.js/player.js; cả ba defer
          nên chạy đúng thứ tự -->
     <script defer src="/anime/auth/auth.js"></script>

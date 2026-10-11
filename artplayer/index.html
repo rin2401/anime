@@ -101,9 +101,73 @@
             }
         }
 
-        /* ── Chat phòng xem chung (RoomChat, cùng room/chat.js với trang room).
-           Panel fixed đè video; ở chế độ fullscreen thật panel nằm ngoài cây
-           fullscreen element nên tạm ẩn — chấp nhận, chat là phụ. */
+        /* ── Chat phòng xem chung dạng SIDEBAR (RoomChat, cùng room/chat.js
+           với trang room): desktop = cột cạnh video (video tự co, không đè),
+           mobile hẹp = khối dưới video kiểu YouTube live. Chỉ hiện khi đã
+           tạo phòng. Fullscreen thật: sidebar ngoài cây fullscreen element
+           nên tạm ẩn — chấp nhận, chat là phụ. */
+        #room-layout {
+            position: fixed;
+            inset: 0;
+            display: flex;
+        }
+
+        #video-area {
+            flex: 1;
+            min-width: 0;
+            position: relative;
+            height: 100vh;
+        }
+
+        /* Container player: fill khít #video-area (trước đây là con trực tiếp
+           của body) — kích thước tường minh để chat sidebar co video đúng */
+        .artplayer-app {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #chat-side {
+            display: none;
+            width: 300px;
+            max-width: 40vw;
+            flex-direction: column;
+            background: #14161a;
+            border-left: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        #room-layout.chat-open #chat-side {
+            display: flex;
+        }
+
+        #chat-panel {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+        }
+
+        @media (max-width: 900px) {
+            #room-layout {
+                flex-direction: column;
+            }
+
+            /* video 16:9 tràn mép, trần 56vh để chat luôn có chỗ dưới nó */
+            #video-area {
+                flex: 0 0 auto;
+                height: min(calc(100vw * 9 / 16), 56vh);
+            }
+
+            #chat-side {
+                width: 100%;
+                max-width: none;
+                flex: 1;
+                border-left: 0;
+                border-top: 1px solid rgba(255, 255, 255, 0.08);
+            }
+        }
+
         #chat-toggle {
             position: fixed;
             top: calc(10px + env(safe-area-inset-top));
@@ -123,32 +187,17 @@
             background: #23ade5;
         }
 
-        #chat-panel-wrap {
-            position: fixed;
-            top: calc(10px + env(safe-area-inset-top));
-            right: 10px;
-            width: min(320px, 85vw);
-            height: min(70vh, 480px);
-            border-radius: 12px;
-            background: rgba(20, 22, 26, 0.92);
-            display: none;
-            flex-direction: column;
-            z-index: 29;
-            -webkit-user-select: text;
-            user-select: text;
-        }
-
-        #chat-panel-wrap.open {
-            display: flex;
-        }
-
     </style>
 </head>
 
 <body>
-    <div class="artplayer-app"></div>
+    <div id="room-layout">
+        <div id="video-area">
+            <div class="artplayer-app"></div>
+        </div>
+        <aside id="chat-side"><div id="chat-panel"></div></aside>
+    </div>
     <button id="chat-toggle" type="button" aria-label="Chat" hidden>💬</button>
-    <div id="chat-panel-wrap"><div id="chat-panel" style="display:flex;flex-direction:column;flex:1;min-height:0;"></div></div>
 
     <script>
         function getUrlParameter(name) {
@@ -315,9 +364,18 @@
                 roomCode = code;
                 prompt('Link phòng xem chung — copy gửi bạn bè:', roomLink());
                 art.notice.show = 'Đã tạo phòng ' + code + ' — đang phát cho cả phòng';
-                // Có phòng rồi -> hiện nút 💬 chat góc phải trên
+                // Có phòng rồi -> hiện nút 💬; màn rộng mở sẵn sidebar chat
+                // (mobile đóng cho phim tràn màn, bấm 💬 khi muốn chat)
                 var chatBtn = document.getElementById('chat-toggle');
                 if (chatBtn) chatBtn.hidden = false;
+                if (window.innerWidth >= 900) {
+                    var layout = document.getElementById('room-layout');
+                    if (layout) {
+                        layout.classList.add('chat-open');
+                        chatBtn.classList.add('active');
+                    }
+                    setTimeout(function () { try { art.resize(); } catch (e) { } }, 60);
+                }
             }).catch(function (e) {
                 art.notice.show = 'Tạo phòng lỗi: ' + e;
             });
@@ -1066,24 +1124,27 @@
                 });
             });
 
-            // ── Chat phòng xem chung (RoomChat dùng chung room/chat.js) ──
-            // Nút 💬 góc phải trên chỉ hiện sau khi tạo phòng. Mount NGAY
-            // tại đây: setupPlayer chạy sau fetch async, có thể muộn hơn
-            // event load nên đăng ký listener load là bỏ trống. chat.js là
-            // defer script -> chắc chắn đã load trước DOMContentLoaded.
+            // ── Chat phòng xem chung dạng SIDEBAR (RoomChat dùng chung
+            // room/chat.js) ── Nút 💬 góc phải trên chỉ hiện sau khi tạo
+            // phòng; bấm để mở/đóng cột chat cạnh video. Mount NGAY tại đây:
+            // setupPlayer chạy sau fetch async, có thể muộn hơn event load
+            // nên đăng ký listener load là bỏ trống. chat.js là defer script
+            // -> chắc chắn đã load trước DOMContentLoaded.
             if (typeof RoomChat !== 'undefined') {
                 var chatPanel = document.getElementById('chat-panel');
                 var chatBtn = document.getElementById('chat-toggle');
-                var chatWrap = document.getElementById('chat-panel-wrap');
-                if (chatPanel && chatBtn && chatWrap) {
+                var chatLayout = document.getElementById('room-layout');
+                if (chatPanel && chatBtn && chatLayout) {
                     RoomChat.mount(chatPanel, function () { return roomCode; });
                     chatBtn.addEventListener('click', function () {
                         if (!roomCode) {
                             art.notice.show = 'Tạo phòng xem chung (nút 👥) trước rồi chat với cả phòng';
                             return;
                         }
-                        var on = chatWrap.classList.toggle('open');
+                        var on = chatLayout.classList.toggle('chat-open');
                         chatBtn.classList.toggle('active', on);
+                        // video vừa co/giãn theo container -> bảo artplayer tính lại
+                        setTimeout(function () { try { art.resize(); } catch (e) { } }, 60);
                     });
                 }
             }
