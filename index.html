@@ -153,31 +153,46 @@
             contain-intrinsic-size: 300px 424px;
         }
 
-        /* Nút yêu thích trên card: ♡ góc phải trên poster (đè lên nhãn tên) */
+        /* Nút yêu thích trên card: nằm ở DƯỚI poster, cùng hàng nút nguồn/
+           số tập (đẩy sát mép phải bằng margin-left:auto). Icon là SVG trái
+           tim nét tròn — outline trắng khi chưa thích, fill hồng khi đã thích. */
         .card-fav {
-            position: absolute;
-            top: 4px;
-            right: 4px;
-            z-index: 3;
-            width: 32px;
-            height: 32px;
+            flex-shrink: 0;
+            width: 40px;
+            height: 40px;
             padding: 0;
             border: none;
             border-radius: 50%;
-            background: rgba(0, 0, 0, 0.45);
-            color: #fff;
-            font-size: 18px;
-            line-height: 1;
+            background: rgba(0, 0, 0, 0.5);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: auto;
             cursor: pointer;
-            transition: transform 0.15s;
+        }
+
+        .card-fav svg {
+            width: 20px;
+            height: 20px;
+            display: block;
+        }
+
+        .card-fav svg path {
+            fill: none;
+            stroke: #fff;
+            stroke-width: 2.2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
         }
 
         .card-fav:hover {
-            transform: scale(1.12);
+            background: rgba(0, 0, 0, 0.7);
         }
 
-        .card-fav.on {
-            color: #ff5c77;
+        .card-fav.on svg path {
+            fill: #ff5c77;
+            stroke: #ff5c77;
         }
 
         .anime-ep-box {
@@ -695,7 +710,6 @@
         var favSet = {};
 
         function paintCardFav(btn, on) {
-            btn.textContent = on ? "♥" : "♡";
             btn.classList.toggle("on", on);
         }
 
@@ -869,8 +883,9 @@
                 animeCard.appendChild(nameLabel);
             }
 
-            // Nút ♡ yêu thích: theo mùa đang mở trên card (show) — cùng itemKey
-            // với entry lịch sử của mùa đó. Không có nguồn phát nào thì bỏ qua.
+            // Nút ♥ yêu thích: vào HÀNG NÚT DƯỚI poster (bên phải cùng GD/KK/AVS
+            // và số tập), icon SVG trái tim nét tròn. Theo mùa đang mở trên card
+            // (show) — cùng itemKey với entry lịch sử của mùa đó.
             var favIt = favItem(show) || favItem(image);
             if (favIt) {
                 const fav = document.createElement('button');
@@ -878,6 +893,7 @@
                 fav.classList.add('card-fav');
                 fav.title = 'Lưu / bỏ yêu thích';
                 fav.setAttribute('data-item-key', favIt.itemKey);
+                fav.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.7C6.7 16.7 3.4 13.3 3.4 9.6c0-2.9 2.2-5.1 5.1-5.1 1.4 0 2.6.6 3.5 1.6.9-1 2.1-1.6 3.5-1.6 2.9 0 5.1 2.2 5.1 5.1 0 3.7-3.3 7.1-8.6 11.1z"/></svg>';
                 paintCardFav(fav, !!favSet[favIt.itemKey]);
                 fav.addEventListener('click', function (ev) {
                     ev.preventDefault();
@@ -900,7 +916,7 @@
                         });
                     }
                 });
-                animeCard.appendChild(fav);
+                epBox.appendChild(fav);
             }
 
             animeCard.appendChild(epBox);
