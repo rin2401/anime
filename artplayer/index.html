@@ -128,11 +128,6 @@
         // phimimg cho kkphim); có muộn hơn lần set artwork đầu (Sheet fetch
         // async) -> updateArtwork được gọi lại khi Sheet về
         var sheetImage = '';
-        // Poster same-origin đã crop neo trên sẵn trong repo
-        // (image/posters/<phimapi||id>.jpg, sinh bằng scripts/gen_posters.py)
-        // — media daemon của iOS luôn fetch được same-origin, không phụ thuộc
-        // Photon/CORS/data:
-        var sheetPoster = '';
         var currentEpisode = null;
 
         function updateParams(episode) {
@@ -248,15 +243,14 @@
                 });
                 return;
             } else {
-                // Mặc định: poster same-origin đã crop neo TRÊN sẵn trong repo
-                // (image/posters/, sinh bằng scripts/gen_posters.py) — cấu
-                // hình chắc chắn nhất cho media daemon iOS (same-origin luôn
-                // fetch được, không phụ thuộc Photon/CORS/data:). Có nó thì
-                // probe thẳng, không cần canvas; file thiếu (404) thì rơi tiếp
-                // chuỗi dự phòng. Chưa có Sheet thì canvas crop neo trên như
-                // cũ từ ảnh tập, rồi chuỗi dự phòng Photon -> gốc -> logo.
+                // Mặc định: crop vuông neo TRÊN (canvas data URL) — cấu hình
+                // user đã test render đẹp trên lock screen iPhone (giữ mặt/
+                // nhân vật, chỉ cắt phần dưới, không như crop giữa của
+                // Photon). Ảnh nguồn ưu tiên poster Sheet (AniList CDN) qua
+                // Photon ?w=720 (giữ ratio để canvas còn chỗ neo trên, không
+                // taint). Canvas fail (ảnh không load/CORS) thì probe chuỗi
+                // dự phòng: Photon crop giữa 512 -> 720 -> gốc -> logo.
                 var imgs = [];
-                if (sheetPoster) imgs.push(sheetPoster);
                 if (sheetImage) imgs.push(sheetImage);
                 if (episode.image && episode.image !== sheetImage && episode.image !== imageUrl) imgs.push(episode.image);
                 var fallback = [];
@@ -264,13 +258,6 @@
                 if (imgs.length) fallback.push(artworkSrc(imgs[0]));
                 if (imgs.length) fallback.push(imgs[0]);
                 fallback.push(imageUrl);
-                if (imgs[0] && imgs[0].indexOf(location.origin) === 0) {
-                    // Entry đầu same-origin: probe thẳng thay vì canvas data
-                    // URL — daemon fetch same-origin luôn được, 404 thì rơi
-                    // tiếp các entry sau
-                    probeArtwork([imgs[0]].concat(fallback));
-                    return;
-                }
                 canvasSquare(artworkSrc(imgs[0] || null), function (dataUrl) {
                     if (token !== _msToken) return;
                     if (!dataUrl) { probeArtwork(fallback); return; }
@@ -465,16 +452,7 @@
                 }
                 // Poster của bộ từ cột image Sheet (AniList CDN cho anime,
                 // phimimg cho kkphim) — nguồn artwork lock screen ổn định
-                if (match) {
-                    sheetImage = String(match.image || '').trim();
-                    // Poster same-origin đã crop neo trên sẵn trong repo;
-                    // tên file = phimapi || id — khớp từng dòng (các mùa
-                    // live-action cùng id IMDb nhưng khác slug kkphim)
-                    var pid = String(match.phimapi || match.id || '');
-                    sheetPoster = pid
-                        ? '/anime/image/posters/' + pid.replace(/[^A-Za-z0-9._-]/g, '_') + '.jpg'
-                        : '';
-                }
+                if (match) sheetImage = String(match.image || '').trim();
                 if (!match) return [];
 
                 var series = String(match.series || '').trim();
