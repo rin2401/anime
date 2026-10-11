@@ -79,23 +79,46 @@
         });
 
         // firebaseui không có link "Trouble signing in?" trên màn "You already
-        // have an account" (email chỉ có provider Google), nên thêm nút gửi
+        // have an account" (email chỉ có provider Google), nên thêm form gửi
         // thư đặt lại mật khẩu riêng — luôn hiện dưới form mọi màn hình.
+        // Dùng form inline thay vì prompt(): một số webview chặn/cản dialog,
+        // và trạng thái lỗi hiển thị ngay tại chỗ không phụ thuộc alert().
         // Script nằm trong <head> nên phải chờ DOM mới gắn được listener.
         var FORGOT_ERRORS = {
             'auth/invalid-email': 'Email không hợp lệ.',
             'auth/user-not-found': 'Không tìm thấy account với email này.'
         };
         document.addEventListener('DOMContentLoaded', function () {
-            document.getElementById('forgot-password-link').addEventListener('click', function (event) {
+            var link = document.getElementById('forgot-password-link');
+            var form = document.getElementById('forgot-password-form');
+            var input = document.getElementById('forgot-password-email');
+            var status = document.getElementById('forgot-password-status');
+
+            function showStatus(text, isError) {
+                status.textContent = text;
+                status.style.color = isError ? '#d93025' : '#188038';
+                status.hidden = false;
+            }
+
+            link.addEventListener('click', function (event) {
                 event.preventDefault();
-                var email = window.prompt('Nhập email đã đăng ký để nhận thư đặt lại mật khẩu:', '');
-                if (!email) return;
-                email = email.trim();
+                form.hidden = !form.hidden;
+                if (!form.hidden) input.focus();
+            });
+
+            form.addEventListener('submit', function (event) {
+                event.preventDefault();
+                var email = input.value.trim();
+                if (!email) {
+                    showStatus('Nhập email đã đăng ký trước.', true);
+                    return;
+                }
                 auth.sendPasswordResetEmail(email).then(function () {
-                    alert('Đã gửi thư đặt lại mật khẩu tới ' + email + '. Mở thư (kiểm tra cả Spam) và bấm link để đặt mật khẩu mới, sau đó đăng nhập bằng email + mật khẩu mới.');
+                    // Giữ form mở — dòng xác nhận nằm trong form, ẩn form là
+                    // mất luôn thông báo thành công.
+                    showStatus('Đã gửi thư đặt lại mật khẩu tới ' + email + '. Mở thư (kiểm tra cả Spam), bấm link để đặt mật khẩu mới rồi đăng nhập bằng email + mật khẩu mới.', false);
                 }).catch(function (err) {
-                    alert(FORGOT_ERRORS[err && err.code] || 'Không gửi được thư: ' + ((err && err.code) || err));
+                    showStatus(FORGOT_ERRORS[err && err.code] || 'Không gửi được thư: ' + ((err && err.code) || err), true);
                 });
             });
         });
@@ -133,6 +156,39 @@
             font-size: 14px;
         }
 
+        #forgot-password-form {
+            margin-top: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #forgot-password-email {
+            width: 260px;
+            padding: 8px 10px;
+            border: 1px solid #dadce0;
+            border-radius: 6px;
+            font-size: 14px;
+            color-scheme: light;
+        }
+
+        #forgot-password-submit {
+            padding: 8px 14px;
+            border: 0;
+            border-radius: 6px;
+            background: #1a73e8;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        #forgot-password-status {
+            font-size: 13px;
+            margin: 0;
+            max-width: 300px;
+        }
+
         #logo {
             display: flex;
             align-items: center;
@@ -149,6 +205,11 @@
     <div id="firebaseui-auth-container"></div>
     <div id="forgot-password">
         <a href="#" id="forgot-password-link">Quên mật khẩu?</a>
+        <form id="forgot-password-form" hidden>
+            <input type="email" id="forgot-password-email" placeholder="Email đã đăng ký" autocomplete="email">
+            <button type="submit" id="forgot-password-submit">Gửi thư đặt lại mật khẩu</button>
+            <p id="forgot-password-status" hidden></p>
+        </form>
     </div>
 </body>
 
