@@ -70,6 +70,10 @@ def artplayer():
 def history():
     return render_template('history/index.html')
 
+@bp.route('/favorites/')
+def favorites():
+    return render_template('favorites/index.html')
+
 app.register_blueprint(bp)
 
 if __name__ == '__main__':

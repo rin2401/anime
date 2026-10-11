@@ -170,10 +170,9 @@
             try { return (art && art.duration) ? Math.round(art.duration) : 0; } catch (e) { return 0; }
         }
 
-        // Ghi 1 entry lịch sử xem (UserHistory tự merge localStorage + cloud)
-        function recordHistory(t, keepalive) {
-            if (!histItem || !currentEpisode || typeof UserHistory === 'undefined') return;
-            UserHistory.save({
+        // Entry chung cho lịch sử + yêu thích (itemKey/kind/key/eid/ep/title/poster)
+        function buildEntry() {
+            return {
                 itemKey: histItem.itemKey,
                 kind: histItem.kind,
                 key: histItem.key,
@@ -181,9 +180,16 @@
                 ep: displayEp(currentEpisode.id),
                 title: baseTitle(currentEpisode.title).slice(0, 120),
                 poster: sheetImage || currentEpisode.image || imageUrl,
-                t: Math.round(t || 0),
-                dur: currentDur(),
-            }, keepalive);
+            };
+        }
+
+        // Ghi 1 entry lịch sử xem (UserHistory tự merge localStorage + cloud)
+        function recordHistory(t, keepalive) {
+            if (!histItem || !currentEpisode || typeof UserHistory === 'undefined') return;
+            var entry = buildEntry();
+            entry.t = Math.round(t || 0);
+            entry.dur = currentDur();
+            UserHistory.save(entry, keepalive);
         }
 
         function updateParams(episode) {
@@ -913,6 +919,43 @@
                     window.location.href = '/anime'
                 },
             });
+
+            // ── Nút yêu thích trên control bar: ♥/♡ toggle cho BỘ đang mở
+            // (không theo tập — yêu thích là cấp bộ, entry ghi đúng mùa/tập
+            // đang mở để trang Yêu thích mở lại cùng chỗ)
+            var favOn = false;
+            function setFavIcon(on) {
+                var el = document.querySelector('.art-control-fav-btn');
+                if (el) el.innerHTML = '<span style="font-size: 19px; color: ' +
+                    (on ? '#ff5c77' : '#fff') + ';">' + (on ? '♥' : '♡') + '</span>';
+            }
+            function toggleFav() {
+                if (!histItem || !currentEpisode || typeof UserHistory === 'undefined') return;
+                if (favOn) {
+                    UserHistory.removeFav(histItem.itemKey);
+                    favOn = false;
+                } else {
+                    UserHistory.saveFav(buildEntry());
+                    favOn = true;
+                }
+                setFavIcon(favOn);
+            }
+            art.controls.add({
+                name: 'fav-btn',
+                position: 'right',
+                index: 2,
+                html: '<span style="font-size: 19px; color: #fff;">♡</span>',
+                tooltip: 'Yêu thích',
+                click: function () { toggleFav(); },
+            });
+            // trạng thái ban đầu: đã yêu thích từ trước (máy khác hoặc lần trước)
+            // thì vào trang là ♥ ngay
+            if (histItem && typeof UserHistory !== 'undefined') {
+                UserHistory.isFav(histItem.itemKey).then(function (on) {
+                    favOn = !!on;
+                    setFavIcon(favOn);
+                });
+            }
 
             // Gộp danh sách tập của TẤT CẢ các mùa vào chung panel playlist:
             // plugin render sẵn tập mùa hiện tại; các mùa còn lại (header

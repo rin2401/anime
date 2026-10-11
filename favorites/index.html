@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <title>Yêu thích</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="apple-touch-icon" href="/anime/image/r3_512.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="Anime">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#1a1a1a">
+    <link rel="manifest" href="/anime/manifest.json">
+    <link rel="icon" type="image/png" href="/anime/image/r3_512.png">
+
+    <style>
+        :root {
+            color-scheme: dark;
+        }
+
+        html,
+        body {
+            margin: 0;
+            background: #1a1a1a;
+            color: #e5e7eb;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        #topbar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 16px;
+            border-bottom: 1px solid #2b2f33;
+        }
+
+        /* Nút logo r3mina về trang chủ — 38px như hàng nút tròn của trang chủ */
+        .home-btn {
+            box-sizing: border-box;
+            width: 38px;
+            height: 38px;
+            padding: 0;
+            border: 1px solid #6c757d;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+        }
+
+        .home-btn img {
+            width: 28px;
+            height: 28px;
+            display: block;
+        }
+
+        #topbar h1 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        #sync-status {
+            margin-left: auto;
+            font-size: 12px;
+            color: #9ca3af;
+            text-align: right;
+        }
+
+        #sync-status a {
+            color: #60a5fa;
+        }
+
+        #banner {
+            display: none;
+            margin: 12px 16px 0;
+            padding: 10px 14px;
+            border-radius: 10px;
+            background: #2b2f33;
+            font-size: 13px;
+            color: #d1d5db;
+        }
+
+        #banner.show {
+            display: block;
+        }
+
+        #banner a {
+            color: #60a5fa;
+        }
+
+        #grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 14px;
+            padding: 16px;
+        }
+
+        .card {
+            position: relative;
+            display: block;
+            text-decoration: none;
+            color: inherit;
+            border-radius: 8px;
+        }
+
+        .card:focus {
+            outline: 2px solid #60a5fa;
+        }
+
+        .poster-wrap {
+            position: relative;
+            aspect-ratio: 2 / 3;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #2b2f33;
+        }
+
+        /* TV cũ không có aspect-ratio -> đậm đặc chiều cao (kỹ thuật padding hack)
+           giữ trần: poster không vỡ layout, chỉ hơi thấp hơn */
+        .poster-wrap::before {
+            content: '';
+            display: block;
+            padding-top: 150%;
+        }
+
+        .poster-wrap img {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .card .t {
+            margin-top: 6px;
+            font-size: 13px;
+            line-height: 1.3;
+            color: #f3f4f6;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .card .sub {
+            margin-top: 2px;
+            font-size: 11px;
+            color: #9ca3af;
+        }
+
+        /* Nút bỏ yêu thích — nhỏ, nửa trong suốt, không lấn mất poster */
+        .del {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            z-index: 2;
+            width: 24px;
+            height: 24px;
+            padding: 0;
+            border: none;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.6);
+            color: #d1d5db;
+            font-size: 14px;
+            line-height: 1;
+            cursor: pointer;
+        }
+
+        .del:hover {
+            background: rgba(0, 0, 0, 0.85);
+            color: #fff;
+        }
+
+        #empty {
+            padding: 40px 16px;
+            text-align: center;
+            color: #9ca3af;
+            font-size: 14px;
+            display: none;
+        }
+    </style>
+
+    <script defer src="https://www.gstatic.com/firebasejs/12.14.0/firebase-app-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/12.14.0/firebase-auth-compat.js"></script>
+    <script defer src="/anime/auth/auth.js"></script>
+    <script defer src="/anime/auth/user-history.js"></script>
+</head>
+
+<body>
+    <div id="topbar">
+        <a class="home-btn" href="/anime/" title="Trang chủ">
+            <img src="/anime/image/r3_player.png" alt="r3mina">
+        </a>
+        <h1>Yêu thích</h1>
+        <div id="sync-status"></div>
+    </div>
+
+    <div id="banner"></div>
+    <div id="empty">Chưa có mục yêu thích — bấm ♡ Yêu thích trong player để lưu.</div>
+    <div id="grid"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var gridEl = document.getElementById('grid');
+            var emptyEl = document.getElementById('empty');
+            var bannerEl = document.getElementById('banner');
+            var statusEl = document.getElementById('sync-status');
+
+            // Poster nặng (AniList PNG ~750KB) -> bọc Photon lấy bản ~300px,
+            // cùng cách trang chủ dùng; lỗi thì quay về ảnh gốc
+            function thumbUrl(u) {
+                if (!u || u.indexOf('http') !== 0) return u;
+                return 'https://i0.wp.com/' + u.replace(/^https?:\/\//, '') + '?w=300&quality=70&ssl=1';
+            }
+
+            function ago(ts) {
+                var s = Math.max(1, Math.round((Date.now() - (ts || 0)) / 1000));
+                if (s < 3600) return 'lúc ' + Math.max(1, Math.round(s / 60)) + ' phút trước';
+                if (s < 86400) return 'lúc ' + Math.round(s / 3600) + ' giờ trước';
+                return 'lúc ' + Math.round(s / 86400) + ' ngày trước';
+            }
+
+            // artplayer (?id=) và gdrive (?id=) có thể cùng một bộ (id trùng theo
+            // convention Sheet) -> 1 card, giữ entry mới hơn
+            function dedupeKey(e) {
+                return e.kind === 'phimapi' ? e.itemKey : String(e.key);
+            }
+
+            // Link mở lại đúng mùa/bộ tại tập đang xem lúc bấm ♥; không kèm ?t=
+            // (yêu thích là cấp bộ, không resume theo mốc giây)
+            function playerUrl(e) {
+                var base;
+                if (e.kind === 'phimapi') base = '/anime/artplayer/?k=' + encodeURIComponent(e.key);
+                else if (e.kind === 'gdrive') base = '/anime/gdrive/?id=' + encodeURIComponent(e.key);
+                else base = '/anime/artplayer/?id=' + encodeURIComponent(e.key);
+                return base + '&e=' + encodeURIComponent(e.eid);
+            }
+
+            function buildCard(e) {
+                var a = document.createElement('a');
+                a.className = 'card';
+                a.href = playerUrl(e);
+
+                var wrap = document.createElement('div');
+                wrap.className = 'poster-wrap';
+                var img = document.createElement('img');
+                img.loading = 'lazy';
+                img.alt = '';
+                img.src = thumbUrl(e.poster || '/anime/image/r3_512.png');
+                img.onerror = function () { this.src = e.poster || '/anime/image/r3_512.png'; };
+                wrap.appendChild(img);
+                a.appendChild(wrap);
+
+                var title = document.createElement('div');
+                title.className = 't';
+                title.textContent = e.title || 'Không tên';
+                a.appendChild(title);
+
+                var sub = document.createElement('div');
+                sub.className = 'sub';
+                var epTxt = e.ep || e.eid || '';
+                sub.textContent = 'Tập ' + epTxt + ' · ' + ago(e.ts);
+                a.appendChild(sub);
+
+                var del = document.createElement('button');
+                del.className = 'del';
+                del.title = 'Bỏ yêu thích';
+                del.textContent = '×';
+                del.addEventListener('click', function (ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    UserHistory.removeFav(e.itemKey).then(render);
+                });
+                a.appendChild(del);
+                return a;
+            }
+
+            function paintBanner(user) {
+                if (user) {
+                    bannerEl.classList.remove('show');
+                    statusEl.textContent = 'Đã đồng bộ · ' + (user.email || user.uid);
+                } else {
+                    bannerEl.classList.add('show');
+                    bannerEl.innerHTML = 'Danh sách đang chỉ lưu trên máy này. ' +
+                        '<a href="/anime/auth/">Đăng nhập</a> để đồng bộ giữa điện thoại và laptop.';
+                    statusEl.textContent = 'Chưa đăng nhập';
+                }
+            }
+
+            function render() {
+                UserHistory.listFav().then(function (all) {
+                    var entries = Object.keys(all || {}).map(function (k) { return all[k]; })
+                        .filter(function (e) { return e && e.itemKey && e.key && e.eid !== undefined; });
+                    entries.sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); });
+
+                    var seen = {};
+                    gridEl.innerHTML = '';
+                    var shown = 0;
+                    entries.forEach(function (e) {
+                        var dk = dedupeKey(e);
+                        if (seen[dk]) return;
+                        seen[dk] = 1;
+                        gridEl.appendChild(buildCard(e));
+                        shown++;
+                    });
+                    emptyEl.style.display = shown ? 'none' : 'block';
+                });
+            }
+
+            paintBanner(UserHistory.user());
+            render();
+            // login/logout đổi nguồn dữ liệu (cloud <-> local) -> vẽ lại
+            UserHistory.onChange(function (user) {
+                paintBanner(user);
+                render();
+            });
+        });
+    </script>
+</body>
+
+</html>

@@ -380,6 +380,7 @@
         <div class="user-avatar" title="User" id="user-avatar-btn">
             <img id="user-avatar" alt="User Avatar">
             <div class="avatar-dropdown" id="avatarDropdown">
+                <button id="favoritesBtnDropdown">Yêu thích</button>
                 <button id="historyBtnDropdown">Lịch sử xem</button>
                 <button id="signOutBtnDropdown">Sign Out</button>
             </div>
@@ -1132,6 +1133,9 @@
                 avatarDropdown.classList.remove('show');
             }
         });
+        document.getElementById('favoritesBtnDropdown').onclick = function () {
+            window.location.href = "/anime/favorites/";
+        };
         document.getElementById('historyBtnDropdown').onclick = function () {
             window.location.href = "/anime/history/";
         };
