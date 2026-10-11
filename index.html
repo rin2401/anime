@@ -77,6 +77,23 @@
             gap: 10px;
         }
 
+        /* Điện thoại hẹp: hàng filter tràn ngang (419px > 375px) làm avatar
+           rơi mép phải ngoài màn hình — không bấm được dropdown. Cho xuống
+           dòng: logo + 2 select dòng 1, search + avatar dòng 2 (avatar đẩy
+           sát mép phải để dropdown mở vào trong màn hình). */
+        @media (max-width: 600px) {
+            #filter-container {
+                flex-wrap: wrap;
+            }
+            #filter-container .search-btn {
+                order: 1;
+            }
+            #filter-container .user-avatar {
+                order: 2;
+                margin-left: auto;
+            }
+        }
+
         .image-container {
             display: flex;
             flex-wrap: wrap;
@@ -223,13 +240,15 @@
         }
 
         .user-avatar {
-            right: 12px;
+            /* Context định vị cho dropdown: neo ngay dưới avatar, căn mép phải
+               để không tràn màn hình điện thoại. Bỏ overflow:hidden vì nó sẽ
+               cắt con absolute; img tự bo tròn sẵn. */
+            position: relative;
             width: 38px;
             height: 38px;
             border-radius: 50%;
             background: #333;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-            overflow: hidden;
             display: none;
             align-items: center;
             justify-content: center;
@@ -252,10 +271,11 @@
 
         .avatar-dropdown {
             position: absolute;
-            top: 63px;
+            top: 46px;
+            right: 0;
             background: #222;
             border-radius: 8px;
-            min-width: 120px;
+            min-width: 150px;
             z-index: 1100;
             display: none;
             flex-direction: column;
@@ -380,7 +400,6 @@
         <div class="user-avatar" title="User" id="user-avatar-btn">
             <img id="user-avatar" alt="User Avatar">
             <div class="avatar-dropdown" id="avatarDropdown">
-                <button id="favoritesBtnDropdown">Yêu thích</button>
                 <button id="historyBtnDropdown">Lịch sử xem</button>
                 <button id="signOutBtnDropdown">Sign Out</button>
             </div>
@@ -1133,9 +1152,6 @@
                 avatarDropdown.classList.remove('show');
             }
         });
-        document.getElementById('favoritesBtnDropdown').onclick = function () {
-            window.location.href = "/anime/favorites/";
-        };
         document.getElementById('historyBtnDropdown').onclick = function () {
             window.location.href = "/anime/history/";
         };
