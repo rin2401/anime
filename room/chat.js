@@ -104,16 +104,23 @@ var RoomChat = (function () {
 
         // Gửi: POST (PUSH) — id sinh phía server, thứ tự ts tự đúng.
         // Khách không đăng nhập gửi thẳng không token (rule chỉ đòi phòng tồn tại)
+        var lastSend = 0;
         function send() {
             var text = (input.value || '').trim();
             if (!text) return;
             if (!curCode) return;
+            var now = Date.now();
+            // IME kiểu Unikey ở vài webview phóng 2 keydown Enter cho 1 lần bấm
+            // (bắt tin trùng; lỗi gửi thật thì nhả lại cho gửi thử ngay)
+            if (now - lastSend < 500) return;
+            lastSend = now;
             var me = identity();
             var entry = { uid: me.uid, name: me.name, text: text, ts: Date.now() };
             input.value = '';
             postChat(curCode, entry).then(function (r) {
                 if (!r.ok) throw new Error('HTTP ' + r.status);
             }).catch(function (e) {
+                lastSend = 0;
                 systemMsg('Gửi tin lỗi: ' + e.message);
             });
         }
@@ -129,8 +136,14 @@ var RoomChat = (function () {
             });
         }
         btn.addEventListener('click', send);
+        // Enter khi IME (Unikey/EVKey/Telex...) đang ghép vần chỉ XÁC NHẬN chữ,
+        // không gửi — webview không khai báo isComposing thì nhắm bằng keyCode
+        // 229 (raw Enter trong phiên soạn thảo của IME)
         input.addEventListener('keydown', function (e) {
-            if (e.key === 'Enter') { e.preventDefault(); send(); }
+            if (e.key !== 'Enter') return;
+            if (e.isComposing === true || e.keyCode === 229) return;
+            e.preventDefault();
+            send();
         });
 
         function systemMsg(text) {
