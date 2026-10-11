@@ -3,6 +3,9 @@
     "anime": {
       ".read": true
     },
+    "animevietsub": {
+      ".read": true
+    },
     "users": {
       "$uid": {
         ".read": "auth.uid === $uid",
