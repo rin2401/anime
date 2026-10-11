@@ -18,6 +18,14 @@
     <link rel="preconnect" href="https://drive.google.com">
     <link rel="preconnect" href="https://r3fire.firebaseio.com">
 
+    <!-- SDK + auth + user-history KHÔNG defer: script chính ở cuối body chạy ngay
+         trong khi parse, nếu defer thì callback fetch có thể chạy trước khi
+         UserHistory sẵn sàng -> mất ghi lịch sử tập đầu -->
+    <script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-auth-compat.js"></script>
+    <script src="/anime/auth/auth.js"></script>
+    <script src="/anime/auth/user-history.js"></script>
+
     <style>
         html,
         body {
@@ -590,6 +598,8 @@
         // Tập nào của bộ này còn có nguồn m3u8 -> mở được bằng player hls,
         // nơi bắt được sự kiện 'ended' thật nên auto-next chính xác.
         let hlsAnimeId = '', hlsEps = {};
+        // Metadata bộ (từ AniList, fetch cùng lúc với duration) cho lịch sử xem
+        let gdTitle = '', gdPoster = '';
 
         let autoNext = localStorage.getItem(AUTO_KEY) !== '0';
         autoCb.checked = autoNext;
@@ -652,6 +662,26 @@
         document.getElementById('nt-stay').addEventListener('click', clearAutoNext);
         nextBtn.addEventListener('click', () => selectEpisode(curIdx + 1));
 
+        // ── Lịch sử xem ── Chỉ ghi cho playlist Firebase (?id=); ?list= là danh
+        // sách drive riêng lẻ không có key ổn định. Iframe Drive cross-origin
+        // KHÔNG đọc được currentTime -> entry chỉ ghi tập + thời lượng (t=0):
+        // "tiếp tục xem" mở lại tập từ đầu, không seek được như player hls.
+        function saveHistory(ep) {
+            if (!id || typeof UserHistory === 'undefined') return;
+            const bn = String(ep.title || '').replace(/\s+-\s+\d+(\.\d+)?\s*(END)?$/i, '').trim();
+            UserHistory.save({
+                itemKey: 'gd:' + id,
+                kind: 'gdrive',
+                key: id,
+                eid: String(ep.id),
+                ep: epLabel(ep).replace(/^Tập\s*/i, ''),
+                title: gdTitle || bn || String(ep.title || ''),
+                poster: gdPoster || ARTWORK,
+                t: 0,
+                dur: Math.round((epDurationSec || DEFAULT_EP_SEC) || 0),
+            });
+        }
+
         function selectEpisode(idx) {
             const ep = epList[idx];
             if (!ep) return;
@@ -664,6 +694,7 @@
             document.body.classList.toggle('has-hls', !!hasHls);
             if (hasHls) hlsBtn.href = `/anime/artplayer/?id=${hlsAnimeId}&e=${ep.id}`;
             play(episodeRef(ep), ep.title);
+            saveHistory(ep);
             centerActive();
             scheduleAutoNext();
         }
@@ -707,20 +738,27 @@
         }
 
         // Thời lượng 1 tập lấy từ AniList (id trên URL chính là AniList ID).
+        // Kèm theo: tên + poster bộ cho entry lịch sử xem — về muộn hơn lần ghi
+        // đầu (selectEpisode) nên ghi lại entry với metadata đầy đủ.
         function loadDuration(animeId) {
             if (!/^\d+$/.test(String(animeId))) return;
             fetch(ANILIST_API, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    query: 'query($id:Int){Media(id:$id){duration}}',
+                    query: 'query($id:Int){Media(id:$id){duration title{romaji english} coverImage{large}}}',
                     variables: { id: parseInt(animeId, 10) }
                 })
             })
                 .then(r => r.json())
                 .then(d => {
-                    const mins = d && d.data && d.data.Media && d.data.Media.duration;
-                    if (mins) { epDurationSec = mins * 60; scheduleAutoNext(); }
+                    const med = d && d.data && d.data.Media;
+                    if (!med) return;
+                    if (med.duration) { epDurationSec = med.duration * 60; scheduleAutoNext(); }
+                    if (med.title) gdTitle = med.title.english || med.title.romaji || '';
+                    if (med.coverImage) gdPoster = med.coverImage.large || '';
+                    // đang có tập mở -> cập nhật entry lịch sử với metadata mới
+                    if (curIdx >= 0 && epList[curIdx]) saveHistory(epList[curIdx]);
                 })
                 .catch(() => { });   // không có duration thì dùng mặc định 24'
         }

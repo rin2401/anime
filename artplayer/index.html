@@ -26,6 +26,12 @@
     <script defer src="artplayer-plugin-playlist.browser.js"></script>
     <script defer
         src="https://cdn.jsdelivr.net/npm/artplayer-plugin-multiple-subtitles@1.1.0/dist/artplayer-plugin-multiple-subtitles.min.js"></script>
+    <!-- compat SDK + auth.js + user-history.js: ghi lịch sử xem sync đa thiết bị
+         (defer giữ đúng thứ tự — user-history cần app đã khởi tạo) -->
+    <script defer src="https://www.gstatic.com/firebasejs/12.14.0/firebase-app-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/12.14.0/firebase-auth-compat.js"></script>
+    <script defer src="/anime/auth/auth.js"></script>
+    <script defer src="/anime/auth/user-history.js"></script>
     <style>
         html,
         body {
@@ -128,7 +134,49 @@
         // phimimg cho kkphim); có muộn hơn lần set artwork đầu (Sheet fetch
         // async) -> updateArtwork được gọi lại khi Sheet về
         var sheetImage = '';
+        var sheetTitle = '';
         var currentEpisode = null;
+        // player instance cho currentDur() — updateParams chạy trước khi new
+        // Artplayer xong nên mọi chỗ đọc đều phải guard null
+        var art = null;
+        // Định danh bộ đang mở cho lịch sử xem: ?id= node Firebase (playlist/
+        // anilist id) hoặc ?k= slug kkphim. Key ổn định -> máy khác resume đúng bộ.
+        var histItem = null;
+
+        // Số tập hiển thị: key Firebase thay '.' bằng '_', hậu tố END mọi biến
+        // thể ('2_END'/'2.end'/'2 END') hiện trần số — cùng quy ước chip panel
+        // playlist
+        function displayEp(id) {
+            return String(id).replace(/_/g, '.').replace(/[\s._-]+end\s*$/i, '').trim();
+        }
+
+        // Tên bộ cho lịch sử: ưu tiên cột name Sheet (seasonSelector đã match),
+        // fallback title tập bỏ đuôi " - <số>[ END]" (định dạng title nguồn:
+        // "Tên - 1121"); bỏ đuôi KHÔNG số (vd "Re:Zero - Starting Life") giữ nguyên
+        function baseTitle(fallback) {
+            var s = String(sheetTitle || '') || String(fallback || '');
+            return s.replace(/\s+-\s+\d+(\.\d+)?\s*(END)?$/i, '').trim() || s;
+        }
+
+        function currentDur() {
+            try { return (art && art.duration) ? Math.round(art.duration) : 0; } catch (e) { return 0; }
+        }
+
+        // Ghi 1 entry lịch sử xem (UserHistory tự merge localStorage + cloud)
+        function recordHistory(t, keepalive) {
+            if (!histItem || !currentEpisode || typeof UserHistory === 'undefined') return;
+            UserHistory.save({
+                itemKey: histItem.itemKey,
+                kind: histItem.kind,
+                key: histItem.key,
+                eid: String(currentEpisode.id),
+                ep: displayEp(currentEpisode.id),
+                title: baseTitle(currentEpisode.title).slice(0, 120),
+                poster: sheetImage || currentEpisode.image || imageUrl,
+                t: Math.round(t || 0),
+                dur: currentDur(),
+            }, keepalive);
+        }
 
         function updateParams(episode) {
             const url = new URL(window.location.href);
@@ -138,6 +186,9 @@
             saveLastEp(episode.id)
             currentEpisode = episode;
             updateArtwork(episode);
+            // Đổi/mở tập -> ghi entry ngay (t=0, timeupdate sẽ đẩy mốc thật);
+            // UserHistory giữ max tiến độ nên không xoá mốc sâu của máy khác
+            recordHistory(0);
         }
 
         function updateArtwork(episode) {
@@ -497,8 +548,12 @@
                     rows.map(row => { if (String(row.id) == rid) match = row });
                 }
                 // Poster của bộ từ cột image Sheet (AniList CDN cho anime,
-                // phimimg cho kkphim) — nguồn artwork lock screen ổn định
-                if (match) sheetImage = String(match.image || '').trim();
+                // phimimg cho kkphim) — nguồn artwork lock screen ổn định.
+                // Tên bộ (cột name) dùng cho entry lịch sử xem gọn hơn title tập.
+                if (match) {
+                    sheetImage = String(match.image || '').trim();
+                    sheetTitle = String(match.name || '').trim();
+                }
                 if (!match) return [];
 
                 var series = String(match.series || '').trim();
@@ -676,6 +731,12 @@
             // chưa xem (?e= không có, không có tập đã lưu) -> mặc định TẬP 1
             var initialIndex = (M[e] !== undefined) ? M[e] : 0;
 
+            // Bật ghi lịch sử trước updateParams đầu (updateParams gọi recordHistory)
+            var pid = getUrlParameter('id');
+            var pk = getUrlParameter('k');
+            if (pid) histItem = { itemKey: String(pid), kind: 'playlist', key: String(pid) };
+            else if (pk) histItem = { itemKey: 'kk:' + pk, kind: 'phimapi', key: pk };
+
             updateParams(episodeList[initialIndex])
 
             // Chạm giữa màn hình trên MOBILE = play/pause: artplayer mặc định
@@ -683,7 +744,7 @@
             // hưởng — click giữa vẫn toggle sẵn, double-click fullscreen).
             Artplayer.MOBILE_CLICK_PLAY = true;
 
-            var art = new Artplayer({
+            art = new Artplayer({
                 container: '.artplayer-app',
                 url: episodeList[initialIndex].url,
                 poster: episodeList[initialIndex].image || imageUrl,
@@ -734,6 +795,27 @@
                 },
             });
 
+
+            // ── Ghi tiến độ xem ──
+            // 30s/lần khi đang phát; pause / hết tập / ẩn tab / đóng tab ghi
+            // phát cuối. user-history giữ max tiến độ nên ghi dồn không lùi mốc.
+            setInterval(function () {
+                if (art.playing && art.currentTime > 5) recordHistory(art.currentTime);
+            }, 30000);
+            art.on('video:pause', function () {
+                if (art.currentTime > 5) recordHistory(art.currentTime);
+            });
+            // xem hết -> mốc cuối; link resume ở trang lịch sử thấy còn lại < 60s
+            // sẽ KHÔNG kèm ?t= (mở lại từ đầu)
+            art.on('video:ended', function () {
+                recordHistory(art.duration || 0);
+            });
+            document.addEventListener('visibilitychange', function () {
+                if (document.hidden && art.currentTime > 5) recordHistory(art.currentTime, true);
+            });
+            document.addEventListener('pagehide', function () {
+                if (art.currentTime > 5) recordHistory(art.currentTime, true);
+            });
 
             // Cụm bên phải control bar: chỉ còn logo r3mina (select mùa đã
             // chuyển vào dropdown danh sách tập, xem phần seasonSelector

@@ -1,0 +1,13 @@
+{
+  "rules": {
+    "anime": {
+      ".read": true
+    },
+    "users": {
+      "$uid": {
+        ".read": "auth.uid === $uid",
+        ".write": "auth.uid === $uid"
+      }
+    }
+  }
+}

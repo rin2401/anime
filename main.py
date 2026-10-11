@@ -66,6 +66,10 @@ def r3player():
 def artplayer():
     return render_template('artplayer/index.html')
 
+@bp.route('/history/')
+def history():
+    return render_template('history/index.html')
+
 app.register_blueprint(bp)
 
 if __name__ == '__main__':

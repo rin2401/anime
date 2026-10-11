@@ -348,6 +348,13 @@
         .home-btn:focus {
             outline: 2px solid #60a5fa;
         }
+
+        /* Nút lịch sử xem là <a> (không nhận width/height như button) */
+        #hist-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
     </style>
     <!-- defer: không chặn render; các script defer chạy theo đúng thứ tự trước DOMContentLoaded -->
     <script defer src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
@@ -377,6 +384,11 @@
                     alt="Search">
             </button>
         </div>
+        <a class="home-btn" id="hist-btn" href="/anime/history/" title="Lịch sử xem">
+            <img width="28px" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24'
+                %3E%3Cpath stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2'
+                d='M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z' /%3E%3C/svg%3E" alt="Lịch sử">
+        </a>
         <div class="user-avatar" title="User" id="user-avatar-btn">
             <img id="user-avatar" alt="User Avatar">
             <div class="avatar-dropdown" id="avatarDropdown">
