@@ -203,26 +203,45 @@
                 };
                 img.src = src;
             };
-            // Crop vuông neo TRÊN bằng canvas: scale phủ kín 512x512, giữ phần
-            // trên (mặt/nhân vật), chỉ cắt phần dưới — đẹp hơn crop giữa của
-            // Photon (chỉ crop giữa, không neo được). Xuất data URL; ảnh nguồn
-            // qua Photon (ACAO *) nên canvas không bị taint.
-            var canvasSquare = function (src, done) {
+            // Crop vuông neo TRÊN qua PHOTON: tham số crop=x,y,w,h theo
+            // PHẦN TRĂM ảnh nguồn (docs developer.wordpress.com/docs/photon),
+            // kèm resize=512,512. Ảnh dọc: dải full-width từ mép trên
+            // (hpct = 100*w/h). Ảnh ngang: dải full-height căn giữa ngang.
+            // Cùng host i0.wp.com đã chứng minh daemon iOS fetch được — crop
+            // đẹp mà không cần canvas/data URL. (Trước đây tưởng Photon chỉ
+            // crop giữa vì test sai cú pháp crop=top / crop=0,0 thiếu w,h.)
+            var topSquareSrc = function (src, w, h) {
+                if (!src || src.indexOf('http') !== 0 || src.indexOf(location.origin) === 0) return null;
+                if (!w || !h) return null;
+                var x = 0, wp = 100, hp = 100;
+                if (h > w) hp = 100 * w / h;
+                else if (w > h) { wp = 100 * h / w; x = (100 - wp) / 2; }
+                return 'https://i0.wp.com/' + src.replace(/^https?:\/\//, '') +
+                    '?crop=' + x.toFixed(2) + ',0,' + wp.toFixed(2) + ',' + hp.toFixed(2) +
+                    '&resize=512,512&ssl=1';
+            };
+            // Vẽ crop vuông neo TRÊN từ ảnh ĐÃ LOAD (crossOrigin anon, Photon
+            // gửi ACAO * nên không taint) ra data URL — đường dự phòng khi
+            // URL crop của Photon không load được.
+            var canvasCrop = function (img, done) {
+                try {
+                    var cv = document.createElement('canvas');
+                    cv.width = 512; cv.height = 512;
+                    var ctx = cv.getContext('2d');
+                    var s = Math.max(512 / img.naturalWidth, 512 / img.naturalHeight) || 1;
+                    var w = Math.max(512, Math.round(img.naturalWidth * s));
+                    var h = Math.max(512, Math.round(img.naturalHeight * s));
+                    ctx.drawImage(img, (512 - w) / 2, 0, w, h);
+                    done(cv.toDataURL('image/jpeg', 0.9));
+                } catch (e) { done(null); }
+            };
+            var loadCanvasCrop = function (src, done) {
                 if (!src || src.indexOf('http') !== 0) { done(null); return; }
                 var img = new Image();
                 img.crossOrigin = 'anonymous';
                 img.onload = function () {
                     if (token !== _msToken) return;
-                    try {
-                        var cv = document.createElement('canvas');
-                        cv.width = 512; cv.height = 512;
-                        var ctx = cv.getContext('2d');
-                        var s = Math.max(512 / img.naturalWidth, 512 / img.naturalHeight) || 1;
-                        var w = Math.max(512, Math.round(img.naturalWidth * s));
-                        var h = Math.max(512, Math.round(img.naturalHeight * s));
-                        ctx.drawImage(img, (512 - w) / 2, 0, w, h);
-                        done(cv.toDataURL('image/jpeg', 0.9));
-                    } catch (e) { done(null); }
+                    canvasCrop(img, done);
                 };
                 img.onerror = function () {
                     if (token === _msToken) done(null);
@@ -237,32 +256,59 @@
             } else if (msArt === 'pad') {
                 // Debug: CHỈ entry crop neo trên, không fallback (bisect khi
                 // nghi ngờ entry phụ gia của chế độ mặc định)
-                canvasSquare(artworkSrc(sheetImage || episode.image), function (dataUrl) {
+                loadCanvasCrop(artworkSrc(sheetImage || episode.image), function (dataUrl) {
                     if (token !== _msToken || !dataUrl) return;
                     setArtwork(dataUrl, 512, 512);
                 });
                 return;
             } else {
-                // Mặc định: crop vuông neo TRÊN (canvas data URL) — cấu hình
-                // user đã test render đẹp trên lock screen iPhone (giữ mặt/
-                // nhân vật, chỉ cắt phần dưới, không như crop giữa của
-                // Photon). Ảnh nguồn ưu tiên poster Sheet (AniList CDN) qua
-                // Photon ?w=720 (giữ ratio để canvas còn chỗ neo trên, không
-                // taint). Canvas fail (ảnh không load/CORS) thì probe chuỗi
-                // dự phòng: Photon crop giữa 512 -> 720 -> gốc -> logo.
+                // Mặc định: Photon crop vuông neo TRÊN (URL crop % + resize)
+                // — đo tỉ lệ ảnh qua bản w=720 trước (crop của Photon theo
+                // %), URL kết quả load được thì dùng luôn (URL thường, daemon
+                // iOS fetch được, không cần data URL); fail thì vẽ canvas
+                // data URL từ ảnh đã đo (cấu hình cũ user đã test); vẫn fail
+                // thì chuỗi dự phòng: Photon crop giữa 512 -> gốc -> logo.
                 var imgs = [];
                 if (sheetImage) imgs.push(sheetImage);
                 if (episode.image && episode.image !== sheetImage && episode.image !== imageUrl) imgs.push(episode.image);
                 var fallback = [];
                 imgs.map(function (im) { fallback.push(artworkSrc(im, 512)); });
-                if (imgs.length) fallback.push(artworkSrc(imgs[0]));
                 if (imgs.length) fallback.push(imgs[0]);
                 fallback.push(imageUrl);
-                canvasSquare(artworkSrc(imgs[0] || null), function (dataUrl) {
+                if (!imgs.length) { probeArtwork(fallback); return; }
+                var src0 = imgs[0];
+                var img1 = new Image();
+                img1.crossOrigin = 'anonymous';
+                img1.onload = function () {
                     if (token !== _msToken) return;
-                    if (!dataUrl) { probeArtwork(fallback); return; }
-                    setArtwork(dataUrl, 512, 512);
-                });
+                    var cropped = topSquareSrc(src0, img1.naturalWidth, img1.naturalHeight);
+                    var canvasDone = function (dataUrl) {
+                        if (token !== _msToken) return;
+                        if (dataUrl) setArtwork(dataUrl, 512, 512);
+                        else probeArtwork(fallback);
+                    };
+                    if (cropped) {
+                        // Verify URL crop + đo size thật trước khi khai
+                        var img2 = new Image();
+                        img2.onload = function () {
+                            if (token !== _msToken) return;
+                            var w2 = img2.naturalWidth || 512, h2 = img2.naturalHeight || w2;
+                            setArtwork(cropped, w2, h2);
+                        };
+                        img2.onerror = function () {
+                            if (token !== _msToken) return;
+                            canvasCrop(img1, canvasDone);
+                        };
+                        img2.src = cropped;
+                    } else {
+                        canvasCrop(img1, canvasDone);
+                    }
+                };
+                img1.onerror = function () {
+                    if (token !== _msToken) return;
+                    probeArtwork(fallback);
+                };
+                img1.src = artworkSrc(src0);
                 return;
             }
             probeArtwork(srcs.filter(Boolean));
