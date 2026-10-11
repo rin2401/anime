@@ -209,6 +209,9 @@ function mountPlayer(url) {
         try { art.destroy(false); } catch (e) { }
         art = null;
     }
+    // Sự kiện autoplay (video:play) của player mới xảy ra trước khi seek tới
+    // mốc trong node — cấm patch trong khoảng đó (applySync bật lại cờ)
+    hostSynced = false;
     var type = url.endsWith('.json') ? 'json' : 'm3u8';
     art = new Artplayer({
         container: '.artplayer-app',
