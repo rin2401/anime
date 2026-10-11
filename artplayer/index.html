@@ -778,7 +778,7 @@
                 mutex: true,
                 backdrop: true,
                 playsInline: true,
-                autoPlayback: false, // resume đa thiết bị lo bằng UserHistory (khối dưới), khỏi hỏi "Jump Play"
+                autoPlayback: true,
                 // airplay: true,
                 theme: '#23ade5',
                 plugins: [
@@ -889,37 +889,6 @@
                 art.on('video:ended', function () { msState('paused'); });
             }
 
-            // ── Tự động "tiếp tục từ lần xem trước" (tua ngầm) ──
-            // artplayer không có config tự nhảy không hỏi (autoPlayback luôn
-            // hiện layer "Jump Play"), mà mốc t đã được ghi liên tục vào lịch
-            // sử xem (cloud khi login, local khi chưa) nên tắt autoPlayback,
-            // tự đọc lịch sử: mở đúng tập lần xem trước + tua ngầm tới mốc t.
-            // Chỉ nhảy khi video chưa kịp phát (vừa mở, không có ý đồ tường
-            // minh ?e=/?t=); gần hết tập (còn < 15s) coi như đã xem xong ->
-            // mở từ đầu. Tua ngay nếu player đã sẵn sàng, không thì đợi
-            // metadata nguồn (kể cả nguồn vừa đổi sang tập khác) load xong.
-            if (typeof UserHistory !== 'undefined' && histItem
-                && getUrlParameter('e') === null && getUrlParameter('t') === null) {
-                UserHistory.list().then(function (all) {
-                    var rec = all && all[histItem.itemKey];
-                    if (!rec || M[rec.eid] === undefined) return;
-                    if (art.currentTime > 3) return; // đã bắt đầu xem -> không giật tập
-                    var switched = false;
-                    if (String(rec.eid) !== String(currentEpisode.id)) {
-                        var item = art.controls.playlist
-                            .querySelectorAll('.art-selector-item:not(.art-season-ep)')[M[rec.eid]];
-                        if (!item) return;
-                        item.click(); // plugin changeVideo: switchUrl + sync currentEp
-                        switched = true;
-                    }
-                    var tt = rec.t || 0;
-                    if (rec.dur && tt >= rec.dur - 15) tt = 0; // đã xem gần hết -> xem lại từ đầu
-                    if (tt < 5) return;
-                    if (!switched && art.isReady) art.currentTime = tt;
-                    else art.once('video:loadedmetadata', function () { art.currentTime = tt; });
-                }).catch(function () { });
-            }
-
             // Cụm bên phải control bar: chỉ còn logo r3mina (select mùa đã
             // chuyển vào dropdown danh sách tập, xem phần seasonSelector
             // phía dưới). index là key chèn theo vị trí (so >= với index
@@ -992,8 +961,8 @@
             });
 
             // ?t=<giây> seek tới mốc trong tập (chia sẻ link đang xem dở).
-            // Chỉ áp cho tập mở ban đầu; ?t= tường minh nên thắng cả tua ngầm
-            // từ lịch sử (khối trên bị chặn khi URL có ?t=).
+            // Chỉ áp cho tập mở ban đầu; autoPlayback cũng seek trên 'ready'
+            // nhưng đăng ký trước nên listener này chạy sau và thắng.
             var t = parseFloat(getUrlParameter('t'));
             if (Number.isFinite(t) && t > 0) {
                 art.on('ready', function () { art.currentTime = t; });
