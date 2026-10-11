@@ -201,110 +201,126 @@
             align-items: center;
         }
 
-        #email-auth {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 8px;
+        /* #email-auth + #forgot-password theo đúng design language firebaseui:
+        Roboto 16px, input gạch chân, nút raised indigo — giá trị copy từ
+        firebase-ui-auth.css 6.1.0 (stylesheet đã được load, Roboto import sẵn). */
+        .email-card {
+            width: 330px;
+            box-sizing: border-box;
             margin-top: 16px;
-            padding: 14px 18px 16px;
-            border: 1px solid #dadce0;
-            border-radius: 8px;
+            padding: 0 24px 24px;
             background: #fff;
-            box-shadow: 0 1px 2px rgba(60, 64, 67, .12);
-            width: 300px;
-            box-sizing: border-box;
-        }
-
-        #email-auth-title {
+            font-family: Roboto, arial, sans-serif;
             font-size: 16px;
-            font-weight: 500;
-            color: #202124;
-            margin: 0 0 4px;
+            color: rgba(0, 0, 0, .87);
+            text-align: left;
         }
 
-        #email-auth input[type="email"],
-        #email-auth input[type="password"] {
+        .email-card-title {
+            font-size: 20px;
+            font-weight: 500;
+            line-height: 24px;
+            color: rgba(0, 0, 0, .87);
+            margin: 0;
+            padding: 24px 0 16px;
+        }
+
+        .email-card-field {
             width: 100%;
-            padding: 9px 10px;
-            border: 1px solid #dadce0;
-            border-radius: 6px;
-            font-size: 14px;
-            color-scheme: light;
+            padding-top: 10px;
+        }
+
+        .email-card-label {
+            display: block;
+            font-size: 16px;
+            color: rgba(0, 0, 0, .54);
+        }
+
+        .email-card-input {
+            width: 100%;
             box-sizing: border-box;
+            padding: 4px 0 3px;
+            border: none;
+            border-bottom: 1px solid rgba(0, 0, 0, .12);
+            border-radius: 0;
+            background: none;
+            font-family: inherit;
+            font-size: 16px;
+            color: rgba(0, 0, 0, .87);
+            color-scheme: light;
+        }
+
+        .email-card-input:focus {
+            outline: none;
+            border-bottom: 2px solid #3f51b5;
+            padding-bottom: 2px;
         }
 
         #email-auth-signup-label {
-            font-size: 13px;
-            color: #5f6368;
             display: flex;
             align-items: center;
             gap: 6px;
-        }
-
-        #email-auth-submit {
-            width: 100%;
-            padding: 9px 14px;
-            border: 0;
-            border-radius: 6px;
-            background: #1a73e8;
-            color: #fff;
             font-size: 14px;
-            cursor: pointer;
-        }
-
-        #email-auth-submit:disabled {
-            opacity: .6;
-            cursor: default;
-        }
-
-        #email-auth-status {
-            font-size: 13px;
-            margin: 0;
-            text-align: center;
-        }
-
-        #forgot-password {
-            text-align: center;
+            color: rgba(0, 0, 0, .54);
             margin-top: 12px;
         }
 
-        #forgot-password-link {
-            color: #5f6368;
+        .email-card-actions {
+            text-align: right;
+            margin-top: 16px;
+        }
+
+        .email-card-button {
+            height: 36px;
+            min-width: 88px;
+            padding: 0 16px;
+            border: 0;
+            border-radius: 2px;
+            background: #3f51b5;
+            color: #fff;
+            font-family: inherit;
             font-size: 14px;
+            font-weight: 500;
+            text-transform: uppercase;
+            line-height: 36px;
+            cursor: pointer;
+            box-shadow: 0 2px 2px 0 rgba(0, 0, 0, .14), 0 3px 1px -2px rgba(0, 0, 0, .2), 0 1px 5px 0 rgba(0, 0, 0, .12);
+        }
+
+        .email-card-button:disabled {
+            background: rgba(0, 0, 0, .12);
+            color: rgba(0, 0, 0, .26);
+            box-shadow: none;
+            cursor: default;
+        }
+
+        #email-auth-status,
+        #forgot-password-status {
+            font-size: 14px;
+            margin: 12px 0 0;
+        }
+
+        #forgot-password {
+            padding-top: 0;
+        }
+
+        #forgot-password-link {
+            display: block;
+            text-align: center;
+            color: #4285f4;
+            font-size: 14px;
+            text-decoration: none;
+            padding: 16px 0 0;
+        }
+
+        /* display:flex sẽ ghi đè attribute hidden — phải khai báo lại display:none */
+        #forgot-password-form[hidden] {
+            display: none;
         }
 
         #forgot-password-form {
-            margin-top: 10px;
             display: flex;
             flex-direction: column;
-            align-items: center;
-            gap: 8px;
-        }
-
-        #forgot-password-email {
-            width: 260px;
-            padding: 8px 10px;
-            border: 1px solid #dadce0;
-            border-radius: 6px;
-            font-size: 14px;
-            color-scheme: light;
-        }
-
-        #forgot-password-submit {
-            padding: 8px 14px;
-            border: 0;
-            border-radius: 6px;
-            background: #1a73e8;
-            color: #fff;
-            font-size: 14px;
-            cursor: pointer;
-        }
-
-        #forgot-password-status {
-            font-size: 13px;
-            margin: 0;
-            max-width: 300px;
         }
 
         #logo {
@@ -321,21 +337,34 @@
         <img id="logo" src="/anime/image/r3.png" alt="Logo">
     </div>
     <div id="firebaseui-auth-container"></div>
-    <form id="email-auth">
-        <h2 id="email-auth-title">Đăng nhập bằng email</h2>
-        <input type="email" id="email-auth-email" placeholder="Email" autocomplete="username">
-        <input type="password" id="email-auth-password" placeholder="Mật khẩu" autocomplete="current-password">
+    <form id="email-auth" class="email-card">
+        <h2 class="email-card-title">Đăng nhập bằng email</h2>
+        <div class="email-card-field">
+            <label class="email-card-label" for="email-auth-email">Email</label>
+            <input type="email" id="email-auth-email" class="email-card-input" autocomplete="username">
+        </div>
+        <div class="email-card-field">
+            <label class="email-card-label" for="email-auth-password">Mật khẩu</label>
+            <input type="password" id="email-auth-password" class="email-card-input" autocomplete="current-password">
+        </div>
         <label id="email-auth-signup-label">
             <input type="checkbox" id="email-auth-signup"> Tạo account mới
         </label>
-        <button type="submit" id="email-auth-submit">Đăng nhập</button>
+        <div class="email-card-actions">
+            <button type="submit" id="email-auth-submit" class="email-card-button">Đăng nhập</button>
+        </div>
         <p id="email-auth-status" hidden></p>
     </form>
-    <div id="forgot-password">
+    <div id="forgot-password" class="email-card">
         <a href="#" id="forgot-password-link">Quên mật khẩu?</a>
         <form id="forgot-password-form" hidden>
-            <input type="email" id="forgot-password-email" placeholder="Email đã đăng ký" autocomplete="email">
-            <button type="submit" id="forgot-password-submit">Gửi thư đặt lại mật khẩu</button>
+            <div class="email-card-field">
+                <label class="email-card-label" for="forgot-password-email">Email đã đăng ký</label>
+                <input type="email" id="forgot-password-email" class="email-card-input" autocomplete="email">
+            </div>
+            <div class="email-card-actions">
+                <button type="submit" id="forgot-password-submit" class="email-card-button">Gửi thư đặt lại mật khẩu</button>
+            </div>
             <p id="forgot-password-status" hidden></p>
         </form>
     </div>
