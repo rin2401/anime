@@ -827,6 +827,73 @@
                 if (art.currentTime > 5) recordHistory(art.currentTime, true);
             });
 
+            // ── Điều khiển lock screen iOS (MediaSession) ──
+            // ⏮/⏭ đổi tập bằng cách CLICK ĐÚNG ITEM panel playlist của
+            // plugin (cùng đường với nút prev/next trong control bar): plugin
+            // tự giữ currentEp + chạy onchanged -> updateParams, lịch sử,
+            // subtitle đều đồng bộ. Filter :not(.art-season-ep) loại item các
+            // mùa khác được inject (click item mùa khác = điều hướng trang,
+            // không phải đổi tập trong mùa).
+            // play/pause điều khiển trực tiếp; setPositionState đưa thanh
+            // tiến độ lên lock screen — OS tự đếm vị trí theo playbackRate,
+            // gọi lại ở các mốc thay đổi; kéo thanh phát seekto về đây.
+            // setPositionState throw TypeError khi duration NaN/0 (đầu tập,
+            // m3u8 chưa có meta) -> bọc try/catch. Từng handler một try/catch:
+            // iOS thiếu action nào thì bỏ action đó, không cụng cả cụm.
+            if ('mediaSession' in navigator) {
+                var epItems = function () {
+                    return art.controls.playlist
+                        ? art.controls.playlist.querySelectorAll('.art-selector-item:not(.art-season-ep)')
+                        : [];
+                };
+                var jump = function (step) {
+                    var i = M[currentEpisode ? currentEpisode.id : undefined];
+                    if (i === undefined) return;
+                    var item = epItems()[i + step];
+                    if (item) item.click();
+                };
+                var updatePositionState = function () {
+                    try {
+                        navigator.mediaSession.setPositionState({
+                            duration: art.duration,
+                            playbackRate: art.playbackRate,
+                            position: art.currentTime,
+                        });
+                    } catch (e) { /* duration chưa có -> bỏ qua */ }
+                };
+                var safeHandler = function (action, fn) {
+                    try { navigator.mediaSession.setActionHandler(action, fn); } catch (e) { }
+                };
+                safeHandler('play', function () { art.play(); });
+                safeHandler('pause', function () { art.pause(); });
+                safeHandler('previoustrack', function () { jump(-1); });
+                safeHandler('nexttrack', function () { jump(1); });
+                safeHandler('seekforward', function (d) {
+                    var off = (d && d.seekOffset) || 10;
+                    art.currentTime = Math.min((art.currentTime || 0) + off, art.duration || (art.currentTime || 0) + off);
+                    updatePositionState();
+                });
+                safeHandler('seekbackward', function (d) {
+                    var off = (d && d.seekOffset) || 10;
+                    art.currentTime = Math.max((art.currentTime || 0) - off, 0);
+                    updatePositionState();
+                });
+                safeHandler('seekto', function (d) {
+                    if (d && d.seekTime != null && isFinite(d.seekTime)) art.currentTime = d.seekTime;
+                    updatePositionState();
+                });
+                ['video:loadedmetadata', 'video:seeked', 'video:ratechange', 'video:timeupdate']
+                    .forEach(function (ev) { art.on(ev, updatePositionState); });
+                // playbackState cho OS biết đang phát/dừng (icon trạng thái)
+                var msState = function (s) {
+                    try { navigator.mediaSession.playbackState = s; } catch (e) { }
+                };
+                art.on('video:play', function () { msState('playing'); });
+                art.on('video:playing', function () { msState('playing'); });
+                art.on('video:pause', function () { msState('paused'); });
+                art.on('video:ended', function () { msState('paused'); });
+            }
+
             // Cụm bên phải control bar: chỉ còn logo r3mina (select mùa đã
             // chuyển vào dropdown danh sách tập, xem phần seasonSelector
             // phía dưới). index là key chèn theo vị trí (so >= với index
