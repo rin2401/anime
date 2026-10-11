@@ -50,11 +50,19 @@ def main():
     cred = credentials.Certificate('r3fire.json')
     firebase_admin.initialize_app(cred, {'databaseURL': 'https://r3fire.firebaseio.com'})
 
-    src_user = fb_auth.get_user(args.src_uid)
+    try:
+        src_user = fb_auth.get_user(args.src_uid)
+        src_desc = f"email={src_user.email!r} name={src_user.display_name!r}"
+        src_email = src_user.email
+    except fb_auth.UserNotFoundError:
+        # Account nguồn đã bị xoá (ví dụ token còn hạn vẫn ghi tiếp node cũ) —
+        # vẫn gộp được phần data còn sót trên node users/{src_uid}.
+        src_desc = "(đã bị xoá khỏi Auth)"
+        src_email = None
     dst_user = fb_auth.get_user(args.dst_uid)
-    print(f"nguồn: {args.src_uid} email={src_user.email!r} name={src_user.display_name!r}")
+    print(f"nguồn: {args.src_uid} {src_desc}")
     print(f"đích  : {args.dst_uid} email={dst_user.email!r} name={dst_user.display_name!r}")
-    if src_user.email and dst_user.email and src_user.email == dst_user.email:
+    if src_email and dst_user.email and src_email == dst_user.email:
         sys.exit('! 2 account trùng email thật — không cần gộp tay, xem lại giả định')
 
     users = db.reference('users')
@@ -80,14 +88,15 @@ def main():
 
     if args.delete:
         leftovers = node_dict(src_root)
-        if not args.dry_run and total:
-            pass
-        if leftovers and not args.dry_run and not total:
+        if leftovers and not total:
             print(f"  note: node users/{args.src_uid} còn dữ liệu lạ: {list(leftovers)}")
         if not args.dry_run:
             src_root.delete()
-            fb_auth.delete_user(args.src_uid)
-            print(f"  đã xoá account nguồn + node users/{args.src_uid}")
+            try:
+                fb_auth.delete_user(args.src_uid)
+                print(f"  đã xoá account nguồn + node users/{args.src_uid}")
+            except fb_auth.UserNotFoundError:
+                print(f"  đã xoá node users/{args.src_uid} (account Auth không còn)")
 
     if args.dry_run:
         print(f"(dry-run) sẽ gộp {total} entry{' + xoá account nguồn' if args.delete else ''}")
