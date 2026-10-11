@@ -745,7 +745,10 @@ async def crawl_hls(anime_id, num_eps=DEFAULT_NUM_EPS, attach=True):
 
     anime_id = str(anime_id)
     num_eps = int(num_eps) if num_eps else 0
-    debug_port = DEBUG_PORT if attach else None
+    # attach=False phải truyền 0 (falsy), KHÔNG phải None — helper coi None
+    # là "dùng DEBUG_PORT env" nên truyền None sẽ vẫn attach (Sword chặn
+    # Target.createTarget -> ProtocolException "Not supported").
+    debug_port = DEBUG_PORT if attach else 0
 
     row = read_sheet_row(anime_id)
     if not row or "animevietsub" not in (row.get("url") or ""):

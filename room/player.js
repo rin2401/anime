@@ -111,6 +111,33 @@ function playM3u8Text(video, m3u8, art) {
 var state = null;      // nội dung node room/{code} đang biết
 var loadedUrl = '';    // url đã gắn vào player (tránh mount lại mỗi update)
 var art = null;
+var roomCode = '';     // mã phòng từ ?id= (host dùng để PATCH + share link)
+var hostSynced = false; // host: đã áp mốc lần đầu chưa (tránh patch pos=0 lúc autoplay)
+
+// uid của mình (host xác định qua state.host === uid); khách chưa đăng nhập = null
+function myUid() {
+    try {
+        return (firebase.auth().currentUser || {}).uid || null;
+    } catch (e) { return null; }
+}
+
+function isHost() {
+    return !!(state && state.host && myUid() && state.host === myUid());
+}
+
+// Host ghi state: play/pause/seek/hết tập — chỉ ghi khi state ĐỔI, người xem
+// tự ngoại suy pos + (now - updatedAt)/1000 giữa 2 lần ghi
+function patchRoom(patch) {
+    if (!isHost() || !hostSynced) return;
+    patch.updatedAt = Date.now();
+    var u = firebase.auth().currentUser;
+    u.getIdToken().then(function (tok) {
+        return fetch(RTDB + '/room/' + roomCode + '.json?auth=' + tok, {
+            method: 'PATCH',
+            body: JSON.stringify(patch),
+        });
+    }).catch(function () { });
+}
 
 // Vị trí theo host: pos + thời gian trôi từ lần host cập nhật gần nhất
 function targetPos(s) {
@@ -123,7 +150,10 @@ function targetPos(s) {
     return pos;
 }
 
-// Áp state vừa nhận: đổi nguồn nếu host đổi tập, theo play/pause, seek nếu lệch
+// Áp state vừa nhận: đổi nguồn nếu host đổi tập, theo play/pause, seek nếu lệch.
+// Host (uid trùng state.host) là nguồn sự thật — KHÔNG tự theo mình: chỉ mount
+// url mới (khi đổi tập từ trang artplayer) và hiện nút share, không play/pause
+// cưỡng bức, không followPos.
 function syncFromState() {
     if (!state) return;
     if (state.url && state.url !== loadedUrl) {
@@ -136,16 +166,18 @@ function syncFromState() {
         }
         mountPlayer(state.url);
     }
-    if (loadedUrl && art) {
+    if (!isHost() && loadedUrl && art) {
         if (state.playing === false) { if (!art.video.paused) art.pause(); }
         else if (state.playing === true) { if (art.video.paused) art.play(); }
         followPos();
     }
+    updateHostUi();
 }
 
 // Seek về phía host khi lệch quá 3s (đủ rộng để không dập lệnh tua của host,
-// đủ chặt để người xem không trôi quá xa)
+// đủ chặt để người xem không trôi quá xa) — host tự là nguồn sự thật nên bỏ qua
 function followPos() {
+    if (isHost()) return;
     var tp = targetPos(state);
     if (tp == null || !art) return;
     if (art.duration && isFinite(art.duration)
@@ -154,9 +186,16 @@ function followPos() {
     }
 }
 
-// Player sẵn sàng -> đặt mốc theo host ngay lần đầu
+// Player sẵn sàng -> đặt mốc theo host ngay lần đầu. Host: mốc pos trong node
+// (vị trí lúc bấm 👥 từ artplayer) và KHÔNG cưỡng bức play/pause (autoplay
+// sẵn trong config; play/pause sau đó là của host, patch qua listener)
 function applySync() {
     if (!state || !loadedUrl || !art) return;
+    if (isHost()) {
+        art.currentTime = Number(state.pos) || 0;
+        hostSynced = true;
+        return;
+    }
     var tp = targetPos(state);
     if (tp != null && art.duration && isFinite(art.duration)) art.currentTime = tp;
     if (state.playing === false) art.pause();
@@ -193,6 +232,64 @@ function mountPlayer(url) {
     // (Artplayer tự đoán theo đuôi file, customType m3u8 bắt cả link phim1280)
     void type;
     art.on('ready', applySync);
+    // Host phát điều khiển của MÌNH vào room node (người xem chỉ đọc):
+    // play/pause/seek/hết tập — không ghi timeupdate liên tục.
+    ['video:play', 'video:pause', 'video:seeked', 'video:ended'].forEach(function (ev) {
+        art.on(ev, function () {
+            patchRoom({ pos: (art.currentTime || 0), playing: !!art.playing });
+        });
+    });
+}
+
+// Host xác nhận xong -> hiện nút 🔗 share link phòng (panel DOM, host bấm để
+// gửi link cho bạn). Người xem không thấy nút này.
+var hostUiBound = false;
+function updateHostUi() {
+    if (!isHost()) return;
+    var btn = document.getElementById('room-share-btn');
+    if (btn) btn.hidden = false;
+    if (hostUiBound) return;
+    hostUiBound = true;
+    btn.addEventListener('click', function () { showRoomShare(); });
+    bindRoomShare();
+}
+
+// ── Panel share link phòng (thay prompt() — webview chặn prompt im lặng).
+// Copy qua clipboard API, fail thì fallback execCommand (TV/webview cũ).
+function showRoomShare() {
+    var wrap = document.getElementById('room-share');
+    if (!wrap) return;
+    document.getElementById('room-share-code').textContent = roomCode;
+    document.getElementById('room-share-link').textContent =
+        location.origin + '/anime/room/?id=' + roomCode;
+    document.getElementById('room-share-copy').textContent = 'Copy link';
+    wrap.hidden = false;
+}
+
+function copyFallback(text, done) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { if (document.execCommand('copy')) done(); } catch (e) { }
+    document.body.removeChild(ta);
+}
+
+function bindRoomShare() {
+    var wrap = document.getElementById('room-share');
+    if (!wrap) return;
+    document.getElementById('room-share-close').addEventListener('click', function () { wrap.hidden = true; });
+    wrap.addEventListener('click', function (e) { if (e.target === wrap) wrap.hidden = true; });
+    document.getElementById('room-share-copy').addEventListener('click', function () {
+        var link = location.origin + '/anime/room/?id=' + roomCode;
+        var btn = document.getElementById('room-share-copy');
+        var done = function () { btn.textContent = 'Đã copy!'; };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(link).then(done).catch(function () { copyFallback(link, done); });
+        } else copyFallback(link, done);
+    });
 }
 
 function setMediaSession(title) {
@@ -305,6 +402,7 @@ window.addEventListener('load', function () {
     }
     var codeLabel = document.getElementById('room-code');
     if (codeLabel) codeLabel.textContent = id;
+    roomCode = id;
     watchRoom(id);
     // Chat: dùng chung room/chat.js, panel nằm trong sidebar #chat-side
     if (typeof RoomChat !== 'undefined') {
