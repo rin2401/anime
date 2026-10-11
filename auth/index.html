@@ -27,6 +27,14 @@
         var uiConfig = {
             signInFlow: 'popup',
             signInSuccessUrl: HOME_URL,
+            callbacks: {
+                signInSuccessWithAuthResult: function (authResult) {
+                    var user = authResult && authResult.user;
+                    if (user && user.email) return true; // chuyển hướng bình thường
+                    rejectNoEmail(user);
+                    return false; // không chuyển hướng, form sẽ vẽ lại sau signOut
+                }
+            },
             signInOptions: [
                 firebase.auth.GoogleAuthProvider.PROVIDER_ID,
                 // firebase.auth.FacebookAuthProvider.PROVIDER_ID,
@@ -41,11 +49,31 @@
         };
 
         var auth = firebase.auth();
+        var ui = new firebaseui.auth.AuthUI(auth);
+
+        // Google sign-in qua webview/IAB có lúc trả về account KHÔNG có email
+        // (tài khoản công ty/Workspace bị hạn chế chia sẻ email) — Firebase
+        // không khớp được email nên tạo account mới rác, tách lịch sử xem của
+        // cùng một người ra nhiều uid. Chặn kiểu sign-in này ngay từ đầu, buộc
+        // đăng nhập lại bằng Gmail cá nhân để khớp/link vào account đã có.
+        var NO_EMAIL_MSG = 'Tài khoản Google này không cấp email (thường là tài khoản công ty/Workspace bị hạn chế) nên không thể đồng bộ lịch sử xem. Hãy đăng nhập lại bằng tài khoản Gmail cá nhân.';
+
+        function rejectNoEmail(user) {
+            auth.signOut().then(function () {
+                alert(NO_EMAIL_MSG);
+                ui.reset();
+            });
+        }
+
         auth.onAuthStateChanged(function (user) {
             if (user) {
-                window.location.href = HOME_URL;
+                if (user.email) {
+                    window.location.href = HOME_URL;
+                } else {
+                    rejectNoEmail(user);
+                }
             } else {
-                var ui = new firebaseui.auth.AuthUI(auth);
+                ui.reset();
                 ui.start('#firebaseui-auth-container', uiConfig);
             }
         });
