@@ -187,6 +187,76 @@
             background: #23ade5;
         }
 
+        /* Panel share link phòng xem chung — đè mờ toàn màn, card giữa.
+           link dùng user-select:all (bấm 1 phát bôi đen cả dòng) cho webview
+           không copy được qua clipboard API. */
+        #room-share {
+            position: fixed;
+            inset: 0;
+            z-index: 200;
+            background: rgba(0, 0, 0, 0.55);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #room-share[hidden] {
+            display: none;
+        }
+
+        .room-share-card {
+            background: #1b1e23;
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 16px 18px;
+            width: min(420px, 92vw);
+            font: 14px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif;
+        }
+
+        .room-share-title {
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        #room-share-code {
+            color: #23ade5;
+            letter-spacing: 1px;
+        }
+
+        .room-share-link {
+            background: #2b2f33;
+            border-radius: 8px;
+            padding: 8px 10px;
+            word-break: break-all;
+            margin: 8px 0 12px;
+            -webkit-user-select: all;
+            user-select: all;
+        }
+
+        .room-share-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .room-share-actions button {
+            border: 0;
+            border-radius: 8px;
+            padding: 8px 14px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        #room-share-copy {
+            background: #23ade5;
+            color: #fff;
+        }
+
+        #room-share-close {
+            background: rgba(255, 255, 255, 0.12);
+            color: #fff;
+        }
+
     </style>
 </head>
 
@@ -198,6 +268,20 @@
         <aside id="chat-side"><div id="chat-panel"></div></aside>
     </div>
     <button id="chat-toggle" type="button" aria-label="Chat" hidden>💬</button>
+
+    <!-- Panel share link phòng xem chung: prompt() bị webview chặn im lặng
+         (như trang auth) -> hiện DOM panel có link + nút Copy, click nền để đóng -->
+    <div id="room-share" hidden>
+        <div class="room-share-card">
+            <div class="room-share-title">Phòng xem chung đã tạo</div>
+            <div>Mã phòng: <b id="room-share-code"></b></div>
+            <div class="room-share-link" id="room-share-link"></div>
+            <div class="room-share-actions">
+                <button type="button" id="room-share-copy">Copy link</button>
+                <button type="button" id="room-share-close">Đóng</button>
+            </div>
+        </div>
+    </div>
 
     <script>
         function getUrlParameter(name) {
@@ -334,6 +418,44 @@
             return location.origin + '/anime/room/?id=' + roomCode;
         }
 
+        // Panel share link phòng (thay prompt() — webview chặn prompt im lặng
+        // khiến host tưởng bấm nút không phản ứng). Copy qua clipboard API,
+        // fail thì fallback execCommand (TV/webview cũ).
+        function showRoomShare() {
+            var wrap = document.getElementById('room-share');
+            if (!wrap) return;
+            document.getElementById('room-share-code').textContent = roomCode;
+            document.getElementById('room-share-link').textContent = roomLink();
+            document.getElementById('room-share-copy').textContent = 'Copy link';
+            wrap.hidden = false;
+        }
+
+        function copyFallback(text, done) {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try { if (document.execCommand('copy')) done(); } catch (e) { }
+            document.body.removeChild(ta);
+        }
+
+        (function bindRoomShare() {
+            var wrap = document.getElementById('room-share');
+            if (!wrap) return;
+            document.getElementById('room-share-close').addEventListener('click', function () { wrap.hidden = true; });
+            wrap.addEventListener('click', function (e) { if (e.target === wrap) wrap.hidden = true; });
+            document.getElementById('room-share-copy').addEventListener('click', function () {
+                var link = roomLink();
+                var btn = document.getElementById('room-share-copy');
+                var done = function () { btn.textContent = 'Đã copy!'; };
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(link).then(done).catch(function () { copyFallback(link, done); });
+                } else copyFallback(link, done);
+            });
+        })();
+
         function createRoom() {
             var u = (typeof firebase !== 'undefined') ? firebase.auth().currentUser : null;
             if (!u) {
@@ -362,8 +484,8 @@
             }).then(function (r) {
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 roomCode = code;
-                prompt('Link phòng xem chung — copy gửi bạn bè:', roomLink());
                 art.notice.show = 'Đã tạo phòng ' + code + ' — đang phát cho cả phòng';
+                showRoomShare();
                 // Có phòng rồi -> hiện nút 💬; màn rộng mở sẵn sidebar chat
                 // (mobile đóng cho phim tràn màn, bấm 💬 khi muốn chat)
                 var chatBtn = document.getElementById('chat-toggle');
@@ -1107,7 +1229,7 @@
                 tooltip: 'Xem chung',
                 click: function () {
                     if (roomCode) {
-                        prompt('Link phòng xem chung — copy gửi bạn bè:', roomLink());
+                        showRoomShare(); // đã có phòng -> hiện lại link share
                     } else {
                         createRoom();
                     }
