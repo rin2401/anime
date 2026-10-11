@@ -74,6 +74,14 @@
             border-radius: 4px;
         }
 
+        /* Tập đang xem: đổ nền màu theme + chữ trắng — mặc định artplayer chỉ
+           đổi màu CHỮ thành xanh là quá mờ trên nền tối, khó phát hiện ngay */
+        .art-control-selector .art-selector-list .art-selector-item.art-current {
+            background: #23ade5 !important;
+            border-color: #23ade5 !important;
+            color: #fff !important;
+        }
+
         .art-selector-list .art-season-header {
             grid-column: 1 / -1 !important;
             padding: 8px 0 2px !important;
