@@ -1,16 +1,26 @@
-// ── RoomChat — chat cho phòng xem chung ──
-// Node room/{code}/chat: mỗi tin là một entry {uid, name, text, ts}, POST
-// (PUSH) với idToken — rules cho phép mọi user đăng nhập ghi tin nhắn con
-// node chat, còn state phát (url/pos/playing) vẫn chỉ host được ghi.
-// Widget tự quản stream riêng cho node chat: EventSource + poll 4s (poll
-// luôn chạy — webview cũ hay chết stream im lặng). Cả trang room lẫn trang
-// artplayer (host) dùng chung file này.
+// ── RoomChat — chat TẠM cho phòng xem chung ──
+// Node chat/{code}: mỗi tin là một entry {uid, name, text, ts}, POST (PUSH)
+// với idToken — rules cho phép mọi user đăng nhập ghi tin, còn state phát
+// (url/pos/playing ở room/{code}) vẫn chỉ host được ghi.
+//
+// KHÔNG LƯU LỊCH SỬ: người vào phòng chỉ thấy tin nhắn phát sinh SAU khi
+// mình vào (tin mới hơn joinTs ~5s). Ai đang mở phòng mới chat với nhau —
+// lịch sử không bao giờ hiển thị. Node tự dọn: client đã đăng nhập khi mở
+// phòng xoá tin quá 2 giờ, nên DB không tích tụ. Poll fallback dùng
+// orderBy ts + limitToLast=10 (cần .indexOn) — băng thông luôn biên giới
+// nhỏ bất kể node đang có bao nhiêu tin cũ.
+//
+// Widget tự quản stream riêng cho node chat: EventSource (tin từng cái)
+// + poll 4s luôn chạy (webview cũ hay chết stream im lặng). Cả trang room
+// lẫn trang artplayer (host) dùng chung file này.
 //
 // RoomChat.mount(el, getCode) — el là thẻ chứa panel (trang tự hiện/ẩn),
 // getCode() trả mã phòng hiện tại (có thể null/ra sau khi host tạo phòng).
 var RoomChat = (function () {
     var RTDB = 'https://r3fire.firebaseio.com';
-    var MAX_RENDER = 80; // chỉ vẽ tin mới nhất — node không bao giờ bị dọn
+    var MAX_RENDER = 80;     // chỉ vẽ ~80 tin gần nhất mỗi lần render
+    var GRACE_MS = 5000;     // tin mới hơn 5s trước lúc vào vẫn hiện (đồng bộ giờ máy)
+    var TTL_MS = 2 * 60 * 60 * 1000; // tin quá 2h bị dọn khỏi DB
 
     function esc(s) {
         return String(s || '').replace(/[&<>"']/g, function (c) {
@@ -46,17 +56,18 @@ var RoomChat = (function () {
     function mount(el, getCode) {
         ensureStyle();
         el.classList.add('room-chat');
-        el.innerHTML = '<div class="room-chat-list"><div class="room-chat-empty">Chưa có tin nhắn nào — chào cả phòng nào 💬</div></div>' +
+        el.innerHTML = '<div class="room-chat-list"><div class="room-chat-empty">Chat tạm — chỉ hiện tin nhắn mới của người đang trong phòng 💬</div></div>' +
             '<div class="room-chat-input"><input type="text" maxlength="500" placeholder="Nhắn tin…" enterkeyhint="send">' +
             '<button type="button" aria-label="Gửi">➤</button></div>';
         var list = el.querySelector('.room-chat-list');
         var input = el.querySelector('input');
         var btn = el.querySelector('button');
 
-        var msgs = {};      // id -> entry
+        var msgs = {};      // id -> entry (chỉ tin mới sau khi vào phòng)
         var order = [];     // id theo ts tăng dần
         var curCode = null;
         var es = null;
+        var joinTs = 0;
 
         function user() {
             return (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth().currentUser : null;
@@ -75,7 +86,7 @@ var RoomChat = (function () {
             var entry = { uid: u.uid, name: u.displayName || (u.email || '').split('@')[0], text: text, ts: Date.now() };
             input.value = '';
             u.getIdToken().then(function (tok) {
-                return fetch(RTDB + '/room/' + curCode + '/chat.json?auth=' + tok, {
+                return fetch(RTDB + '/chat/' + curCode + '.json?auth=' + tok, {
                     method: 'POST',
                     body: JSON.stringify(entry),
                 });
@@ -117,40 +128,73 @@ var RoomChat = (function () {
                 list.appendChild(d);
             });
             if (!order.length) {
-                list.innerHTML = '<div class="room-chat-empty">Chưa có tin nhắn nào — chào cả phòng nào 💬</div>';
+                list.innerHTML = '<div class="room-chat-empty">Chat tạm — chỉ hiện tin nhắn mới của người đang trong phòng 💬</div>';
                 return;
             }
             if (nearBottom) list.scrollTop = list.scrollHeight;
         }
 
-        // Cập nhật messages từ data node chat (toàn bộ hoặc 1 msg theo path)
+        // Cập nhật từ data node chat: KHÔNG có khái niệm "toàn bộ lịch sử" —
+        // mọi lối vào đều lọc theo joinTs, tin cũ bỏ qua (không render).
+        function add(id, m) {
+            if (m && (m.ts || 0) >= joinTs) {
+                if (!msgs[id]) order.push(id);
+                msgs[id] = m;
+                order.sort(function (a, b) { return (msgs[a].ts || 0) - (msgs[b].ts || 0); });
+            } else if (!m && msgs[id]) {
+                // tin bị dọn (trim) ở máy khác -> gỡ khỏi panel đang mở
+                delete msgs[id];
+                order = order.filter(function (k) { return k !== id; });
+            }
+        }
+
         function apply(path, data) {
             try {
-                var id;
                 if (path === '/' || path === '') {
-                    msgs = data || {};
-                    order = Object.keys(msgs).sort(function (a, b) { return (msgs[a].ts || 0) - (msgs[b].ts || 0); });
+                    Object.keys(data || {}).forEach(function (id) { add(id, data[id]); });
                 } else {
-                    id = path.replace(/^\//, '');
-                    if (!data) { delete msgs[id]; order = order.filter(k => k !== id); }
-                    else if (!msgs[id]) { msgs[id] = data; order.push(id); order.sort(function (a, b) { return (msgs[a].ts || 0) - (msgs[b].ts || 0); }); }
-                    else msgs[id] = data;
+                    add(path.replace(/^\//, ''), data);
                 }
                 render();
             } catch (e) { console.error('RoomChat apply', e); }
+        }
+
+        // Dọn tin quá TTL khi có người (đã đăng nhập) mở phòng — dọn ít,
+        // ai online cũng làm nên node không tích tụ lâu
+        function trimOld(code) {
+            var u = user();
+            if (!u) return;
+            var cutoff = Date.now() - TTL_MS;
+            u.getIdToken().then(function (tok) {
+                var q = '?orderBy=%22ts%22&endAt=' + cutoff + '&auth=' + tok;
+                return fetch(RTDB + '/chat/' + code + '.json' + q).then(r => r.json());
+            }).then(function (old) {
+                if (!old) return;
+                var u2 = user();
+                if (!u2) return;
+                u2.getIdToken().then(function (tok) {
+                    Object.keys(old).slice(0, 100).forEach(function (id) {
+                        fetch(RTDB + '/chat/' + code + '/' + id + '.json?auth=' + tok,
+                            { method: 'DELETE' }).catch(function () { });
+                    });
+                });
+            }).catch(function () { });
         }
 
         function watch(code) {
             if (es) { es.close(); es = null; }
             curCode = code;
             if (!code) return;
+            joinTs = Date.now() - GRACE_MS;
+            msgs = {}; order = []; render(); // đổi phòng = bắt đầu lại từ tin mới
+            trimOld(code);
             if (typeof EventSource !== 'undefined') {
-                es = new EventSource(RTDB + '/room/' + code + '/chat.json');
+                es = new EventSource(RTDB + '/chat/' + code + '.json');
                 ['put', 'patch'].forEach(function (ev) {
                     es.addEventListener(ev, function (e) {
                         try {
                             var d = JSON.parse(e.data);
-                            if (d && d.data) apply(d.path || '/', d.data);
+                            if (d) apply(d.path || '/', d.data);
                         } catch (err) { }
                     });
                 });
@@ -158,19 +202,16 @@ var RoomChat = (function () {
             }
         }
 
-        // Poll 4s: snapshot node chat của phòng hiện tại; mã phòng mới xuất
-        // hiện (host bấm tạo phòng trên trang artplayer) -> bật stream
+        // Poll 4s: fallback khi stream chết — chỉ tải 10 tin mới nhất
+        // (limitToLast + indexOn ts), không bao giờ tải lịch sử. Mã phòng
+        // mới xuất hiện (host bấm tạo phòng) -> bật stream.
         setInterval(function () {
             var code = getCode();
             if (code !== curCode) { watch(code); return; }
             if (!code) return;
-            fetch(RTDB + '/room/' + code + '/chat.json')
+            fetch(RTDB + '/chat/' + code + '.json?orderBy=%22ts%22&limitToLast=10')
                 .then(r => r.json())
-                .then(data => {
-                    var next = data || {};
-                    if (JSON.stringify(next) === JSON.stringify(msgs)) return;
-                    apply('/', next);
-                })
+                .then(data => { if (data) apply('/', data); })
                 .catch(() => { });
         }, 4000);
 
