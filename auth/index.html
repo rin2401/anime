@@ -18,7 +18,8 @@
     <link type="text/css" rel="stylesheet" href="https://www.gstatic.com/firebasejs/ui/6.1.0/firebase-ui-auth.css" />
     <script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/ui/6.1.0/firebase-ui-auth.js"></script>
+    <!-- Bundle tiếng Việt của firebaseui: label + thông báo lỗi native tiếng Việt -->
+    <script src="https://www.gstatic.com/firebasejs/ui/6.1.0/firebase-ui-auth__vi.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/blueimp-md5/2.19.0/js/md5.min.js"></script>
     <script src="/anime/auth/auth.js"></script>
     <script>
@@ -40,10 +41,7 @@
                 // firebase.auth.FacebookAuthProvider.PROVIDER_ID,
                 // firebase.auth.TwitterAuthProvider.PROVIDER_ID,
                 // firebase.auth.GithubAuthProvider.PROVIDER_ID,
-                // EmailAuthProvider bỏ khỏi firebaseui: luồng 2 bước (email ->
-                // mật khẩu) không có config gộp 1 màn; đăng nhập email+mật khẩu
-                // chạy bằng form custom #email-auth bên dưới (signInWithEmail
-                // AndPassword), giữ nút Google cho firebaseui.
+                firebase.auth.EmailAuthProvider.PROVIDER_ID,
                 // firebase.auth.PhoneAuthProvider.PROVIDER_ID,
                 // firebaseui.auth.AnonymousAuthProvider.PROVIDER_ID
             ],
@@ -81,112 +79,6 @@
             }
         });
 
-        // firebaseui không có link "Trouble signing in?" trên màn "You already
-        // have an account" (email chỉ có provider Google), nên thêm form gửi
-        // thư đặt lại mật khẩu riêng — luôn hiện dưới form mọi màn hình.
-        // Dùng form inline thay vì prompt(): một số webview chặn/cản dialog,
-        // và trạng thái lỗi hiển thị ngay tại chỗ không phụ thuộc alert().
-        // Script nằm trong <head> nên phải chờ DOM mới gắn được listener.
-        var FORGOT_ERRORS = {
-            'auth/invalid-email': 'Email không hợp lệ.',
-            'auth/user-not-found': 'Không tìm thấy account với email này.'
-        };
-        document.addEventListener('DOMContentLoaded', function () {
-            var link = document.getElementById('forgot-password-link');
-            var form = document.getElementById('forgot-password-form');
-            var input = document.getElementById('forgot-password-email');
-            var status = document.getElementById('forgot-password-status');
-
-            function showStatus(text, isError) {
-                status.textContent = text;
-                status.style.color = isError ? '#d93025' : '#188038';
-                status.hidden = false;
-            }
-
-            link.addEventListener('click', function (event) {
-                event.preventDefault();
-                form.hidden = !form.hidden;
-                if (!form.hidden) input.focus();
-            });
-
-            form.addEventListener('submit', function (event) {
-                event.preventDefault();
-                var email = input.value.trim();
-                if (!email) {
-                    showStatus('Nhập email đã đăng ký trước.', true);
-                    return;
-                }
-                auth.sendPasswordResetEmail(email).then(function () {
-                    // Giữ form mở — dòng xác nhận nằm trong form, ẩn form là
-                    // mất luôn thông báo thành công.
-                    showStatus('Đã gửi thư đặt lại mật khẩu tới ' + email + '. Mở thư (kiểm tra cả Spam), bấm link để đặt mật khẩu mới rồi đăng nhập bằng email + mật khẩu mới.', false);
-                }).catch(function (err) {
-                    showStatus(FORGOT_ERRORS[err && err.code] || 'Không gửi được thư: ' + ((err && err.code) || err), true);
-                });
-            });
-        });
-
-        // Đăng nhập email + mật khẩu một màn hình — firebaseui không hỗ trợ
-        // gộp 2 bước thành 1, nên gọi thẳng SDK; thành công thì
-        // onAuthStateChanged tự chuyển hướng về trang chủ.
-        var EMAIL_ERRORS = {
-            'auth/invalid-email': 'Email không hợp lệ.',
-            'auth/user-not-found': 'Email hoặc mật khẩu chưa đúng.',
-            'auth/wrong-password': 'Email hoặc mật khẩu chưa đúng.',
-            'auth/invalid-credential': 'Email hoặc mật khẩu chưa đúng.',
-            'auth/too-many-requests': 'Thử sai quá nhiều lần — chờ ít phút rồi thử lại.',
-            'auth/email-already-in-use': 'Email đã có account — nhập mật khẩu đã đặt để đăng nhập, hoặc dùng Sign in with Google.',
-            'auth/weak-password': 'Mật khẩu cần tối thiểu 6 ký tự.'
-        };
-        document.addEventListener('DOMContentLoaded', function () {
-            var form = document.getElementById('email-auth');
-            var emailInput = document.getElementById('email-auth-email');
-            var passwordInput = document.getElementById('email-auth-password');
-            var signupCheckbox = document.getElementById('email-auth-signup');
-            var submitButton = document.getElementById('email-auth-submit');
-            var status = document.getElementById('email-auth-status');
-            var toggleLink = document.getElementById('email-auth-toggle');
-            var wrap = document.getElementById('email-auth-wrap');
-
-            // Form email ẩn sẵn — chỉ hiện khi bấm link, giữ màn gọn quanh nút Google.
-            toggleLink.addEventListener('click', function (event) {
-                event.preventDefault();
-                wrap.hidden = false;
-                toggleLink.hidden = true;
-                emailInput.focus();
-            });
-
-            function showEmailStatus(text, isError) {
-                status.textContent = text;
-                status.style.color = isError ? '#d93025' : '#188038';
-                status.hidden = false;
-            }
-
-            signupCheckbox.addEventListener('change', function () {
-                passwordInput.autocomplete = signupCheckbox.checked ? 'new-password' : 'current-password';
-                submitButton.textContent = signupCheckbox.checked ? 'Tạo account và đăng nhập' : 'Đăng nhập';
-            });
-
-            form.addEventListener('submit', function (event) {
-                event.preventDefault();
-                var email = emailInput.value.trim();
-                var password = passwordInput.value;
-                if (!email || !password) {
-                    showEmailStatus('Nhập đủ email và mật khẩu.', true);
-                    return;
-                }
-                submitButton.disabled = true;
-                var request = signupCheckbox.checked
-                    ? auth.createUserWithEmailAndPassword(email, password)
-                    : auth.signInWithEmailAndPassword(email, password);
-                request.then(function () {
-                    showEmailStatus('Đăng nhập thành công — đang chuyển hướng…', false);
-                }).catch(function (err) {
-                    submitButton.disabled = false;
-                    showEmailStatus(EMAIL_ERRORS[err && err.code] || 'Không đăng nhập được: ' + ((err && err.code) || err), true);
-                });
-            });
-        });
     </script>
     <style>
         body,
@@ -211,139 +103,6 @@
             align-items: center;
         }
 
-        /* #email-auth + #forgot-password theo đúng design language firebaseui:
-        Roboto 16px, input gạch chân, nút raised indigo — giá trị copy từ
-        firebase-ui-auth.css 6.1.0 (stylesheet đã được load, Roboto import sẵn). */
-        .email-card {
-            width: 330px;
-            box-sizing: border-box;
-            margin-top: 16px;
-            padding: 0 24px 24px;
-            background: #fff;
-            font-family: Roboto, arial, sans-serif;
-            font-size: 16px;
-            color: rgba(0, 0, 0, .87);
-            text-align: left;
-        }
-
-        .email-card-title {
-            font-size: 20px;
-            font-weight: 500;
-            line-height: 24px;
-            color: rgba(0, 0, 0, .87);
-            margin: 0;
-            padding: 24px 0 16px;
-        }
-
-        .email-card-field {
-            width: 100%;
-            padding-top: 10px;
-        }
-
-        .email-card-label {
-            display: block;
-            font-size: 16px;
-            color: rgba(0, 0, 0, .54);
-        }
-
-        .email-card-input {
-            width: 100%;
-            box-sizing: border-box;
-            padding: 4px 0 3px;
-            border: none;
-            border-bottom: 1px solid rgba(0, 0, 0, .12);
-            border-radius: 0;
-            background: none;
-            font-family: inherit;
-            font-size: 16px;
-            color: rgba(0, 0, 0, .87);
-            color-scheme: light;
-        }
-
-        .email-card-input:focus {
-            outline: none;
-            border-bottom: 2px solid #3f51b5;
-            padding-bottom: 2px;
-        }
-
-        #email-auth-signup-label {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 14px;
-            color: rgba(0, 0, 0, .54);
-            margin-top: 12px;
-        }
-
-        .email-card-actions {
-            text-align: right;
-            margin-top: 16px;
-        }
-
-        .email-card-button {
-            height: 36px;
-            min-width: 88px;
-            padding: 0 16px;
-            border: 0;
-            border-radius: 2px;
-            background: #3f51b5;
-            color: #fff;
-            font-family: inherit;
-            font-size: 14px;
-            font-weight: 500;
-            text-transform: uppercase;
-            line-height: 36px;
-            cursor: pointer;
-            box-shadow: 0 2px 2px 0 rgba(0, 0, 0, .14), 0 3px 1px -2px rgba(0, 0, 0, .2), 0 1px 5px 0 rgba(0, 0, 0, .12);
-        }
-
-        .email-card-button:disabled {
-            background: rgba(0, 0, 0, .12);
-            color: rgba(0, 0, 0, .26);
-            box-shadow: none;
-            cursor: default;
-        }
-
-        #email-auth-status,
-        #forgot-password-status {
-            font-size: 14px;
-            margin: 12px 0 0;
-        }
-
-        #forgot-password {
-            padding-top: 0;
-        }
-
-        #forgot-password-link {
-            display: block;
-            text-align: center;
-            color: #4285f4;
-            font-size: 14px;
-            text-decoration: none;
-            padding: 16px 0 0;
-        }
-
-        /* display:flex sẽ ghi đè attribute hidden — ép mọi element ẩn đúng */
-        [hidden] {
-            display: none !important;
-        }
-
-        /* Link mở form email — kiểu secondary action firebaseui */
-        #email-auth-toggle {
-            display: block;
-            text-align: center;
-            color: #4285f4;
-            font-size: 14px;
-            font-family: Roboto, arial, sans-serif;
-            text-decoration: none;
-            padding: 16px 0 0;
-        }
-
-        #forgot-password-form {
-            display: flex;
-            flex-direction: column;
-        }
-
         #logo {
             display: flex;
             align-items: center;
@@ -358,40 +117,6 @@
         <img id="logo" src="/anime/image/r3.png" alt="Logo">
     </div>
     <div id="firebaseui-auth-container"></div>
-    <a href="#" id="email-auth-toggle">Đăng nhập bằng email</a>
-    <div id="email-auth-wrap" hidden>
-        <form id="email-auth" class="email-card">
-            <h2 class="email-card-title">Đăng nhập bằng email</h2>
-            <div class="email-card-field">
-                <label class="email-card-label" for="email-auth-email">Email</label>
-                <input type="email" id="email-auth-email" class="email-card-input" autocomplete="username">
-            </div>
-            <div class="email-card-field">
-                <label class="email-card-label" for="email-auth-password">Mật khẩu</label>
-                <input type="password" id="email-auth-password" class="email-card-input" autocomplete="current-password">
-            </div>
-            <label id="email-auth-signup-label">
-                <input type="checkbox" id="email-auth-signup"> Tạo account mới
-            </label>
-            <div class="email-card-actions">
-                <button type="submit" id="email-auth-submit" class="email-card-button">Đăng nhập</button>
-            </div>
-            <p id="email-auth-status" hidden></p>
-        </form>
-        <div id="forgot-password" class="email-card">
-            <a href="#" id="forgot-password-link">Quên mật khẩu?</a>
-            <form id="forgot-password-form" hidden>
-                <div class="email-card-field">
-                    <label class="email-card-label" for="forgot-password-email">Email đã đăng ký</label>
-                    <input type="email" id="forgot-password-email" class="email-card-input" autocomplete="email">
-                </div>
-                <div class="email-card-actions">
-                    <button type="submit" id="forgot-password-submit" class="email-card-button">Gửi thư đặt lại mật khẩu</button>
-                </div>
-                <p id="forgot-password-status" hidden></p>
-            </form>
-        </div>
-    </div>
 </body>
 
 </html>
