@@ -232,8 +232,18 @@
                         artwork.push({ src: imageUrl, sizes: '512x512', type: 'image/png' });
                     }
                 }
+                // Lock screen iOS: title = nhãn tập (dòng lớn), artist = tên
+                // bộ (dòng phụ — quy ước metadata: title là nội dung đang
+                // phát, artist là tác giả). Không set album cho gọn. AVS
+                // title là nhãn tập ("12 END") không có tên bộ — baseTitle
+                // giữ nguyên nhãn khi không có Sheet thì artist rỗng thay vì
+                // rác; hậu tố END trong key Firebase khai lại trên title.
+                var endTag = /end/i.test(String(episode.id)) ? ' END' : '';
+                var seriesName = baseTitle(episode.title);
+                if (!sheetTitle && seriesName === String(episode.title).trim()) seriesName = '';
                 navigator.mediaSession.metadata = new MediaMetadata({
-                    title: episode.title,
+                    title: ('Tập ' + displayEp(episode.id) + endTag).trim(),
+                    artist: seriesName.slice(0, 80),
                     artwork: artwork,
                 });
             };
