@@ -868,16 +868,11 @@
                 safeHandler('pause', function () { art.pause(); });
                 safeHandler('previoustrack', function () { jump(-1); });
                 safeHandler('nexttrack', function () { jump(1); });
-                safeHandler('seekforward', function (d) {
-                    var off = (d && d.seekOffset) || 10;
-                    art.currentTime = Math.min((art.currentTime || 0) + off, art.duration || (art.currentTime || 0) + off);
-                    updatePositionState();
-                });
-                safeHandler('seekbackward', function (d) {
-                    var off = (d && d.seekOffset) || 10;
-                    art.currentTime = Math.max((art.currentTime || 0) - off, 0);
-                    updatePositionState();
-                });
+                // KHÔNG set seekforward/seekbackward: iOS lock screen ưu tiên
+                // hiện 2 nút "tua ±N giây" chiếm hết 2 slot cạnh play/pause
+                // (test user: chỉ thấy tua 10s, ⏮/⏭ biến mất). Bỏ 2 handler
+                // này để iOS hiện nút tập trước/sau; vẫn còn seekto + thanh
+                // tiến độ kéo được nên không mất khả năng tua.
                 safeHandler('seekto', function (d) {
                     if (d && d.seekTime != null && isFinite(d.seekTime)) art.currentTime = d.seekTime;
                     updatePositionState();
