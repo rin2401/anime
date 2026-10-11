@@ -14,6 +14,8 @@
     <link rel="manifest" href="/anime/manifest.json">
     <link rel="icon" type="image/png" href="/anime/image/r3_512.png">
 
+        <link rel="preconnect" href="https://i0.wp.com">
+
     <style>
         :root {
             color-scheme: dark;
@@ -250,6 +252,7 @@
                 wrap.className = 'poster-wrap';
                 var img = document.createElement('img');
                 img.loading = 'lazy';
+                img.decoding = 'async';
                 img.alt = '';
                 img.src = thumbUrl(e.poster || '/anime/image/r3_512.png');
                 img.onerror = function () { this.src = e.poster || '/anime/image/r3_512.png'; };
