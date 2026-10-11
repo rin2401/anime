@@ -145,6 +145,16 @@
             var signupCheckbox = document.getElementById('email-auth-signup');
             var submitButton = document.getElementById('email-auth-submit');
             var status = document.getElementById('email-auth-status');
+            var toggleLink = document.getElementById('email-auth-toggle');
+            var wrap = document.getElementById('email-auth-wrap');
+
+            // Form email ẩn sẵn — chỉ hiện khi bấm link, giữ màn gọn quanh nút Google.
+            toggleLink.addEventListener('click', function (event) {
+                event.preventDefault();
+                wrap.hidden = false;
+                toggleLink.hidden = true;
+                emailInput.focus();
+            });
 
             function showEmailStatus(text, isError) {
                 status.textContent = text;
@@ -313,9 +323,20 @@
             padding: 16px 0 0;
         }
 
-        /* display:flex sẽ ghi đè attribute hidden — phải khai báo lại display:none */
-        #forgot-password-form[hidden] {
-            display: none;
+        /* display:flex sẽ ghi đè attribute hidden — ép mọi element ẩn đúng */
+        [hidden] {
+            display: none !important;
+        }
+
+        /* Link mở form email — kiểu secondary action firebaseui */
+        #email-auth-toggle {
+            display: block;
+            text-align: center;
+            color: #4285f4;
+            font-size: 14px;
+            font-family: Roboto, arial, sans-serif;
+            text-decoration: none;
+            padding: 16px 0 0;
         }
 
         #forgot-password-form {
@@ -337,36 +358,39 @@
         <img id="logo" src="/anime/image/r3.png" alt="Logo">
     </div>
     <div id="firebaseui-auth-container"></div>
-    <form id="email-auth" class="email-card">
-        <h2 class="email-card-title">Đăng nhập bằng email</h2>
-        <div class="email-card-field">
-            <label class="email-card-label" for="email-auth-email">Email</label>
-            <input type="email" id="email-auth-email" class="email-card-input" autocomplete="username">
-        </div>
-        <div class="email-card-field">
-            <label class="email-card-label" for="email-auth-password">Mật khẩu</label>
-            <input type="password" id="email-auth-password" class="email-card-input" autocomplete="current-password">
-        </div>
-        <label id="email-auth-signup-label">
-            <input type="checkbox" id="email-auth-signup"> Tạo account mới
-        </label>
-        <div class="email-card-actions">
-            <button type="submit" id="email-auth-submit" class="email-card-button">Đăng nhập</button>
-        </div>
-        <p id="email-auth-status" hidden></p>
-    </form>
-    <div id="forgot-password" class="email-card">
-        <a href="#" id="forgot-password-link">Quên mật khẩu?</a>
-        <form id="forgot-password-form" hidden>
+    <a href="#" id="email-auth-toggle">Đăng nhập bằng email</a>
+    <div id="email-auth-wrap" hidden>
+        <form id="email-auth" class="email-card">
+            <h2 class="email-card-title">Đăng nhập bằng email</h2>
             <div class="email-card-field">
-                <label class="email-card-label" for="forgot-password-email">Email đã đăng ký</label>
-                <input type="email" id="forgot-password-email" class="email-card-input" autocomplete="email">
+                <label class="email-card-label" for="email-auth-email">Email</label>
+                <input type="email" id="email-auth-email" class="email-card-input" autocomplete="username">
             </div>
+            <div class="email-card-field">
+                <label class="email-card-label" for="email-auth-password">Mật khẩu</label>
+                <input type="password" id="email-auth-password" class="email-card-input" autocomplete="current-password">
+            </div>
+            <label id="email-auth-signup-label">
+                <input type="checkbox" id="email-auth-signup"> Tạo account mới
+            </label>
             <div class="email-card-actions">
-                <button type="submit" id="forgot-password-submit" class="email-card-button">Gửi thư đặt lại mật khẩu</button>
+                <button type="submit" id="email-auth-submit" class="email-card-button">Đăng nhập</button>
             </div>
-            <p id="forgot-password-status" hidden></p>
+            <p id="email-auth-status" hidden></p>
         </form>
+        <div id="forgot-password" class="email-card">
+            <a href="#" id="forgot-password-link">Quên mật khẩu?</a>
+            <form id="forgot-password-form" hidden>
+                <div class="email-card-field">
+                    <label class="email-card-label" for="forgot-password-email">Email đã đăng ký</label>
+                    <input type="email" id="forgot-password-email" class="email-card-input" autocomplete="email">
+                </div>
+                <div class="email-card-actions">
+                    <button type="submit" id="forgot-password-submit" class="email-card-button">Gửi thư đặt lại mật khẩu</button>
+                </div>
+                <p id="forgot-password-status" hidden></p>
+            </form>
+        </div>
     </div>
 </body>
 
