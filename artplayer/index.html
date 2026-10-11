@@ -203,10 +203,11 @@
                 };
                 img.src = src;
             };
-            // Letterbox 512x512: vẽ poster nguyên vẹn giữa canvas trong suốt
-            // (không cắt đầu/chân như crop vuông) -> data URL PNG. Ảnh nguồn
-            // lấy qua Photon (ACAO *) nên canvas không bị taint.
-            var padSquare = function (src, done) {
+            // Crop vuông neo TRÊN bằng canvas: scale phủ kín 512x512, giữ phần
+            // trên (mặt/nhân vật), chỉ cắt phần dưới — đẹp hơn crop giữa của
+            // Photon (chỉ crop giữa, không neo được). Xuất data URL; ảnh nguồn
+            // qua Photon (ACAO *) nên canvas không bị taint.
+            var canvasSquare = function (src, done) {
                 if (!src || src.indexOf('http') !== 0) { done(null); return; }
                 var img = new Image();
                 img.crossOrigin = 'anonymous';
@@ -216,11 +217,11 @@
                         var cv = document.createElement('canvas');
                         cv.width = 512; cv.height = 512;
                         var ctx = cv.getContext('2d');
-                        var s = Math.min(512 / img.naturalWidth, 512 / img.naturalHeight) || 1;
-                        var w = Math.max(1, Math.round(img.naturalWidth * s));
-                        var h = Math.max(1, Math.round(img.naturalHeight * s));
-                        ctx.drawImage(img, (512 - w) / 2, (512 - h) / 2, w, h);
-                        done(cv.toDataURL('image/png'));
+                        var s = Math.max(512 / img.naturalWidth, 512 / img.naturalHeight) || 1;
+                        var w = Math.max(512, Math.round(img.naturalWidth * s));
+                        var h = Math.max(512, Math.round(img.naturalHeight * s));
+                        ctx.drawImage(img, (512 - w) / 2, 0, w, h);
+                        done(cv.toDataURL('image/jpeg', 0.9));
                     } catch (e) { done(null); }
                 };
                 img.onerror = function () {
@@ -234,38 +235,26 @@
             } else if (msArt === 'square') {
                 srcs = [artworkSrc(episode.image, 512)];
             } else if (msArt === 'pad') {
-                // Debug: CHỈ entry letterbox data URL
-                padSquare(artworkSrc(sheetImage || episode.image), function (dataUrl) {
+                // Debug: CHỈ entry crop vuông neo trên (data URL) — test iOS
+                // có render artwork data: không trước khi làm mặc định
+                canvasSquare(artworkSrc(sheetImage || episode.image), function (dataUrl) {
                     if (token !== _msToken || !dataUrl) return;
                     setArtwork(dataUrl, 512, 512);
                 });
                 return;
             } else {
-                // Mặc định: letterbox data URL (poster nguyên vẹn) đứng đầu;
-                // nếu iOS không render được data: thì còn entry vuông Photon
-                // (đã xác nhận render) và logo đối chữa
-                var best = sheetImage || episode.image;
-                if (best) {
-                    var fallbackEntries = [{ src: imageUrl, sizes: '512x512', type: 'image/png' }];
-                    if (sheetImage) fallbackEntries.unshift({
-                        src: artworkSrc(sheetImage, 512), sizes: '512x512',
-                        type: /\.png($|\?)/i.test(sheetImage) ? 'image/png' : 'image/jpeg'
-                    });
-                    if (episode.image && episode.image !== sheetImage && episode.image !== imageUrl) fallbackEntries.unshift({
-                        src: artworkSrc(episode.image, 512), sizes: '512x512',
-                        type: /\.png($|\?)/i.test(episode.image) ? 'image/png' : 'image/jpeg'
-                    });
-                    padSquare(artworkSrc(best), function (dataUrl) {
-                        if (token !== _msToken) return;
-                        if (dataUrl) fallbackEntries.unshift({ src: dataUrl, sizes: '512x512', type: 'image/png' });
-                        navigator.mediaSession.metadata = new MediaMetadata({
-                            title: episode.title,
-                            artwork: fallbackEntries,
-                        });
-                    });
-                    return;
-                }
-                srcs = [imageUrl];
+                // Mặc định: poster Photon crop VUÔNG 512x512 đứng đầu — cấu
+                // hình đã xác nhận render trên lock screen iPhone; ưu tiên
+                // poster Sheet (AniList CDN, không bị chặn hotlink như poster
+                // tập AVS); sau đó 720, ảnh gốc, logo đối chữa
+                var imgs = [];
+                if (sheetImage) imgs.push(sheetImage);
+                if (episode.image && episode.image !== sheetImage && episode.image !== imageUrl) imgs.push(episode.image);
+                srcs = [];
+                imgs.map(function (im) { srcs.push(artworkSrc(im, 512)); });
+                if (imgs.length) srcs.push(artworkSrc(imgs[0]));
+                if (imgs.length) srcs.push(imgs[0]);
+                srcs.push(imageUrl);
             }
             probeArtwork(srcs.filter(Boolean));
         }
