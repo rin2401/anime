@@ -249,8 +249,7 @@
         #drive-btn,
         #next-btn,
         #hls-btn,
-        #pip-btn,
-        #fav-btn {
+        #pip-btn {
             padding: 0 12px;
             font-size: 13px;
             font-weight: 700;
@@ -282,8 +281,7 @@
         #drive-btn:active,
         #next-btn:active,
         #hls-btn:active,
-        #pip-btn:active,
-        #fav-btn:active {
+        #pip-btn:active {
             background: rgba(0, 0, 0, .85);
         }
 
@@ -380,7 +378,6 @@
                 allow="autoplay; encrypted-media; fullscreen; picture-in-picture"></iframe>
             <div id="vid-tools">
                 <button id="fs-btn" type="button" aria-label="Toàn màn hình" title="Toàn màn hình">⛶</button>
-                <button id="fav-btn" type="button" title="Lưu / bỏ yêu thích">♡ Yêu thích</button>
                 <button id="pip-btn" type="button" title="Xem trong cửa sổ nổi">PiP</button>
                 <a id="drive-btn" target="_blank" rel="noopener"
                     title="Mở trong app Google Drive — fullscreen thật trên iPhone">Drive ↗</a>
@@ -424,7 +421,6 @@
         const stageEl = document.getElementById('stage');
         const autoCb = document.getElementById('auto-next-cb');
         const ntText = document.getElementById('nt-text');
-        const favBtn = document.getElementById('fav-btn');
 
         // Cuộn danh sách tới tập đang xem — gán scrollTop trực tiếp trên #episodes.
         // KHÔNG dùng scrollIntoView: nó cuộn cả root viewport, trên iOS sẽ đẩy video
@@ -692,26 +688,6 @@
             UserHistory.save(entry);
         }
 
-        // ── Yêu thích: ♥/♡ toggle cho BỘ đang mở (chỉ playlist ?id=) — cùng
-        // itemKey 'gd:<id>' với lịch sử nên đồng bộ đúng bộ giữa các máy
-        var favOn = false;
-        function setFavIcon(on) {
-            favBtn.textContent = (on ? '♥' : '♡') + ' Yêu thích';
-        }
-        favBtn.addEventListener('click', () => {
-            if (typeof UserHistory === 'undefined' || !id) return;
-            if (favOn) {
-                UserHistory.removeFav('gd:' + id);
-                favOn = false;
-            } else {
-                const ep = epList[curIdx];
-                if (!ep) return;
-                UserHistory.saveFav(baseEntry(ep));
-                favOn = true;
-            }
-            setFavIcon(favOn);
-        });
-
         function selectEpisode(idx) {
             const ep = epList[idx];
             if (!ep) return;
@@ -875,11 +851,6 @@
             );
         }
 
-        // đã yêu thích từ trước (máy khác / lần trước) -> vào trang là ♥ ngay.
-        // Phải đứng SAU entry chain: cần const id đã khởi tạo (TDZ của const)
-        if (id && typeof UserHistory !== 'undefined') {
-            UserHistory.isFav('gd:' + id).then(on => { favOn = !!on; setFavIcon(favOn); });
-        }
     </script>
 
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-1PSF8GWBEY"></script>

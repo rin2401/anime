@@ -200,7 +200,7 @@
     </div>
 
     <div id="banner"></div>
-    <div id="empty">Chưa có mục yêu thích — bấm ♡ Yêu thích trong player để lưu.</div>
+    <div id="empty">Chưa có mục yêu thích — bấm ♡ ở góc card phim trên trang chủ để lưu.</div>
     <div id="grid"></div>
 
     <script>
@@ -231,13 +231,14 @@
             }
 
             // Link mở lại đúng mùa/bộ tại tập đang xem lúc bấm ♥; không kèm ?t=
-            // (yêu thích là cấp bộ, không resume theo mốc giây)
+            // (yêu thích là cấp bộ, không resume theo mốc giây). Entry lưu từ
+            // nút ♡ trên card trang chủ không có eid -> mở từ đầu, không &e=
             function playerUrl(e) {
                 var base;
                 if (e.kind === 'phimapi') base = '/anime/artplayer/?k=' + encodeURIComponent(e.key);
                 else if (e.kind === 'gdrive') base = '/anime/gdrive/?id=' + encodeURIComponent(e.key);
                 else base = '/anime/artplayer/?id=' + encodeURIComponent(e.key);
-                return base + '&e=' + encodeURIComponent(e.eid);
+                return e.eid ? base + '&e=' + encodeURIComponent(e.eid) : base;
             }
 
             function buildCard(e) {
@@ -263,7 +264,7 @@
                 var sub = document.createElement('div');
                 sub.className = 'sub';
                 var epTxt = e.ep || e.eid || '';
-                sub.textContent = 'Tập ' + epTxt + ' · ' + ago(e.ts);
+                sub.textContent = (epTxt ? 'Tập ' + epTxt + ' · ' : '') + ago(e.ts);
                 a.appendChild(sub);
 
                 var del = document.createElement('button');
@@ -294,7 +295,7 @@
             function render() {
                 UserHistory.listFav().then(function (all) {
                     var entries = Object.keys(all || {}).map(function (k) { return all[k]; })
-                        .filter(function (e) { return e && e.itemKey && e.key && e.eid !== undefined; });
+                        .filter(function (e) { return e && e.itemKey && e.key; });
                     entries.sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); });
 
                     var seen = {};

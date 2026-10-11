@@ -5,14 +5,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Anime</title>
-    <link rel="apple-touch-icon" href="/anime/image/r3_512.png">
+    <link rel="apple-touch-icon" href="/anime/image/r3_512.png?v=2">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta name="apple-mobile-web-app-title" content="Anime">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#1a1a1a">
     <link rel="manifest" href="/anime/manifest.json">
-    <link rel="icon" type="image/png" href="/anime/image/r3_512.png">
+    <link rel="icon" type="image/png" href="/anime/image/r3_512.png?v=2">
     <meta property="og:image" content="/anime/image/r3.png">
 
     <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
@@ -150,6 +150,33 @@
             /* TV yếu: bỏ qua layout/paint các card ngoài màn hình (engine cũ tự bỏ qua) */
             content-visibility: auto;
             contain-intrinsic-size: 300px 424px;
+        }
+
+        /* Nút yêu thích trên card: ♡ góc phải trên poster (đè lên nhãn tên) */
+        .card-fav {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            z-index: 3;
+            width: 32px;
+            height: 32px;
+            padding: 0;
+            border: none;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.45);
+            color: #fff;
+            font-size: 18px;
+            line-height: 1;
+            cursor: pointer;
+            transition: transform 0.15s;
+        }
+
+        .card-fav:hover {
+            transform: scale(1.12);
+        }
+
+        .card-fav.on {
+            color: #ff5c77;
         }
 
         .anime-ep-box {
@@ -409,6 +436,7 @@
     <div class="image-container" id="imageContainer"></div>
 
     <script defer src="/anime/auth/auth.js"></script>
+    <script defer src="/anime/auth/user-history.js"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/blueimp-md5/2.19.0/js/md5.min.js"></script>
     <script>
         const imageContainer = document.getElementById('imageContainer');
@@ -650,6 +678,44 @@
             });
         }
 
+        // ── Yêu thích trên card: ♡/♥ toggle cấp BỘ (nút này thay nút ♥ trong
+        // player). itemKey trùng thứ tự ưu tiên playerUrl (playlist > anilist_id
+        // > kkphim > gdrive) nên cùng key với entry lịch sử của player.
+        function favItem(image) {
+            if (image.playlist) return { itemKey: String(image.playlist), kind: "playlist", key: String(image.playlist) };
+            if (image.anilist_id) return { itemKey: String(image.anilist_id), kind: "playlist", key: String(image.anilist_id) };
+            if (image.phimapi) return { itemKey: "kk:" + image.phimapi, kind: "phimapi", key: String(image.phimapi) };
+            if (image.gdrive) return { itemKey: "gd:" + image.gdrive, kind: "gdrive", key: String(image.gdrive) };
+            return null;
+        }
+
+        // map itemKey đang yêu thích — cập nhật ngay khi toggle để render lại
+        // card (đổi filter/search) giữ đúng trạng thái mà không phải chờ cloud
+        var favSet = {};
+
+        function paintCardFav(btn, on) {
+            btn.textContent = on ? "♥" : "♡";
+            btn.classList.toggle("on", on);
+        }
+
+        // nạp trạng thái ♥ từ cloud/localStorage; UserHistory.onChange gọi lại
+        // ngay khi đăng nhập/đổi máy nên không cần móc vào onAuthStateChanged
+        function refreshFavSet() {
+            if (typeof UserHistory === "undefined") return;
+            UserHistory.listFav().then(function (list) {
+                favSet = {};
+                list.map(function (e) { favSet[e.itemKey] = true; });
+                var btns = document.querySelectorAll(".card-fav");
+                for (var i = 0; i < btns.length; i++) {
+                    paintCardFav(btns[i], !!favSet[btns[i].getAttribute("data-item-key")]);
+                }
+            }).catch(function () {});
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            if (typeof UserHistory !== "undefined") UserHistory.onChange(refreshFavSet);
+        });
+
         function createAnimeCard(image, history, seasons, current) {
             const animeCard = document.createElement('div');
             animeCard.classList.add('anime-card');
@@ -800,6 +866,40 @@
                 // đã bỏ suffix — khớp với nút P được highlight
                 nameLabel.textContent = seasons ? String(show.name || image.name || "") : image.name;
                 animeCard.appendChild(nameLabel);
+            }
+
+            // Nút ♡ yêu thích: theo mùa đang mở trên card (show) — cùng itemKey
+            // với entry lịch sử của mùa đó. Không có nguồn phát nào thì bỏ qua.
+            var favIt = favItem(show) || favItem(image);
+            if (favIt) {
+                const fav = document.createElement('button');
+                fav.type = 'button';
+                fav.classList.add('card-fav');
+                fav.title = 'Lưu / bỏ yêu thích';
+                fav.setAttribute('data-item-key', favIt.itemKey);
+                paintCardFav(fav, !!favSet[favIt.itemKey]);
+                fav.addEventListener('click', function (ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    if (typeof UserHistory === 'undefined') return;
+                    if (favSet[favIt.itemKey]) {
+                        delete favSet[favIt.itemKey];
+                        paintCardFav(fav, false);
+                        UserHistory.removeFav(favIt.itemKey);
+                    } else {
+                        favSet[favIt.itemKey] = true;
+                        paintCardFav(fav, true);
+                        // entry mức bộ: không eid/ep — trang Yêu thích mở từ đầu
+                        UserHistory.saveFav({
+                            itemKey: favIt.itemKey,
+                            kind: favIt.kind,
+                            key: favIt.key,
+                            title: String(show.name || image.name || "").slice(0, 120),
+                            poster: image.imageRaw || image.image || "",
+                        });
+                    }
+                });
+                animeCard.appendChild(fav);
             }
 
             animeCard.appendChild(epBox);

@@ -920,43 +920,6 @@
                 },
             });
 
-            // ── Nút yêu thích trên control bar: ♥/♡ toggle cho BỘ đang mở
-            // (không theo tập — yêu thích là cấp bộ, entry ghi đúng mùa/tập
-            // đang mở để trang Yêu thích mở lại cùng chỗ)
-            var favOn = false;
-            function setFavIcon(on) {
-                var el = document.querySelector('.art-control-fav-btn');
-                if (el) el.innerHTML = '<span style="font-size: 19px; color: ' +
-                    (on ? '#ff5c77' : '#fff') + ';">' + (on ? '♥' : '♡') + '</span>';
-            }
-            function toggleFav() {
-                if (!histItem || !currentEpisode || typeof UserHistory === 'undefined') return;
-                if (favOn) {
-                    UserHistory.removeFav(histItem.itemKey);
-                    favOn = false;
-                } else {
-                    UserHistory.saveFav(buildEntry());
-                    favOn = true;
-                }
-                setFavIcon(favOn);
-            }
-            art.controls.add({
-                name: 'fav-btn',
-                position: 'right',
-                index: 2,
-                html: '<span style="font-size: 19px; color: #fff;">♡</span>',
-                tooltip: 'Yêu thích',
-                click: function () { toggleFav(); },
-            });
-            // trạng thái ban đầu: đã yêu thích từ trước (máy khác hoặc lần trước)
-            // thì vào trang là ♥ ngay
-            if (histItem && typeof UserHistory !== 'undefined') {
-                UserHistory.isFav(histItem.itemKey).then(function (on) {
-                    favOn = !!on;
-                    setFavIcon(favOn);
-                });
-            }
-
             // Gộp danh sách tập của TẤT CẢ các mùa vào chung panel playlist:
             // plugin render sẵn tập mùa hiện tại; các mùa còn lại (header
             // "Mùa N" + item tập) inject thêm vào .art-selector-list. Bấm tập

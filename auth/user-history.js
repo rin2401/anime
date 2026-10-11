@@ -110,7 +110,8 @@ var UserHistory = (function () {
     }
 
     function save(store, entry, keepalive) {
-        if (!entry || !entry.itemKey || !entry.key || entry.eid === undefined) return;
+        // eid là tuỳ chọn: entry từ nút ♡ trên card trang chủ không có tập
+        if (!entry || !entry.itemKey || !entry.key) return;
         entry.ts = Date.now();
         if (user) cloudSave(store, entry, keepalive); // async, không chặn
         var all = lsGet(store);
@@ -148,14 +149,19 @@ var UserHistory = (function () {
     }
 
     if (typeof firebase !== 'undefined' && firebase.auth) {
-        firebase.auth().onAuthStateChanged(function (u) {
-            user = u || null;
-            if (user) {
-                mergeLocalUp(STORES.hist);
-                mergeLocalUp(STORES.fav);
-            }
-            cbs.forEach(function (cb) { cb(user); });
-        });
+        try {
+            firebase.auth().onAuthStateChanged(function (u) {
+                user = u || null;
+                if (user) {
+                    mergeLocalUp(STORES.hist);
+                    mergeLocalUp(STORES.fav);
+                }
+                cbs.forEach(function (cb) { cb(user); });
+            });
+        } catch (e) {
+            // chưa có app Firebase mặc định (auth.js chưa load) — vẫn chạy
+            // được phần localStorage, không được văng lúc evaluate file
+        }
     }
 
     return {
