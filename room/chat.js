@@ -1,12 +1,14 @@
 // ── RoomChat — chat TẠM cho phòng xem chung ──
 // Node chat/{code}: mỗi tin là một entry {uid, name, text, ts}, POST (PUSH)
-// với idToken — rules cho phép mọi user đăng nhập ghi tin, còn state phát
-// (url/pos/playing ở room/{code}) vẫn chỉ host được ghi.
+// — rules cho phép MỌI NGƯỜI (kể cả khách không đăng nhập) ghi tin vào phòng
+// ĐANG TỒN TẠI (root.child('room').child($roomId).exists() — không ai dùng
+// được node chat làm kho lưu trữ chung), còn state phát (url/pos/playing ở
+// room/{code}) vẫn chỉ host được ghi.
 //
 // KHÔNG LƯU LỊCH SỬ: người vào phòng chỉ thấy tin nhắn phát sinh SAU khi
 // mình vào (tin mới hơn joinTs ~5s). Ai đang mở phòng mới chat với nhau —
-// lịch sử không bao giờ hiển thị. Node tự dọn: client đã đăng nhập khi mở
-// phòng xoá tin quá 2 giờ, nên DB không tích tụ. Poll fallback dùng
+// lịch sử không bao giờ hiển thị. Node tự dọn: máy nào mở phòng cũng xoá
+// tin quá 2 giờ, nên DB không tích tụ. Poll fallback dùng
 // orderBy ts + limitToLast=10 (cần .indexOn) — băng thông luôn biên giới
 // nhỏ bất kể node đang có bao nhiêu tin cũ.
 //
@@ -73,27 +75,57 @@ var RoomChat = (function () {
             return (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth().currentUser : null;
         }
 
-        // Gửi: POST (PUSH) — id sinh phía server, thứ tự ts tự đúng
+        // localStorage có thể bị chặn (private mode, TV cũ) -> bọc try
+        function ls(key, val) {
+            try {
+                if (arguments.length > 1) localStorage.setItem(key, val);
+                else return localStorage.getItem(key);
+            } catch (e) { return arguments.length > 1 ? undefined : null; }
+        }
+
+        // Định danh chat: đã đăng nhập thì dùng account Firebase; khách (không
+        // đăng nhập) dùng uid + tên "Khách NNNN" sinh một lần lưu localStorage —
+        // giữ nguyên qua các lần mở lại để tin của mình vẫn tô màu đúng
+        function identity() {
+            var u = user();
+            if (u) return { uid: u.uid, name: u.displayName || (u.email || '').split('@')[0] };
+            var uid = ls('roomchat:guest');
+            if (!uid) {
+                uid = 'g-' + Math.random().toString(36).slice(2, 12);
+                ls('roomchat:guest', uid);
+            }
+            var name = ls('roomchat:guestname');
+            if (!name) {
+                name = 'Khách ' + Math.floor(1000 + Math.random() * 9000);
+                ls('roomchat:guestname', name);
+            }
+            return { uid: uid, name: name };
+        }
+
+        // Gửi: POST (PUSH) — id sinh phía server, thứ tự ts tự đúng.
+        // Khách không đăng nhập gửi thẳng không token (rule chỉ đòi phòng tồn tại)
         function send() {
             var text = (input.value || '').trim();
-            var u = user();
             if (!text) return;
             if (!curCode) return;
-            if (!u) {
-                systemMsg('Đăng nhập để chat — trang /anime/auth/');
-                return;
-            }
-            var entry = { uid: u.uid, name: u.displayName || (u.email || '').split('@')[0], text: text, ts: Date.now() };
+            var me = identity();
+            var entry = { uid: me.uid, name: me.name, text: text, ts: Date.now() };
             input.value = '';
-            u.getIdToken().then(function (tok) {
-                return fetch(RTDB + '/chat/' + curCode + '.json?auth=' + tok, {
-                    method: 'POST',
-                    body: JSON.stringify(entry),
-                });
-            }).then(function (r) {
+            postChat(curCode, entry).then(function (r) {
                 if (!r.ok) throw new Error('HTTP ' + r.status);
             }).catch(function (e) {
                 systemMsg('Gửi tin lỗi: ' + e.message);
+            });
+        }
+
+        // Mọi ghi chat đi qua đây: có user thì kèm idToken, không thì POST/DELETE
+        // luôn — rule chat chỉ cần phòng tồn tại
+        function postChat(code, entry) {
+            var u = user();
+            var opt = entry ? { method: 'POST', body: JSON.stringify(entry) } : { method: 'DELETE' };
+            if (!u) return fetch(RTDB + '/chat/' + code + '.json', opt);
+            return u.getIdToken().then(function (tok) {
+                return fetch(RTDB + '/chat/' + code + '.json?auth=' + tok, opt);
             });
         }
         btn.addEventListener('click', send);
@@ -121,9 +153,9 @@ var RoomChat = (function () {
             order.slice(-MAX_RENDER).forEach(function (id) {
                 var m = msgs[id];
                 if (!m) return;
-                var u = user();
+                var me = identity();
                 var d = document.createElement('div');
-                d.className = 'room-chat-msg' + (u && m.uid === u.uid ? ' mine' : '');
+                d.className = 'room-chat-msg' + (m.uid === me.uid ? ' mine' : '');
                 d.innerHTML = '<span class="t">' + esc(hhmm(m.ts)) + '</span><b>' + esc(m.name) + '</b>' + esc(m.text);
                 list.appendChild(d);
             });
@@ -159,22 +191,20 @@ var RoomChat = (function () {
             } catch (e) { console.error('RoomChat apply', e); }
         }
 
-        // Dọn tin quá TTL khi có người (đã đăng nhập) mở phòng — dọn ít,
-        // ai online cũng làm nên node không tích tụ lâu
+        // Dọn tin quá TTL khi có người mở phòng — ai online cũng làm (kể cả
+        // khách, rule chat cho ghi không cần đăng nhập) nên node không tích tụ
         function trimOld(code) {
-            var u = user();
-            if (!u) return;
             var cutoff = Date.now() - TTL_MS;
-            u.getIdToken().then(function (tok) {
-                var q = '?orderBy=%22ts%22&endAt=' + cutoff + '&auth=' + tok;
+            var u = user();
+            (u ? u.getIdToken() : Promise.resolve(null)).then(function (tok) {
+                var q = '?orderBy=%22ts%22&endAt=' + cutoff + (tok ? '&auth=' + tok : '');
                 return fetch(RTDB + '/chat/' + code + '.json' + q).then(r => r.json());
             }).then(function (old) {
                 if (!old) return;
                 var u2 = user();
-                if (!u2) return;
-                u2.getIdToken().then(function (tok) {
+                (u2 ? u2.getIdToken() : Promise.resolve(null)).then(function (tok) {
                     Object.keys(old).slice(0, 100).forEach(function (id) {
-                        fetch(RTDB + '/chat/' + code + '/' + id + '.json?auth=' + tok,
+                        fetch(RTDB + '/chat/' + code + '/' + id + '.json' + (tok ? '?auth=' + tok : ''),
                             { method: 'DELETE' }).catch(function () { });
                     });
                 });

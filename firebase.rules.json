@@ -23,8 +23,8 @@
         ".indexOn": ["ts"],
         ".read": true,
         "$msgId": {
-          ".write": "auth != null",
-          ".validate": "newData.hasChildren(['uid', 'name', 'text', 'ts']) && newData.child('text').isString() && newData.child('text').val().length <= 500"
+          ".write": "root.child('room').child($roomId).exists()",
+          ".validate": "newData.hasChildren(['uid', 'name', 'text', 'ts']) && newData.child('uid').isString() && newData.child('uid').val().length <= 128 && newData.child('name').isString() && newData.child('name').val().length <= 40 && newData.child('text').isString() && newData.child('text').val().length <= 500 && newData.child('ts').isNumber() && newData.child('ts').val() <= now + 300000"
         }
       }
     }
