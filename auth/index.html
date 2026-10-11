@@ -77,6 +77,28 @@
                 ui.start('#firebaseui-auth-container', uiConfig);
             }
         });
+
+        // firebaseui không có link "Trouble signing in?" trên màn "You already
+        // have an account" (email chỉ có provider Google), nên thêm nút gửi
+        // thư đặt lại mật khẩu riêng — luôn hiện dưới form mọi màn hình.
+        // Script nằm trong <head> nên phải chờ DOM mới gắn được listener.
+        var FORGOT_ERRORS = {
+            'auth/invalid-email': 'Email không hợp lệ.',
+            'auth/user-not-found': 'Không tìm thấy account với email này.'
+        };
+        document.addEventListener('DOMContentLoaded', function () {
+            document.getElementById('forgot-password-link').addEventListener('click', function (event) {
+                event.preventDefault();
+                var email = window.prompt('Nhập email đã đăng ký để nhận thư đặt lại mật khẩu:', '');
+                if (!email) return;
+                email = email.trim();
+                auth.sendPasswordResetEmail(email).then(function () {
+                    alert('Đã gửi thư đặt lại mật khẩu tới ' + email + '. Mở thư (kiểm tra cả Spam) và bấm link để đặt mật khẩu mới, sau đó đăng nhập bằng email + mật khẩu mới.');
+                }).catch(function (err) {
+                    alert(FORGOT_ERRORS[err && err.code] || 'Không gửi được thư: ' + ((err && err.code) || err));
+                });
+            });
+        });
     </script>
     <style>
         body,
@@ -101,6 +123,16 @@
             align-items: center;
         }
 
+        #forgot-password {
+            text-align: center;
+            margin-top: 12px;
+        }
+
+        #forgot-password-link {
+            color: #5f6368;
+            font-size: 14px;
+        }
+
         #logo {
             display: flex;
             align-items: center;
@@ -115,6 +147,9 @@
         <img id="logo" src="/anime/image/r3.png" alt="Logo">
     </div>
     <div id="firebaseui-auth-container"></div>
+    <div id="forgot-password">
+        <a href="#" id="forgot-password-link">Quên mật khẩu?</a>
+    </div>
 </body>
 
 </html>
