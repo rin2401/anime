@@ -32,6 +32,7 @@
     <script defer src="https://www.gstatic.com/firebasejs/12.14.0/firebase-auth-compat.js"></script>
     <script defer src="/anime/auth/auth.js"></script>
     <script defer src="/anime/auth/user-history.js"></script>
+    <script defer src="/anime/room/chat.js"></script>
     <style>
         html,
         body {
@@ -100,11 +101,54 @@
             }
         }
 
+        /* ── Chat phòng xem chung (RoomChat, cùng room/chat.js với trang room).
+           Panel fixed đè video; ở chế độ fullscreen thật panel nằm ngoài cây
+           fullscreen element nên tạm ẩn — chấp nhận, chat là phụ. */
+        #chat-toggle {
+            position: fixed;
+            top: calc(10px + env(safe-area-inset-top));
+            right: 10px;
+            width: 38px;
+            height: 38px;
+            border-radius: 19px;
+            border: 0;
+            background: rgba(0, 0, 0, 0.6);
+            color: #fff;
+            font-size: 18px;
+            cursor: pointer;
+            z-index: 30;
+        }
+
+        #chat-toggle.active {
+            background: #23ade5;
+        }
+
+        #chat-panel-wrap {
+            position: fixed;
+            top: calc(10px + env(safe-area-inset-top));
+            right: 10px;
+            width: min(320px, 85vw);
+            height: min(70vh, 480px);
+            border-radius: 12px;
+            background: rgba(20, 22, 26, 0.92);
+            display: none;
+            flex-direction: column;
+            z-index: 29;
+            -webkit-user-select: text;
+            user-select: text;
+        }
+
+        #chat-panel-wrap.open {
+            display: flex;
+        }
+
     </style>
 </head>
 
 <body>
     <div class="artplayer-app"></div>
+    <button id="chat-toggle" type="button" aria-label="Chat" hidden>💬</button>
+    <div id="chat-panel-wrap"><div id="chat-panel" style="display:flex;flex-direction:column;flex:1;min-height:0;"></div></div>
 
     <script>
         function getUrlParameter(name) {
@@ -203,6 +247,80 @@
             // Đổi/mở tập -> ghi entry ngay (t=0, timeupdate sẽ đẩy mốc thật);
             // UserHistory giữ max tiến độ nên không xoá mốc sâu của máy khác
             recordHistory(0);
+            // Host đang mở phòng mà đổi tập -> phát url mới vào room node
+            // (pos=0, playing=true: video:play ngay sau đó sẽ patch mốc thật)
+            if (roomCode && currentEpisode && currentEpisode.url) {
+                roomPatch({ url: currentEpisode.url, title: roomTitle(), pos: 0, playing: true });
+            }
+        }
+
+        // ── Phòng xem chung ──
+        // Host tạo phòng: ghi node room/{code} lên Firebase rồi share link
+        // /anime/room/?id=<code>. Host xem tiếp bình thường ở trang này; mọi
+        // play/pause/seek/đổi tập được phát vào room node (REST PATCH kèm
+        // idToken) để người xem ở trang room đồng bộ theo. Rules cho phép ghi
+        // room/{code} cho đúng host tạo phòng.
+        var roomCode = null;
+        var RTDB = 'https://r3fire.firebaseio.com';
+
+        function roomTitle() {
+            if (!currentEpisode) return '';
+            return baseTitle(currentEpisode.title) + ' — Tập ' + displayEp(currentEpisode.id);
+        }
+
+        function roomPatch(patch) {
+            if (!roomCode) return;
+            patch.updatedAt = Date.now();
+            var u = (typeof firebase !== 'undefined') ? firebase.auth().currentUser : null;
+            if (!u) return;
+            u.getIdToken().then(function (tok) {
+                return fetch(RTDB + '/room/' + roomCode + '.json?auth=' + tok, {
+                    method: 'PATCH',
+                    body: JSON.stringify(patch),
+                });
+            }).catch(function () { });
+        }
+
+        function roomLink() {
+            return location.origin + '/anime/room/?id=' + roomCode;
+        }
+
+        function createRoom() {
+            var u = (typeof firebase !== 'undefined') ? firebase.auth().currentUser : null;
+            if (!u) {
+                art.notice.show = 'Đăng nhập để tạo phòng xem chung — trang /anime/auth/';
+                return;
+            }
+            if (!currentEpisode || !currentEpisode.url) return;
+            // Mã 6 ký tự dễ đọc/nhập (bỏ o0il1); trùng phòng cũ ~0 (30^6)
+            var chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+            var code = '';
+            for (var i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+            var payload = {
+                host: u.uid,
+                created: Date.now(),
+                url: currentEpisode.url,
+                title: roomTitle(),
+                pos: (art && art.currentTime) || 0,
+                playing: !!(art && art.playing),
+                updatedAt: Date.now(),
+            };
+            u.getIdToken().then(function (tok) {
+                return fetch(RTDB + '/room/' + code + '.json?auth=' + tok, {
+                    method: 'PUT',
+                    body: JSON.stringify(payload),
+                });
+            }).then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                roomCode = code;
+                prompt('Link phòng xem chung — copy gửi bạn bè:', roomLink());
+                art.notice.show = 'Đã tạo phòng ' + code + ' — đang phát cho cả phòng';
+                // Có phòng rồi -> hiện nút 💬 chat góc phải trên
+                var chatBtn = document.getElementById('chat-toggle');
+                if (chatBtn) chatBtn.hidden = false;
+            }).catch(function (e) {
+                art.notice.show = 'Tạo phòng lỗi: ' + e;
+            });
         }
 
         function updateArtwork(episode) {
@@ -919,6 +1037,56 @@
                     window.location.href = '/anime'
                 },
             });
+
+            // Nút "Xem chung": bấm lần đầu -> tạo phòng + hiện link share; các
+            // lần sau -> hiện lại link phòng đang mở (phòng bám tập đang xem,
+            // đổi tập qua playlist thì phòng đổi theo)
+            art.controls.add({
+                name: 'room',
+                position: 'right',
+                index: 2,
+                html: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>',
+                tooltip: 'Xem chung',
+                click: function () {
+                    if (roomCode) {
+                        prompt('Link phòng xem chung — copy gửi bạn bè:', roomLink());
+                    } else {
+                        createRoom();
+                    }
+                },
+            });
+
+            // ── Phát điều khiển của host vào room node ──
+            // Chỉ ghi khi state thay đổi (play/pause/seek/hết tập), không ghi
+            // timeupdate liên tục: người xem tự ngoại suy pos + (now - updatedAt)
+            // giữa 2 lần ghi nên vẫn bám sát mà không spam Firebase.
+            ['video:play', 'video:pause', 'video:seeked', 'video:ended'].forEach(function (ev) {
+                art.on(ev, function () {
+                    roomPatch({ pos: (art.currentTime || 0), playing: !!art.playing });
+                });
+            });
+
+            // ── Chat phòng xem chung (RoomChat dùng chung room/chat.js) ──
+            // Nút 💬 góc phải trên chỉ hiện sau khi tạo phòng. Mount NGAY
+            // tại đây: setupPlayer chạy sau fetch async, có thể muộn hơn
+            // event load nên đăng ký listener load là bỏ trống. chat.js là
+            // defer script -> chắc chắn đã load trước DOMContentLoaded.
+            if (typeof RoomChat !== 'undefined') {
+                var chatPanel = document.getElementById('chat-panel');
+                var chatBtn = document.getElementById('chat-toggle');
+                var chatWrap = document.getElementById('chat-panel-wrap');
+                if (chatPanel && chatBtn && chatWrap) {
+                    RoomChat.mount(chatPanel, function () { return roomCode; });
+                    chatBtn.addEventListener('click', function () {
+                        if (!roomCode) {
+                            art.notice.show = 'Tạo phòng xem chung (nút 👥) trước rồi chat với cả phòng';
+                            return;
+                        }
+                        var on = chatWrap.classList.toggle('open');
+                        chatBtn.classList.toggle('active', on);
+                    });
+                }
+            }
 
             // Gộp danh sách tập của TẤT CẢ các mùa vào chung panel playlist:
             // plugin render sẵn tập mùa hiện tại; các mùa còn lại (header

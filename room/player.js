@@ -1,4 +1,10 @@
-var video = document.getElementById('video');
+var RTDB = 'https://r3fire.firebaseio.com';
+var DB = RTDB; // tên cũ trong code
+
+// ── Người xem phòng xem chung, dùng Artplayer (cùng player với trang chính) ──
+// Node room/{code} do host (người tạo từ player artplayer) ghi: {host, url,
+// title, pos, playing, updatedAt}. Người xem chỉ ĐỌC, tự ngoại suy vị trí:
+// playing ? pos + (now - updatedAt)/1000 : pos. Chat ở room/chat.js.
 
 // Config cho thiết bị yếu (smart TV ít RAM, mạng chậm): buffer nhỏ, cap quality
 // theo kích thước player, giải phóng phần đã xem để không phình RAM khi xem tập dài
@@ -10,97 +16,28 @@ var TV_HLS_CONFIG = {
     abrEwmaDefaultEstimate: 1000000,
 };
 
-function fetchData(url) {
-    return fetch(url)
-        .then((resp) => resp.ok && resp.arrayBuffer())
-        .then((buf) => new Uint8Array(buf));
-}
-function waitForEvent(target, event_name) {
-    return new Promise((res) => {
-        target.addEventListener(event_name, res, { once: true });
-    });
-}
-
-async function playM3u8(url) {
-    const hlsMimeType = "application/vnd.apple.mpegurl";
-
-    if (url.includes(".mp4")) {
-        video.src = url;
-        video.type = 'video/mp4';
-        video.addEventListener('canplay', function () {
-            video.play();
-        });
-    } else if (Hls.isSupported()) {
-        var hls = new Hls(TV_HLS_CONFIG);
-        var m3u8Url = decodeURIComponent(url)
-        hls.loadSource(m3u8Url);
-        hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, function () {
-            video.play();
-        });
-    } else if (video.canPlayType(hlsMimeType)) {
-        video.type = hlsMimeType;
-        video.src = url;
-        video.addEventListener('canplay', function () {
-            video.play();
-        });
+// Loader lọc quảng cáo — y hệt trang artplayer: giữ master playlist cho
+// hls.js tự chọn quality (ABR), lọc #EXTINF trên từng playlist
+var _adsFilterLoader = null;
+function getAdsFilterLoader() {
+    if (!_adsFilterLoader) {
+        _adsFilterLoader = class extends Hls.DefaultConfig.loader {
+            load(context, config, callbacks) {
+                if (context.type === 'manifest' || context.type === 'level') {
+                    const onSuccess = callbacks.onSuccess;
+                    callbacks.onSuccess = function (response, stats, ctx, networkDetails) {
+                        if (typeof response.data === 'string' && response.data.indexOf('#EXTINF') !== -1) {
+                            response.data = removeAds(response.data, ctx.url);
+                        }
+                        onSuccess(response, stats, ctx, networkDetails);
+                    };
+                }
+                super.load(context, config, callbacks);
+            }
+        };
     }
+    return _adsFilterLoader;
 }
-
-function playM3u8Text(m3u8Text) {
-    const hlsMimeType = "application/vnd.apple.mpegurl";
-    if (Hls.isSupported()) {
-        var hls = new Hls(TV_HLS_CONFIG);
-        var m3u8Url = createBlobUrl(m3u8Text)
-        hls.loadSource(m3u8Url);
-        hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, function () {
-            video.play();
-        });
-    } else if (video.canPlayType(hlsMimeType)) {
-        video.type = hlsMimeType;
-        video.src = `data:${hlsMimeType};base64,${btoa(m3u8Text)}`;
-        video.addEventListener('canplay', function () {
-            video.play();
-        });
-    }
-}
-
-function playPause() {
-    video.paused ? video.play() : video.pause();
-}
-
-function volumeUp() {
-    if (video.volume <= 0.9) video.volume += 0.1;
-}
-
-function volumeDown() {
-    if (video.volume >= 0.1) video.volume -= 0.1;
-}
-
-function seekRight() {
-    video.currentTime += 5;
-}
-
-function seekLeft() {
-    video.currentTime -= 5;
-}
-
-function vidFullscreen() {
-    if (video.requestFullscreen) {
-        video.requestFullscreen();
-    } else if (video.mozRequestFullScreen) {
-        video.mozRequestFullScreen();
-    } else if (video.webkitRequestFullscreen) {
-        video.webkitRequestFullscreen();
-    }
-}
-
-function createBlobUrl(data, mimeType = "application/vnd.apple.mpegurl") {
-    const blob = new Blob([data], { type: mimeType });
-    return URL.createObjectURL(blob);
-}
-
 
 function removeAds(m3u8, url) {
     var baseUrl = url.split("/").slice(0, -1).join("/") + "/"
@@ -122,37 +59,140 @@ function removeAds(m3u8, url) {
     return m3u8
 }
 
-function loadRoom(roomId) {
-    const roomRef = firebase.database().ref("room/" + roomId);
-    roomRef.on('value', (data) => {
-        const roomData = data.val();
-        var url = roomData.player.url
-        var t = roomData.player.time
-        video.addEventListener('loadedmetadata', function () {
-            const tst = Math.floor(Date.now() / 1000);
+function createBlobUrl(data, mimeType = "application/vnd.apple.mpegurl") {
+    const blob = new Blob([data], { type: mimeType });
+    return URL.createObjectURL(blob);
+}
 
-            video.currentTime = parseInt((tst + t) % parseInt(video.duration));
-        });
+async function playM3u8(video, url, art) {
+    const hlsMimeType = "application/vnd.apple.mpegurl";
 
-        if (url.endsWith(".json")) {
-            fetch(url).then(response => response.json()).then(function (data) {
-                playM3u8Text(data.m3u8)
-                if (data.title) {
-                    document.title = data.title
-                    setMediaSession(data.title)
-                }
-            })
-        } else if (url.match(/.*phim1280.*\.m3u8/)) {
-            fetch(url).then(response => response.text()).then(function (m3u8) {
-                m3u8 = removeAds(m3u8, url)
-                playM3u8Text(m3u8)
-                setMediaSession("Anime Room")
-            })
-        } else {
-            playM3u8(url)
-            setMediaSession("Anime Room");
+    if (url.includes(".mp4")) {
+        video.src = url;
+        video.type = 'video/mp4';
+    } else if (Hls.isSupported()) {
+        if (art.hls) art.hls.destroy();
+        const hls = new Hls(Object.assign({ loader: getAdsFilterLoader() }, TV_HLS_CONFIG));
+        hls.loadSource(decodeURIComponent(url));
+        hls.attachMedia(video);
+        art.hls = hls;
+        art.on('destroy', () => hls.destroy());
+    } else if (video.canPlayType(hlsMimeType)) {
+        video.type = hlsMimeType;
+        video.src = url;
+    }
+}
+
+async function playJson(video, url, art) {
+    res = await fetch(url)
+    if (!res.ok) {
+        console.error(res);
+        return
+    }
+    var data = await res.json()
+    playM3u8Text(video, data.m3u8, art)
+}
+
+function playM3u8Text(video, m3u8, art) {
+    const hlsMimeType = "application/vnd.apple.mpegurl";
+    if (Hls.isSupported()) {
+        if (art.hls) art.hls.destroy();
+        const hls = new Hls(TV_HLS_CONFIG);
+        hls.loadSource(createBlobUrl(m3u8));
+        hls.attachMedia(video);
+        art.hls = hls;
+        art.on('destroy', () => hls.destroy());
+    } else if (video.canPlayType(hlsMimeType)) {
+        video.src = `data:${hlsMimeType};base64,${btoa(m3u8)}`;
+    }
+}
+
+// ── Đồng bộ theo host ──
+var state = null;      // nội dung node room/{code} đang biết
+var loadedUrl = '';    // url đã gắn vào player (tránh mount lại mỗi update)
+var art = null;
+
+// Vị trí theo host: pos + thời gian trôi từ lần host cập nhật gần nhất
+function targetPos(s) {
+    if (!s || s.pos == null) return null;
+    var pos = Number(s.pos) || 0;
+    if (s.playing) pos += (Date.now() - Number(s.updatedAt || 0)) / 1000;
+    // Host bỏ chạy hết tập không đổi gì -> quay vòng theo duration (loop)
+    var d = art ? art.duration : 0;
+    if (d && d > 0 && pos > d) pos = pos % d;
+    return pos;
+}
+
+// Áp state vừa nhận: đổi nguồn nếu host đổi tập, theo play/pause, seek nếu lệch
+function syncFromState() {
+    if (!state) return;
+    if (state.url && state.url !== loadedUrl) {
+        loadedUrl = state.url;
+        if (state.title) {
+            document.title = state.title;
+            setMediaSession(state.title);
+            var el = document.getElementById('room-label');
+            if (el) el.textContent = state.title;
         }
-    })
+        mountPlayer(state.url);
+    }
+    if (loadedUrl && art) {
+        if (state.playing === false) { if (!art.video.paused) art.pause(); }
+        else if (state.playing === true) { if (art.video.paused) art.play(); }
+        followPos();
+    }
+}
+
+// Seek về phía host khi lệch quá 3s (đủ rộng để không dập lệnh tua của host,
+// đủ chặt để người xem không trôi quá xa)
+function followPos() {
+    var tp = targetPos(state);
+    if (tp == null || !art) return;
+    if (art.duration && isFinite(art.duration)
+        && Math.abs(art.currentTime - tp) > 3) {
+        art.currentTime = tp;
+    }
+}
+
+// Player sẵn sàng -> đặt mốc theo host ngay lần đầu
+function applySync() {
+    if (!state || !loadedUrl || !art) return;
+    var tp = targetPos(state);
+    if (tp != null && art.duration && isFinite(art.duration)) art.currentTime = tp;
+    if (state.playing === false) art.pause();
+    else art.play();
+}
+
+// Gắn nguồn mới: hủy player cũ tạo player mới (đổi tập chỉ xảy ra khi host
+// bấm tập khác — không cần switchUrl khéo léo)
+function mountPlayer(url) {
+    if (art) {
+        try { art.destroy(false); } catch (e) { }
+        art = null;
+    }
+    var type = url.endsWith('.json') ? 'json' : 'm3u8';
+    art = new Artplayer({
+        container: '.artplayer-app',
+        url: url,
+        poster: '/anime/image/r3_512.png',
+        autoplay: true,
+        autoMini: false,
+        loop: true,
+        playsInline: true,
+        fullscreen: true,
+        pip: true,
+        mutex: false,
+        backdrop: true,
+        theme: '#23ade5',
+        customType: {
+            m3u8: playM3u8,
+            json: playJson,
+        },
+    });
+    // type dựa trên url: json = node Firebase chứa m3u8 text, m3u8 = link trực tiếp
+    // (Artplayer tự đoán theo đuôi file, customType m3u8 bắt cả link phim1280)
+    void type;
+    art.on('ready', applySync);
 }
 
 function setMediaSession(title) {
@@ -173,8 +213,83 @@ function setMediaSession(title) {
     }
 }
 
-window.addEventListener('load', async function () {
-    // Mousetrap.bind('space', playPause);
+// ── Nhận state: REST streaming (EventSource) + poll 3s luôn chạy ──
+// Loại event nằm ở TÊN event SSE ('put'/'patch'), không có trong payload
+// (payload chỉ có {path, data}).
+function onStateEvent(type, d) {
+    if (!d || typeof d !== 'object') return;
+    if (type === 'put') {
+        var path = d.path || '/';
+        if (path === '/') { state = d.data || null; }
+        else {
+            if (!state) return;
+            // path kiểu sub-update ('/pos') — gán sâu theo từng khúc
+            var keys = path.split('/').filter(Boolean);
+            var cur = state;
+            for (var i = 0; i < keys.length - 1; i++) {
+                if (typeof cur[keys[i]] !== 'object' || cur[keys[i]] === null) cur[keys[i]] = {};
+                cur = cur[keys[i]];
+            }
+            cur[keys[keys.length - 1]] = d.data;
+        }
+    } else if (type === 'patch') {
+        if (!state) return;
+        Object.keys(d.data || {}).forEach(function (k) { state[k] = d.data[k]; });
+    } else {
+        return;
+    }
+    syncFromState();
+}
+
+function watchRoom(code) {
+    // Poll 3s luôn chạy: GET là snapshot chuẩn, không phụ thuộc EventSource
+    // (webview cũ/treo nền thường chết stream im lặng). SSE chỉ để phản ứng
+    // nhanh play/pause/seek của host.
+    if (typeof EventSource !== 'undefined') {
+        var es = new EventSource(RTDB + '/room/' + code + '.json');
+        ['put', 'patch'].forEach(function (ev) {
+            es.addEventListener(ev, function (e) {
+                try { onStateEvent(ev, JSON.parse(e.data)); } catch (err) { }
+            });
+        });
+        es.onerror = function () { /* EventSource tự reconnect; poll gánh phía sau */ };
+    }
+    setInterval(function () {
+        fetch(RTDB + '/room/' + code + '.json')
+            .then(r => r.json())
+            .then(data => {
+                if (JSON.stringify(data) === JSON.stringify(state)) return;
+                state = data || null;
+                syncFromState();
+            })
+            .catch(() => { });
+    }, 3000);
+    // Vòng kéo theo host giữa các update (host đang phát thì không ghi liên tục)
+    setInterval(followPos, 4000);
+}
+
+// ── Phím tắt (người xem vẫn tua/volume riêng; vị trí sẽ bị kéo về theo host
+// trong vòng 4s nếu lệch quá 3s) ──
+function playPause() {
+    art ? (art.video.paused ? art.play() : art.pause()) : 0;
+}
+function volumeUp() {
+    if (art && art.volume <= 0.9) art.volume += 0.1;
+}
+function volumeDown() {
+    if (art && art.volume >= 0.1) art.volume -= 0.1;
+}
+function seekRight() {
+    if (art) art.currentTime += 5;
+}
+function seekLeft() {
+    if (art) art.currentTime -= 5;
+}
+function vidFullscreen() {
+    if (art) art.fullscreen = !art.fullscreen;
+}
+
+window.addEventListener('load', function () {
     Mousetrap.bind('up', volumeUp);
     Mousetrap.bind('down', volumeDown);
     Mousetrap.bind('right', seekRight);
@@ -183,7 +298,28 @@ window.addEventListener('load', async function () {
 
     var params = new URLSearchParams(window.location.search);
     var id = params.get("id");
-    if (id) {
-        loadRoom(id);
+    if (!id) {
+        var label = document.getElementById('room-label');
+        if (label) label.textContent = 'Thiếu mã phòng — lấy link từ người tạo phòng';
+        return;
+    }
+    var codeLabel = document.getElementById('room-code');
+    if (codeLabel) codeLabel.textContent = id;
+    watchRoom(id);
+    // Chat: dùng chung room/chat.js, panel nằm trong #chat-panel (trang tự ẩn/hiện)
+    if (typeof RoomChat !== 'undefined') {
+        RoomChat.mount(document.getElementById('chat-panel'), function () { return id; });
+        bindChatToggle();
     }
 });
+
+// Nút 💬 góc phải trên: bật/tắt panel chat (mobile bấm nhanh, không che video)
+function bindChatToggle() {
+    var btn = document.getElementById('chat-toggle');
+    var panel = document.getElementById('chat-panel-wrap');
+    if (!btn || !panel) return;
+    btn.addEventListener('click', function () {
+        var on = panel.classList.toggle('open');
+        btn.classList.toggle('active', on);
+    });
+}

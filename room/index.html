@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Anime Room</title>
     <link rel="apple-touch-icon" href="/anime/image/r3_512.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -18,17 +18,76 @@
     <style>
         body {
             background-color: black;
+            margin: 0;
         }
 
-        #video {
+        .artplayer-app {
             position: absolute;
-            top: 0px;
-            right: 0px;
-            bottom: 0px;
-            left: 0px;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
             margin: auto;
-            max-height: 100%;
-            max-width: 100%;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Badge góc trái dưới: mã phòng + nhãn đang phát */
+        #room-badge {
+            position: fixed;
+            left: 10px;
+            bottom: 10px;
+            max-width: 60%;
+            padding: 6px 10px;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.6);
+            color: #fff;
+            font: 13px/1.4 -apple-system, "Segoe UI", Roboto, sans-serif;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        #room-code {
+            font-weight: 700;
+        }
+
+        /* Nút 💬 + panel chat: panel mở tràn mép phải, đè video, tắt nhanh */
+        #chat-toggle {
+            position: fixed;
+            top: calc(10px + env(safe-area-inset-top));
+            right: 10px;
+            width: 38px;
+            height: 38px;
+            border-radius: 19px;
+            border: 0;
+            background: rgba(0, 0, 0, 0.6);
+            color: #fff;
+            font-size: 18px;
+            cursor: pointer;
+            z-index: 30;
+        }
+
+        #chat-toggle.active {
+            background: #23ade5;
+        }
+
+        #chat-panel-wrap {
+            position: fixed;
+            top: calc(10px + env(safe-area-inset-top));
+            right: 10px;
+            width: min(320px, 85vw);
+            height: min(70vh, 480px);
+            border-radius: 12px;
+            background: rgba(20, 22, 26, 0.92);
+            display: none;
+            flex-direction: column;
+            z-index: 29;
+            -webkit-user-select: text;
+            user-select: text;
+        }
+
+        #chat-panel-wrap.open {
+            display: flex;
         }
     </style>
 
@@ -37,16 +96,22 @@
     <link rel="preconnect" href="https://r3fire.firebaseio.com">
 
     <script defer src="https://cdn.jsdelivr.net/npm/hls.js@1.6.16/dist/hls.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/artplayer@5.4.0/dist/artplayer.js"></script>
     <script defer src="/anime/player/mousetrap.min.js" charset="utf-8"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
-    <script defer src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth-compat.js"></script>
 </head>
 
 <body>
-    <video id="video" style="width: 100%; height: 100%;" controls="" crossorigin="anonymous"></video>
-    <!-- auth.js (khởi tạo firebase) phải đứng trước player.js; cả hai defer nên chạy đúng thứ tự -->
+    <div class="artplayer-app"></div>
+    <div id="room-badge"><span id="room-code"></span> <span id="room-label">Đang kết nối phòng…</span></div>
+    <button id="chat-toggle" type="button" aria-label="Chat">💬</button>
+    <div id="chat-panel-wrap"><div id="chat-panel" style="display:flex;flex-direction:column;flex:1;min-height:0;"></div></div>
+    <!-- auth.js (khởi tạo firebase) phải đứng trước chat.js/player.js; cả ba defer
+         nên chạy đúng thứ tự -->
     <script defer src="/anime/auth/auth.js"></script>
-    <script defer src="player.js"></script>
+    <script defer src="/anime/room/chat.js"></script>
+    <script defer src="/anime/room/player.js"></script>
 </body>
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-1PSF8GWBEY"></script>
 <script>
