@@ -113,6 +113,7 @@ var loadedUrl = '';    // url đã gắn vào player (tránh mount lại mỗi u
 var art = null;
 var roomCode = '';     // mã phòng từ ?id= (host dùng để PATCH + share link)
 var hostSynced = false; // host: đã áp mốc lần đầu chưa (tránh patch pos=0 lúc autoplay)
+var lastSeekLogPos = 0; // host: mốc tua đã log chat lần gần nhất (tua nhỏ không log)
 
 // uid của mình (host xác định qua state.host === uid); khách chưa đăng nhập = null
 function myUid() {
@@ -193,6 +194,7 @@ function applySync() {
     if (!state || !loadedUrl || !art) return;
     if (isHost()) {
         art.currentTime = Number(state.pos) || 0;
+        lastSeekLogPos = Number(state.pos) || 0; // seek ban đầu không phải "tua"
         hostSynced = true;
         return;
     }
@@ -237,11 +239,32 @@ function mountPlayer(url) {
     art.on('ready', applySync);
     // Host phát điều khiển của MÌNH vào room node (người xem chỉ đọc):
     // play/pause/seek/hết tập — không ghi timeupdate liên tục.
+    // Mỗi hành động còn ghi 1 TIN HỆ THỐNG vào chatbox (xám nghiêng) để cả
+    // phòng thấy ai đang làm gì; tua nhỏ (phím ±5s) không log tránh spam.
     ['video:play', 'video:pause', 'video:seeked', 'video:ended'].forEach(function (ev) {
         art.on(ev, function () {
             patchRoom({ pos: (art.currentTime || 0), playing: !!art.playing });
+            if (!isHost() || !hostSynced) return;
+            if (typeof RoomChat === 'undefined' || !RoomChat.action) return;
+            if (ev === 'video:play') RoomChat.action('đã phát tiếp', '▶');
+            else if (ev === 'video:pause') RoomChat.action('đã tạm dừng', '⏸');
+            else if (ev === 'video:ended') RoomChat.action('đã xem hết tập', '🎬');
+            else {
+                var cur = art.currentTime || 0;
+                if (Math.abs(cur - lastSeekLogPos) > 30) {
+                    RoomChat.action('đã tua tới ' + mmss(cur), '⏩');
+                    lastSeekLogPos = cur;
+                }
+            }
         });
     });
+}
+
+// 123 -> "2:03" cho tin hệ thống "đã tua tới"
+function mmss(s) {
+    s = Math.max(0, Math.round(s || 0));
+    var m = Math.floor(s / 60), ss = s % 60;
+    return m + ':' + ('0' + ss).slice(-2);
 }
 
 // Host xác nhận xong -> hiện nút 🔗 share link phòng (panel DOM, host bấm để

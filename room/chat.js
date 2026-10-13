@@ -125,6 +125,20 @@ var RoomChat = (function () {
             });
         }
 
+        // Tin HỆ THỐNG (sys:1): trạng thái hành động trong phòng — host phát/
+        // dừng/tua/đổi tập, người vào phòng — hiển thị xám nghiêng, không tính
+        // là tin nhắn của ai nên không cản lastSend (được gọi từ player.js)
+        function action(verb, icon) {
+            if (!curCode) return;
+            var me = identity();
+            var entry = {
+                uid: me.uid, name: me.name,
+                text: (icon ? icon + ' ' : '') + me.name + ' ' + verb,
+                ts: Date.now(), sys: 1,
+            };
+            postChat(curCode, entry).catch(function () { });
+        }
+
         // Mọi ghi chat đi qua đây: có user thì kèm idToken, không thì POST/DELETE
         // luôn — rule chat chỉ cần phòng tồn tại
         function postChat(code, entry) {
@@ -168,8 +182,14 @@ var RoomChat = (function () {
                 if (!m) return;
                 var me = identity();
                 var d = document.createElement('div');
-                d.className = 'room-chat-msg' + (m.uid === me.uid ? ' mine' : '');
-                d.innerHTML = '<span class="t">' + esc(hhmm(m.ts)) + '</span><b>' + esc(m.name) + '</b>' + esc(m.text);
+                if (m.sys) {
+                    // tin hệ thống (hành động phòng): xám nghiêng, tên nằm trong text
+                    d.className = 'room-chat-msg sys';
+                    d.innerHTML = '<span class="t">' + esc(hhmm(m.ts)) + '</span>' + esc(m.text);
+                } else {
+                    d.className = 'room-chat-msg' + (m.uid === me.uid ? ' mine' : '');
+                    d.innerHTML = '<span class="t">' + esc(hhmm(m.ts)) + '</span><b>' + esc(m.name) + '</b>' + esc(m.text);
+                }
                 list.appendChild(d);
             });
             if (!order.length) {
@@ -231,6 +251,9 @@ var RoomChat = (function () {
             joinTs = Date.now() - GRACE_MS;
             msgs = {}; order = []; render(); // đổi phòng = bắt đầu lại từ tin mới
             trimOld(code);
+            // Người vào phòng -> 1 tin hệ thống cho cả phòng thấy ai mới đến
+            // (reload cũng tính là vào lại — chat tạm nên không sao)
+            action('đã vào phòng', '👋');
             if (typeof EventSource !== 'undefined') {
                 es = new EventSource(RTDB + '/chat/' + code + '.json');
                 ['put', 'patch'].forEach(function (ev) {
@@ -264,7 +287,18 @@ var RoomChat = (function () {
                 firebase.auth().onAuthStateChanged(function () { render(); });
             } catch (e) { }
         }
+
+        // instance đang hoạt động: player.js gọi RoomChat.action(...) để ghi
+        // trạng thái hành động của host (phát/dừng/tua/đổi tập) vào chatbox
+        activeAction = action;
     }
 
-    return { mount: mount };
+    // Ghi tin hệ thống vào phòng ĐANG mở (instance mount gần nhất). An toàn
+    // khi chưa mount: bỏ qua im lặng.
+    var activeAction = null;
+
+    return {
+        mount: mount,
+        action: function (verb, icon) { if (activeAction) activeAction(verb, icon); },
+    };
 })();

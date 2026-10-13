@@ -438,16 +438,18 @@
                 return;
             }
             if (!ep || !ep.url) return;
+            var hadCode = !!myCode(); // tái dùng = đổi tập cho phòng đang có
             var code = myCode();
             if (!code) {
                 var chars = 'abcdefghjkmnpqrstuvwxyz23456789';
                 for (var i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
             }
+            var title = (pickedRow && pickedRow.name ? pickedRow.name + ' — Tập ' : 'Tập ') + displayEp(ep.id);
             var payload = {
                 host: u.uid,
                 created: Date.now(),
                 url: ep.url,
-                title: (pickedRow && pickedRow.name ? pickedRow.name + ' — Tập ' : 'Tập ') + displayEp(ep.id),
+                title: title,
                 pos: 0,
                 playing: false,
                 updatedAt: Date.now(),
@@ -461,6 +463,17 @@
             }).then(function (r) {
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 try { localStorage.setItem('room:hostcode', code); } catch (e) { }
+                // Tin hệ thống vào chatbox phòng (xám nghiêng): mở phòng lần
+                // đầu hay đổi tập — keepalive để POST sống qua lần điều hướng
+                var name = u.displayName || (u.email || '').split('@')[0];
+                var text = (hadCode ? '🎬 ' + name + ' đã đổi sang ' : '🎬 ' + name + ' đã mở phòng — ') + title;
+                u.getIdToken().then(function (tok) {
+                    return fetch(RTDB + '/chat/' + code + '.json?auth=' + tok, {
+                        method: 'POST',
+                        keepalive: true,
+                        body: JSON.stringify({ uid: u.uid, name: name, text: text, ts: Date.now(), sys: 1 }),
+                    });
+                }).catch(function () { });
                 window.location.href = '/anime/room/?id=' + code;
             }).catch(function (e) {
                 setStatus('Tạo phòng lỗi: ' + e.message);
