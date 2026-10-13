@@ -205,56 +205,6 @@
             recordHistory(0);
         }
 
-        // ── Phòng xem chung: trang này chỉ là BỘ KHỞI ĐỘNG ──
-        // Bấm 👥 -> ghi room/{code} (code riêng của host lưu localStorage —
-        // tái dùng để đổi tập mà không phá phòng, link share được giữ nguyên)
-        // với url tập đang xem rồi chuyển thẳng tới trang room: host và khách
-        // CÙNG xem trong trang room, mọi sync/chat/share diễn ra ở đó.
-        var RTDB = 'https://r3fire.firebaseio.com';
-
-        function roomTitle() {
-            if (!currentEpisode) return '';
-            return baseTitle(currentEpisode.title) + ' — Tập ' + displayEp(currentEpisode.id);
-        }
-
-        function enterRoom() {
-            var u = (typeof firebase !== 'undefined') ? firebase.auth().currentUser : null;
-            if (!u) {
-                art.notice.show = 'Đăng nhập để tạo phòng xem chung — trang /anime/auth/';
-                return;
-            }
-            if (!currentEpisode || !currentEpisode.url) return;
-            // Mã 6 ký tự dễ đọc/nhập (bỏ o0il1); lần sau bấm tái dùng code cũ
-            var code = '';
-            try { code = localStorage.getItem('room:hostcode') || ''; } catch (e) { }
-            if (!/^[a-z2-9]{6}$/.test(code)) {
-                var chars = 'abcdefghjkmnpqrstuvwxyz23456789';
-                code = '';
-                for (var i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
-            }
-            var payload = {
-                host: u.uid,
-                created: Date.now(),
-                url: currentEpisode.url,
-                title: roomTitle(),
-                pos: (art && art.currentTime) || 0,
-                playing: !!(art && art.playing),
-                updatedAt: Date.now(),
-            };
-            u.getIdToken().then(function (tok) {
-                return fetch(RTDB + '/room/' + code + '.json?auth=' + tok, {
-                    method: 'PUT',
-                    body: JSON.stringify(payload),
-                });
-            }).then(function (r) {
-                if (!r.ok) throw new Error('HTTP ' + r.status);
-                try { localStorage.setItem('room:hostcode', code); } catch (e) { }
-                window.location.href = '/anime/room/?id=' + code;
-            }).catch(function (e) {
-                art.notice.show = 'Vào phòng lỗi: ' + e;
-            });
-        }
-
         function updateArtwork(episode) {
             if (!episode || !('mediaSession' in navigator)) return;
             // Poster của tập (AVS/kkphim) hay bị chặn hotlink / 404 /
@@ -967,20 +917,6 @@
                 tooltip: 'r3mina',
                 click: function () {
                     window.location.href = '/anime'
-                },
-            });
-
-            // Nút "Xem chung": bấm lần đầu -> tạo phòng + hiện link share; các
-            // lần sau -> hiện lại link phòng đang mở (phòng bám tập đang xem,
-            // đổi tập qua playlist thì phòng đổi theo)
-            art.controls.add({
-                name: 'room',
-                position: 'right',
-                index: 2,
-                html: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>',
-                tooltip: 'Xem chung',
-                click: function () {
-                    enterRoom();
                 },
             });
 

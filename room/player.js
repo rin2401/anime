@@ -399,8 +399,25 @@ window.addEventListener('load', function () {
     var params = new URLSearchParams(window.location.search);
     var id = params.get("id");
     if (!id) {
-        var label = document.getElementById('room-label');
-        if (label) label.textContent = 'Thiếu mã phòng — lấy link từ người tạo phòng';
+        // Sảnh chờ: nhập mã phòng hoặc sang trang tạo phòng
+        var join = document.getElementById('room-join');
+        if (join) {
+            join.style.display = 'flex';
+            var label = document.getElementById('room-label');
+            if (label) label.textContent = '';
+            var codeInput = document.getElementById('join-code');
+            var go = function () {
+                var c = (codeInput.value || '').trim().toLowerCase();
+                if (!/^[a-z2-9]{6}$/.test(c)) return;
+                window.location.href = '/anime/room/?id=' + c;
+            };
+            document.getElementById('join-btn').addEventListener('click', go);
+            codeInput.addEventListener('keydown', function (e) {
+                if (e.isComposing === true || e.keyCode === 229) return; // IME ghép vần
+                if (e.key === 'Enter') { e.preventDefault(); go(); }
+            });
+            codeInput.focus();
+        }
         return;
     }
     var codeLabel = document.getElementById('room-code');

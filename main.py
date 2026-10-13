@@ -50,6 +50,10 @@ def auth():
 def room():
     return render_template('room/index.html')
 
+@bp.route('/room/create/')
+def room_create():
+    return render_template('room/create/index.html')
+
 @bp.route('/socket/')
 def socket():
     return render_template('socket/index.html')
