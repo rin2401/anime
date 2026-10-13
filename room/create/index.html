@@ -445,11 +445,19 @@
                 for (var i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
             }
             var title = (pickedRow && pickedRow.name ? pickedRow.name + ' — Tập ' : 'Tập ') + displayEp(ep.id);
+            // pid/k: nguồn danh sách tập cho nút playlist trong trang room
+            // (pid = key node Firebase anime/, k = slug kkphim) — cùng logic
+            // ưu tiên với pickRow
+            var pid = pickedRow ? (pickedRow.playlist || pickedRow.anilist_id) : '';
+            var k = pickedRow ? pickedRow.phimapi : '';
+            if (pickedRow && !pid && !k) pid = pickedRow.gdrive;
             var payload = {
                 host: u.uid,
                 created: Date.now(),
                 url: ep.url,
                 title: title,
+                pid: String(pid || ''),
+                k: String(k || ''),
                 pos: 0,
                 playing: false,
                 updatedAt: Date.now(),

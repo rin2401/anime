@@ -107,6 +107,62 @@ function playM3u8Text(video, m3u8, art) {
     }
 }
 
+// ── Danh sách tập của phòng (copy mapEpisodes/kkphimEpisodes từ artplayer) ──
+// Room node mang pid (key node Firebase anime/) hoặc k (slug kkphim) do trang
+// create ghi lúc tạo — dùng để tải danh sách tập cho nút playlist trong
+// control bar (host bấm đổi tập cho cả phòng).
+
+// Số tập để sắp xếp: '7.5' -> 7.5, '07_5' -> 7.5 (key Firebase thay '.' bằng '_')
+function epNum(id) {
+    return parseFloat(String(id).replace(/_/g, '.')) || 0;
+}
+
+// Nhãn tập: key Firebase thay '.' bằng '_', hậu tố END mọi biến thể hiện trần số
+function displayEp(id) {
+    return String(id).replace(/_/g, '.').replace(/[\s._-]+end\s*$/i, '').trim();
+}
+
+// Map node Firebase anime/{pid} thành danh sách tập có url phát được: chỉ tập
+// có file/m3u8; tập lưu THẲNG nội dung m3u8 (không có file) trỏ về chính node
+// đó qua customType `json`.
+function mapEpisodes(data, animeId) {
+    var episodeList = [];
+    data = data || {}
+    Object.entries(data).forEach(([id, episode]) => {
+        if (!episode) return
+        if (!episode.file && !episode.m3u8) return
+        var file = episode.file ||
+            `https://r3fire.firebaseio.com/anime/${animeId}/${id}.json`
+        id = episode.id || id
+        episodeList.push({ id: id, title: episode.title, url: file });
+    });
+    episodeList.sort(function (a, b) { return epNum(a.id) - epNum(b.id) });
+    return episodeList;
+}
+
+// kkphim: lấy số tập từ TÊN ('Tập 1004.5') — slug bỏ dấu chấm nên parse slug
+// sai các tập .5 (copy kkphimEpisodes của artplayer)
+function kkphimEpisodes(data) {
+    var lastNum = 0, extra = 0;
+    return (data.episodes[0].server_data || []).map((item) => {
+        var slug = item.slug || ''
+        var id = 1
+        var nm = (item.name || '').match(/(\d+(?:\.\d+)?)/)
+        if (nm) {
+            id = parseFloat(nm[1]); lastNum = id; extra = 0
+        } else if (slug.indexOf("tap-") === 0) {
+            let rest = slug.slice(4);
+            let num = Number(rest);
+            if (Number.isInteger(num)) {
+                id = num; lastNum = num; extra = 0
+            } else {
+                id = lastNum + 0.5 + extra / 100; extra++
+            }
+        }
+        return { id: id, title: (data.movie && data.movie.origin_name) + " - " + id, url: item.link_m3u8 };
+    });
+}
+
 // ── Đồng bộ theo host ──
 var state = null;      // nội dung node room/{code} đang biết
 var loadedUrl = '';    // url đã gắn vào player (tránh mount lại mỗi update)
@@ -116,6 +172,9 @@ var hostSynced = false; // host: đã áp mốc lần đầu chưa (tránh patch
 var lastSeekLogPos = 0; // host: mốc tua đã log chat lần gần nhất (tua nhỏ không log)
 var chatAutoOpened = false; // đã tự mở sidebar chat cho màn rộng chưa (1 lần/trang)
 var authResolved = false; // firebase.auth đã xác định xong uid (tránh khoá nhầm host khi auth chưa về)
+var episodeList = [];   // danh sách tập của bộ đang phát (nút playlist control bar)
+var epsLoadedFor = ''; // pid/k đã tải tập rồi (tránh refetch mỗi lần đổi tập)
+var switchArmed = false; // đang chờ tập mới phát thật sau khi host đổi tập (bỏ qua event rác lúc load nguồn)
 
 // uid của mình (host xác định qua state.host === uid); khách chưa đăng nhập = null
 function myUid() {
@@ -176,7 +235,7 @@ function syncFromState() {
             var el = document.getElementById('room-label');
             if (el) el.textContent = state.title;
         }
-        mountPlayer(state.url);
+        loadEpisodesThenMount(state);
     }
     if (!isHost() && loadedUrl && art) {
         if (state.playing === false) { if (!art.video.paused) art.pause(); }
@@ -215,6 +274,61 @@ function applySync() {
     else art.play();
 }
 
+// Tải danh sách tập của bộ (pid = key Firebase anime/, k = slug kkphim —
+// do trang create ghi vào room node) rồi mới mount player kèm plugin playlist.
+// Bộ cũ không có pid/k (tạo trước tính năng) -> playlist rỗng, player vẫn chạy.
+function loadEpisodesThenMount(st) {
+    var key = String(st.pid || '') || 'k:' + String(st.k || '');
+    var mount = function () { mountPlayer(st.url); };
+    if (!key || key === 'k:') { episodeList = []; epsLoadedFor = ''; return mount(); }
+    if (epsLoadedFor === key) return mount(); // đã tải cho bộ này (đổi tập không refetch)
+    var p;
+    if (st.pid) {
+        p = fetch(RTDB + '/anime/' + st.pid + '.json').then(r => r.json())
+            .then(d => mapEpisodes(d, st.pid));
+    } else {
+        p = fetch('https://phimapi.com/phim/' + st.k).then(r => r.json())
+            .then(d => kkphimEpisodes(d));
+    }
+    p.then(function (eps) {
+        episodeList = eps || [];
+        epsLoadedFor = key;
+    }).catch(function () {
+        episodeList = [];
+    }).then(mount);
+}
+
+// Host bấm tập trong playlist (hoặc autoNext hết tập): plugin đã switchUrl
+// trong player — việc của mình là PHÁT url mới vào room node cho người xem
+// theo kèm tin hệ thống chatbox. Người xem bấm (nếu lọt khoá CSS) -> hoàn tác.
+function onPlaylistChanged(a, index) {
+    var ep = episodeList[index];
+    if (!ep || !ep.url) return;
+    if (!isHost()) {
+        loadedUrl = ''; // ép mount lại nguồn host (plugin đã switch cục bộ)
+        syncFromState();
+        return;
+    }
+    lastSeekLogPos = 0;      // seek về 0 của tập mới không thành tin "tua tới 0:00"
+    loadedUrl = ep.url;      // đã switch trong player — không mount lại
+    // Khoá event cho tới khi tập mới PHÁT THẬT: lúc load nguồn mới, các event
+    // pause/seek phát sinh mang art.playing stale=false (đo thấy patch rác
+    // playing:false 3.2s sau switch dù video đang phát). Timeout dự phòng
+    // 15s cho nguồn lỗi/autoplay bị chặn.
+    switchArmed = true;
+    setTimeout(function () { switchArmed = false; }, 15000);
+    // Tiêu đề phòng: giữ tên bộ (bỏ đuôi " — Tập ..."), đổi số tập
+    var series = String(state.title || '').replace(/ — Tập .*$/, '');
+    var title = (series ? series + ' — ' : '') + 'Tập ' + displayEp(ep.id);
+    patchRoom({ url: ep.url, title: title, pos: 0, playing: true });
+    document.title = title;
+    var el = document.getElementById('room-label');
+    if (el) el.textContent = title;
+    if (typeof RoomChat !== 'undefined' && RoomChat.action) {
+        RoomChat.action('đã đổi sang tập ' + displayEp(ep.id), '🎬');
+    }
+}
+
 // Gắn nguồn mới: hủy player cũ tạo player mới (đổi tập chỉ xảy ra khi host
 // bấm tập khác — không cần switchUrl khéo léo)
 function mountPlayer(url) {
@@ -239,6 +353,24 @@ function mountPlayer(url) {
         mutex: false,
         backdrop: true,
         theme: '#23ade5',
+        // Setting + danh sách tập "tương tự artplayer": bánh răng setting
+        // (playbackRate/aspectRatio/flip), thanh mini progress; autoPlayback
+        // TẮT vì vị trí phòng do host quyết định, không resume localStorage
+        setting: true,
+        flip: true,
+        playbackRate: true,
+        aspectRatio: true,
+        subtitleOffset: true,
+        miniProgressBar: true,
+        plugins: episodeList.length ? [
+            artplayerPlaylist({
+                rebuildPlayer: false,
+                autoNext: true,
+                showText: false,
+                playlist: episodeList,
+                onchanged: onPlaylistChanged,
+            }),
+        ] : [],
         customType: {
             m3u8: playM3u8,
             json: playJson,
@@ -290,7 +422,16 @@ function mountPlayer(url) {
     // phòng thấy ai đang làm gì; tua nhỏ (phím ±5s) không log tránh spam.
     ['video:play', 'video:pause', 'video:seeked', 'video:ended'].forEach(function (ev) {
         art.on(ev, function () {
-            patchRoom({ pos: (art.currentTime || 0), playing: !!art.playing });
+            // Đang chờ tập mới (host vừa đổi qua playlist) phát thật: mọi
+            // event lúc load nguồn là rác (art.playing stale) — chờ video:play
+            // với video KHÔNG paused mới mở khoá trở lại
+            if (switchArmed) {
+                if (ev === 'video:play' && !art.video.paused) switchArmed = false;
+                return;
+            }
+            // playing lấy từ video.paused (ground truth) — art.playing là state
+            // nội bộ artplayer, stale quanh lúc đổi nguồn
+            patchRoom({ pos: (art.currentTime || 0), playing: !art.video.paused });
             if (!isHost() || !hostSynced) return;
             if (typeof RoomChat === 'undefined' || !RoomChat.action) return;
             if (ev === 'video:play') RoomChat.action('đã phát tiếp', '▶');
@@ -474,12 +615,15 @@ window.addEventListener('load', function () {
         RoomChat.mount(document.getElementById('chat-panel'), function () { return id; });
     }
     // Auth xác định xong uid -> đánh dấu để applyViewerLock không khoá nhầm
-    // host trong khoảng auth chưa kịp restore session
+    // host trong khoảng auth chưa kịp restore session. Auth về MUỘN hơn
+    // event 'ready' thì applySync đã chạy nhánh NGƯỜI XEM cho host (hostSynced
+    // không bật -> mọi patchRoom chết im lặng) -> chạy lại nhánh host.
     if (typeof firebase !== 'undefined' && firebase.auth) {
         try {
             firebase.auth().onAuthStateChanged(function () {
                 authResolved = true;
                 applyViewerLock();
+                if (isHost() && !hostSynced && art && loadedUrl) applySync();
             });
         } catch (e) { }
     }

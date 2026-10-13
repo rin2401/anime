@@ -142,6 +142,49 @@
             pointer-events: none;
         }
 
+        /* Người xem: khoá thêm nút setting (playbackRate làm lệch nhịp đồng
+           bộ) + cụm playlist (đổi tập là quyền host) */
+        #room-layout.viewer-lock .art-control-setting,
+        #room-layout.viewer-lock .art-control-selector,
+        #room-layout.viewer-lock .art-control-prev,
+        #room-layout.viewer-lock .art-control-next {
+            pointer-events: none;
+            opacity: 0.45;
+        }
+
+        /* Panel danh sách tập dạng lưới (copy từ trang artplayer): các tập là
+           ô nút đều nhau 5 ô/hàng, neo phải không tràn mép player. !important
+           thắng CSS artplayer chèn SAU <style> trang. */
+        .art-control-selector .art-selector-list {
+            display: grid !important;
+            grid-template-columns: repeat(5, 1fr) !important;
+            gap: 6px !important;
+            width: 240px !important;
+            padding: 8px !important;
+            box-sizing: border-box !important;
+            left: auto !important;
+            right: 0 !important;
+        }
+
+        .art-control-selector .art-selector-list .art-selector-item {
+            width: auto !important;
+            min-width: 0 !important;
+            padding: 5px 0 !important;
+            margin: 0 !important;
+            text-align: center !important;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+        }
+
+        /* Tập đang phát: đổ nền màu theme + chữ trắng — mặc định artplayer chỉ
+           đổi màu chữ thành xanh là quá mờ trên nền tối */
+        .art-control-selector .art-selector-list .art-selector-item.art-current {
+            background: #23ade5 !important;
+            border-color: #23ade5 !important;
+            color: #fff !important;
+        }
+
         /* Sảnh chờ khi mở /anime/room/ không có ?id: nhập mã phòng hoặc sang
            trang tạo phòng. Đè lên vùng video (không có gì để phát). */
         #room-join {
@@ -214,6 +257,7 @@
     <script defer src="https://cdn.jsdelivr.net/npm/hls.js@1.6.16/dist/hls.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/artplayer@5.4.0/dist/artplayer.js"></script>
     <script defer src="/anime/player/mousetrap.min.js" charset="utf-8"></script>
+    <script defer src="/anime/artplayer/artplayer-plugin-playlist.browser.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth-compat.js"></script>
 </head>
