@@ -102,11 +102,21 @@
         /* Nút chọn phim (phòng chưa có phim) — 1 nút chiếm cả hàng grid */
         #ep-pick-movie {
             grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
             padding: 12px 0 !important;
             font-size: 14px !important;
             font-weight: 700;
             background: rgba(35, 173, 229, 0.18) !important;
             border-color: rgba(35, 173, 229, 0.55) !important;
+        }
+
+        #ep-pick-movie svg {
+            width: 16px;
+            height: 16px;
+            display: block;
         }
 
         #ep-pick-movie:hover {
@@ -195,6 +205,9 @@
            dời về đây nên action phòng cũng ở đây cho gọn). Người xem bị
            .viewer-lock ẩn hẳn. */
         #chat-change-movie {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
             flex: 0 0 auto;
             background: rgba(35, 173, 229, 0.15);
             color: #7fd4ff;
@@ -205,6 +218,12 @@
             font-family: inherit;
             cursor: pointer;
             white-space: nowrap;
+        }
+
+        #chat-change-movie svg {
+            width: 13px;
+            height: 13px;
+            display: block;
         }
 
         #chat-change-movie:hover {
@@ -422,34 +441,53 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 34px;
+            color: rgba(255, 255, 255, 0.35);
+        }
+
+        .room-card-noimg svg {
+            width: 34px;
+            height: 34px;
+            display: block;
         }
 
         .room-card-lock {
             position: absolute;
             top: 8px;
             right: 8px;
+            display: flex;
+            align-items: center;
             background: rgba(0, 0, 0, 0.55);
             border-radius: 6px;
-            padding: 3px 6px;
-            font-size: 12px;
+            padding: 4px 6px;
+        }
+
+        .room-card-lock svg {
+            width: 13px;
+            height: 13px;
+            display: block;
         }
 
         /* Nút sửa phòng: chỉ hiện trên card phòng CỦA MÌNH (host trùng uid),
-           góc trái để không đè 🔒 góc phải. */
+           góc trái để không đè icon khoá góc phải. */
         .room-card-edit {
             position: absolute;
             top: 8px;
             left: 8px;
             width: 28px;
             height: 28px;
-            line-height: 28px;
-            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             background: rgba(0, 0, 0, 0.6);
             border: 1px solid rgba(255, 255, 255, 0.25);
             border-radius: 6px;
-            font-size: 14px;
             cursor: pointer;
+        }
+
+        .room-card-edit svg {
+            width: 15px;
+            height: 15px;
+            display: block;
         }
 
         .room-card-edit:hover {
@@ -546,12 +584,20 @@
         }
 
         .modal-x {
+            display: flex;
+            align-items: center;
+            justify-content: center;
             background: none;
             border: 0;
             color: rgba(255, 255, 255, 0.6);
-            font-size: 16px;
             cursor: pointer;
-            padding: 4px 8px;
+            padding: 6px 8px;
+        }
+
+        .modal-x svg {
+            width: 15px;
+            height: 15px;
+            display: block;
         }
 
         .modal-x:hover {
@@ -740,7 +786,7 @@
             </div>
         </div>
         <aside id="chat-side">
-            <div id="chat-head"><span id="room-code"></span> <span id="room-label">Đang kết nối phòng…</span><button id="chat-change-movie" type="button" title="Đổi phim cho phòng">🎬 Đổi phim</button></div>
+            <div id="chat-head"><span id="room-code"></span> <span id="room-label">Đang kết nối phòng…</span><button id="chat-change-movie" type="button" title="Đổi phim cho phòng"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/></svg><span>Đổi phim</span></button></div>
             <div id="chat-panel"></div>
         </aside>
     </div>
@@ -765,12 +811,12 @@
     </div>
 
     <!-- Modal tạo phòng: CHỈ tên phòng + mật khẩu — vào phòng rồi mới chọn
-         phim (nút 🎬 trong header chatbox). Tập phát tự chọn theo lịch sử xem
+         phim (nút Đổi phim trong header chatbox). Tập phát tự chọn theo lịch sử xem
          của người chọn phim: đã xem thì tiếp tục đúng tập/mốc, chưa xem thì
          tập đầu tiên; đổi tập sau đó bằng playlist trong artplayer. -->
     <div class="modal" id="create-modal">
         <div class="modal-card modal-sm">
-            <div class="modal-head"><span>Tạo phòng xem chung</span><button class="modal-x" type="button">✕</button></div>
+            <div class="modal-head"><span>Tạo phòng xem chung</span><button class="modal-x" type="button" aria-label="Đóng"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button></div>
             <div id="c-auth">Cần đăng nhập để tạo phòng. <a href="/anime/auth/">Đăng nhập →</a></div>
             <div class="c-form">
                 <input id="c-name" placeholder="Tên phòng (tuỳ chọn, vd: chill cuối tuần)" maxlength="40" autocomplete="off">
@@ -791,7 +837,7 @@
          mã phòng cũ nên link share không đổi). -->
     <div class="modal" id="edit-modal">
         <div class="modal-card modal-sm">
-            <div class="modal-head"><span id="e-title">Sửa phòng</span><button class="modal-x" type="button">✕</button></div>
+            <div class="modal-head"><span id="e-title">Sửa phòng</span><button class="modal-x" type="button" aria-label="Đóng"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button></div>
             <div class="c-form">
                 <input id="e-name" placeholder="Tên phòng (tuỳ chọn)" maxlength="40" autocomplete="off">
                 <label class="c-priv"><input type="checkbox" id="e-priv"> Phòng riêng — người vào cần mật khẩu</label>
@@ -809,7 +855,7 @@
          chưa xem thì tập đầu). Cùng nguồn Sheet với phòng (RoomMoviePicker). -->
     <div class="modal" id="movie-modal">
         <div class="modal-card">
-            <div class="modal-head"><span>Đổi phim cho phòng</span><button class="modal-x" type="button">✕</button></div>
+            <div class="modal-head"><span>Đổi phim cho phòng</span><button class="modal-x" type="button" aria-label="Đóng"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button></div>
             <input id="m-q" type="search" placeholder="Tìm phim…" autocomplete="off">
             <div id="m-results"></div>
             <div id="m-status"></div>
@@ -818,7 +864,7 @@
     <!-- Modal mật khẩu: vào phòng riêng từ card (sảnh) hoặc từ link trực tiếp -->
     <div class="modal" id="pw-modal">
         <div class="modal-card modal-sm">
-            <div class="modal-head"><span id="pw-title">Phòng riêng</span><button class="modal-x" type="button">✕</button></div>
+            <div class="modal-head"><span id="pw-title">Phòng riêng</span><button class="modal-x" type="button" aria-label="Đóng"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button></div>
             <p class="pw-sub">Phòng này cần mật khẩu để vào.</p>
             <div class="lobby-joinrow">
                 <input id="pw-input" placeholder="Mật khẩu" autocomplete="off">

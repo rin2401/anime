@@ -72,7 +72,7 @@ function ageText(ms) {
     return Math.round(h / 24) + ' ngày trước';
 }
 
-var lastRooms = {}; // bản rooms mới nhất — re-render khi auth resolve (nút ✏️ phòng của mình)
+var lastRooms = {}; // bản rooms mới nhất — re-render khi auth resolve (nút sửa phòng của mình)
 
 // uid đang đăng nhập (null khi chưa resolve/khách) — dùng để biết card nào là
 // phòng CỦA MÌNH (hiện nút sửa)
@@ -81,6 +81,12 @@ function myUid() {
         var u = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth().currentUser : null;
         return u ? u.uid : null;
     } catch (e) { return null; }
+}
+
+// Icon SVG của phòng (nguồn duy nhất nằm trong chat.js) — nút/card không chép
+// lại path và không dùng emoji
+function roomIco(key, cls) {
+    return (typeof RoomChat !== 'undefined' && RoomChat.ico) ? RoomChat.ico(key, cls) : '';
 }
 
 function renderRoomList(rooms) {
@@ -114,9 +120,9 @@ function renderRoomList(rooms) {
         d.className = 'room-card' + (it.playing ? ' live' : '') + (it.priv ? ' lock' : '');
         d.innerHTML =
             '<div class="room-card-img">' +
-            (it.img ? '<img loading="lazy" alt="">' : '<div class="room-card-noimg">🎬</div>') +
-            (it.priv ? '<span class="room-card-lock">🔒</span>' : '') +
-            (it.mine ? '<span class="room-card-edit" title="Sửa phòng">✏️</span>' : '') +
+            (it.img ? '<img loading="lazy" alt="">' : '<div class="room-card-noimg">' + roomIco('movie') + '</div>') +
+            (it.priv ? '<span class="room-card-lock">' + roomIco('lock') + '</span>' : '') +
+            (it.mine ? '<span class="room-card-edit" title="Sửa phòng">' + roomIco('edit') + '</span>' : '') +
             '</div>' +
             '<div class="room-card-body">' +
             '<div class="room-card-name"></div>' +
@@ -127,7 +133,7 @@ function renderRoomList(rooms) {
         var img = d.querySelector('img');
         if (img) {
             img.src = it.img;
-            img.onerror = function () { this.parentNode.innerHTML = '<div class="room-card-noimg">🎬</div>'; };
+            img.onerror = function () { this.parentNode.innerHTML = '<div class="room-card-noimg">' + roomIco('movie') + '</div>'; };
         }
         d.querySelector('.room-card-name').textContent = it.name || ('Phòng ' + it.code);
         // Phòng chưa chọn phim: title còn là tên phòng -> ghi rõ đang chờ chọn
@@ -202,7 +208,7 @@ function saveRoomEdit() {
         btn.disabled = false;
         // tin hệ thống để người trong phòng biết phòng vừa đổi
         var nm = u.displayName || (u.email || '').split('@')[0];
-        chatSys(code, '🛠 ' + nm + ' đã cập nhật phòng' + (name ? ' — ' + name : ''));
+        chatSys(code, nm + ' đã cập nhật phòng' + (name ? ' — ' + name : ''), 'room');
         closeRoomEdit();
         eSetStatus('');
     };
@@ -229,10 +235,11 @@ function saveRoomEdit() {
 }
 
 // Tin hệ thống vào chatbox phòng (khách/rỗng thì bỏ qua im lặng)
-function chatSys(code, text) {
+function chatSys(code, text, icoKey) {
     var u = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth().currentUser : null;
     var nm = u ? (u.displayName || (u.email || '').split('@')[0]) : 'Ai đó';
     var entry = { uid: u ? u.uid : 'sys', name: nm, text: text, ts: Date.now(), sys: 1 };
+    if (icoKey) entry.ico = icoKey;   // khoá icon SVG, render bên chat.js
     var post = function (tok) {
         return fetch(RTDB + '/chat/' + code + '.json' + (tok ? '?auth=' + tok : ''), {
             method: 'POST', body: JSON.stringify(entry),
@@ -276,7 +283,7 @@ function normalizeText(s) {
 
 function cSetStatus(s) { document.getElementById('c-status').textContent = s || ''; }
 
-// ── RoomMoviePicker: modal ĐỔI PHIM dùng trong TRANG ROOM (nút 🎬 ở header
+// ── RoomMoviePicker: modal ĐỔI PHIM dùng trong TRANG ROOM (nút Đổi phim ở
 // chatbox, chỉ chủ phòng thấy). Lazy-wire DOM ở lần mở đầu vì khối init của
 // sảnh bị bỏ qua khi URL có ?id. Dùng chung cache Sheet (cRows) + parser với
 // modal tạo phòng; chọn bộ xong gọi callback (player.js tự patch room node). ──
@@ -380,7 +387,7 @@ function myCode() {
 }
 
 // Tạo phòng rồi vào thẳng trang room — phòng CHƯA có phim (host chọn phim
-// trong trang room bằng nút 🎬). Code tái dùng localStorage room:hostcode:
+// trong trang room bằng nút Đổi phim). Code tái dùng localStorage room:hostcode:
 // link share ổn định, mở lại là cùng phòng.
 function cCreateRoom() {
     var u = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth().currentUser : null;
@@ -435,8 +442,8 @@ function cCreateRoom() {
                     method: 'POST',
                     keepalive: true,
                     body: JSON.stringify({
-                        uid: u.uid, name: nm, ts: Date.now(), sys: 1,
-                        text: '🎬 ' + nm + ' đã mở phòng — ' + (roomName || ('Phòng ' + code)),
+                        uid: u.uid, name: nm, ts: Date.now(), sys: 1, ico: 'movie',
+                        text: nm + ' đã mở phòng — ' + (roomName || ('Phòng ' + code)),
                     }),
                 });
             }).catch(function () { });
@@ -474,7 +481,7 @@ window.addEventListener('load', function () {
         x.addEventListener('click', function () { RoomPw.close(); });
     });
 
-    // modal sửa phòng (chủ phòng — nút ✏️ trên card của mình)
+    // modal sửa phòng (chủ phòng — nút sửa trên card của mình)
     document.getElementById('e-save').addEventListener('click', saveRoomEdit);
     document.getElementById('e-cancel').addEventListener('click', closeRoomEdit);
     Array.prototype.forEach.call(document.querySelectorAll('#edit-modal .modal-x'), function (x) {
@@ -520,7 +527,7 @@ window.addEventListener('load', function () {
     if (typeof firebase !== 'undefined' && firebase.auth) {
         firebase.auth().onAuthStateChanged(function (u) {
             document.getElementById('c-auth').style.display = (!u) ? 'block' : 'none';
-            // auth vừa resolve -> vẽ lại list để nút ✏️ hiện đúng phòng CỦA MÌNH
+            // auth vừa resolve -> vẽ lại list để nút sửa hiện đúng phòng CỦA MÌNH
             renderRoomList(lastRooms);
         });
     }

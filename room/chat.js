@@ -49,18 +49,46 @@ var RoomChat = (function () {
 .room-chat-msg.sys { color:rgba(255,255,255,.55); font-style:italic; }
 .room-chat-input { display:flex; gap:6px; padding:8px; border-top:1px solid rgba(255,255,255,.15); }
 .room-chat-input input { flex:1; min-width:0; background:#2b2f33; color:#fff; border:0; border-radius:8px; padding:8px 10px; outline:0; color-scheme:dark; font-family:inherit; font-size:13px; }
-.room-chat-input button { background:#23ade5; color:#fff; border:0; border-radius:8px; padding:0 12px; font-weight:700; cursor:pointer; font-family:inherit; }
-.room-chat-empty { color:rgba(255,255,255,.5); padding:8px 10px; }
+.room-chat-input button { display:flex; align-items:center; justify-content:center; background:#23ade5; color:#fff; border:0; border-radius:8px; padding:0 12px; font-weight:700; cursor:pointer; font-family:inherit; }
+.room-chat-input button svg { width:16px; height:16px; display:block; }
+.room-chat-empty { display:flex; align-items:center; gap:6px; color:rgba(255,255,255,.5); padding:8px 10px; }
+.room-chat-empty svg { width:14px; height:14px; flex:0 0 auto; }
+.room-chat-ico svg { width:12px; height:12px; display:inline-block; vertical-align:-1px; margin-right:2px; }
 `;
         document.head.appendChild(st);
+    }
+
+    // Icon SVG dùng chung (KHÔNG dùng emoji: font emoji lệch tông với icon SVG
+    // của player và render khác nhau theo OS). Tin hệ thống lưu KHOÁ icon
+    // (entry.ico) chứ không nhét ký tự vào text; tin cũ trong DB vẫn còn emoji
+    // thì render nguyên trạng, không viết lại lịch sử.
+    var ICONS = {
+        movie: '<path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/>',
+        join: '<path d="M11 7l-1.41 1.41L12.17 11H4v2h8.17l-2.58 2.59L11 17l5-5-5-5zm9 12h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"/>',
+        room: '<path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>',
+        chat: '<path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>',
+        send: '<path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>',
+        play: '<path d="M8 5v14l11-7z"/>',
+        pause: '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>',
+        seek: '<path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/>',
+        lock: '<path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM9 8V6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9z"/>',
+        edit: '<path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.9959.9959 0 0 0 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>',
+    };
+
+    function icoSvg(key, cls) {
+        var p = ICONS[key];
+        if (!p) return '';
+        return '<span class="' + (cls || 'room-chat-ico') + '">'
+            + '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' + p + '</svg></span>';
     }
 
     function mount(el, getCode) {
         ensureStyle();
         el.classList.add('room-chat');
-        el.innerHTML = '<div class="room-chat-list"><div class="room-chat-empty">Chat tạm — chỉ hiện tin nhắn mới của người đang trong phòng 💬</div></div>' +
+        el.innerHTML = '<div class="room-chat-list"><div class="room-chat-empty">'
+            + icoSvg('chat') + '<span>Chat tạm — chỉ hiện tin nhắn mới của người đang trong phòng</span></div></div>' +
             '<div class="room-chat-input"><input type="text" maxlength="500" placeholder="Nhắn tin…" enterkeyhint="send">' +
-            '<button type="button" aria-label="Gửi">➤</button></div>';
+            '<button type="button" aria-label="Gửi">' + icoSvg('send') + '</button></div>';
         var list = el.querySelector('.room-chat-list');
         var input = el.querySelector('input');
         var btn = el.querySelector('button');
@@ -130,15 +158,17 @@ var RoomChat = (function () {
 
         // Tin HỆ THỐNG (sys:1): trạng thái hành động trong phòng — host phát/
         // dừng/tua/đổi tập, người vào phòng — hiển thị xám nghiêng, không tính
-        // là tin nhắn của ai nên không cản lastSend (được gọi từ player.js)
-        function action(verb, icon) {
+        // là tin nhắn của ai nên không cản lastSend (được gọi từ player.js).
+        // icoKey: khoá icon SVG ('movie' | 'join' | 'room'), không phải emoji.
+        function action(verb, icoKey) {
             if (!curCode) return;
             var me = identity();
             var entry = {
                 uid: me.uid, name: me.name,
-                text: (icon ? icon + ' ' : '') + me.name + ' ' + verb,
+                text: me.name + ' ' + verb,
                 ts: Date.now(), sys: 1,
             };
+            if (ICONS[icoKey]) entry.ico = icoKey;
             postChat(curCode, entry).catch(function () { });
         }
 
@@ -186,9 +216,11 @@ var RoomChat = (function () {
                 var me = identity();
                 var d = document.createElement('div');
                 if (m.sys) {
-                    // tin hệ thống (hành động phòng): xám nghiêng, tên nằm trong text
+                    // tin hệ thống (hành động phòng): xám nghiêng, tên nằm trong
+                    // text; entry.ico (khoá SVG) có thì chèn icon thay vì emoji
                     d.className = 'room-chat-msg sys';
-                    d.innerHTML = '<span class="t">' + esc(hhmm(m.ts)) + '</span>' + esc(m.text);
+                    d.innerHTML = '<span class="t">' + esc(hhmm(m.ts)) + '</span>'
+                        + icoSvg(m.ico) + esc(m.text);
                 } else {
                     d.className = 'room-chat-msg' + (m.uid === me.uid ? ' mine' : '');
                     d.innerHTML = '<span class="t">' + esc(hhmm(m.ts)) + '</span><b>' + esc(m.name) + '</b>' + esc(m.text);
@@ -196,7 +228,8 @@ var RoomChat = (function () {
                 list.appendChild(d);
             });
             if (!order.length) {
-                list.innerHTML = '<div class="room-chat-empty">Chat tạm — chỉ hiện tin nhắn mới của người đang trong phòng 💬</div>';
+                list.innerHTML = '<div class="room-chat-empty">' + icoSvg('chat')
+                    + '<span>Chat tạm — chỉ hiện tin nhắn mới của người đang trong phòng</span></div>';
                 return;
             }
             if (nearBottom) list.scrollTop = list.scrollHeight;
@@ -258,7 +291,7 @@ var RoomChat = (function () {
             trimOld(code);
             // Người vào phòng -> 1 tin hệ thống cho cả phòng thấy ai mới đến
             // (reload cũng tính là vào lại — chat tạm nên không sao)
-            action('đã vào phòng', '👋');
+            action('đã vào phòng', 'join');
             // Ưu tiên Firebase SDK: child_added chỉ đẩy TIN MỚI (query limit 10
             // + lọc joinTs trong add() nên không hiện lịch sử), child_removed
             // nghe tin bị dọn ở máy khác. Không SDK -> SSE như cũ.
@@ -324,6 +357,9 @@ var RoomChat = (function () {
 
     return {
         mount: mount,
-        action: function (verb, icon) { if (activeAction) activeAction(verb, icon); },
+        action: function (verb, icoKey) { if (activeAction) activeAction(verb, icoKey); },
+        // Icon SVG của phòng (nguồn duy nhất) — lobby/player dùng chung để nút
+        // và card không phải chép lại path, và không nơi nào nhét emoji
+        ico: icoSvg,
     };
 })();
