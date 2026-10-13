@@ -245,14 +245,33 @@ function syncFromState() {
     applyViewerLock();
 }
 
+// Giây buffer còn phía trước vị trí đang xem (0 nếu currentTime rơi ngoài
+// mọi range đã đệm — tức chưa có dữ liệu tại chỗ đang đứng)
+function bufferedAhead(v) {
+    try {
+        for (var i = 0; i < v.buffered.length; i++) {
+            if (v.currentTime >= v.buffered.start(i) && v.currentTime <= v.buffered.end(i)) {
+                return v.buffered.end(i) - v.currentTime;
+            }
+        }
+    } catch (e) { }
+    return 0;
+}
+
 // Seek về phía host khi lệch quá 3s (đủ rộng để không dập lệnh tua của host,
-// đủ chặt để người xem không trôi quá xa) — host tự là nguồn sự thật nên bỏ qua
+// đủ chặt để người xem không trôi quá xa) — host tự là nguồn sự thật nên bỏ qua.
+// Mạng chậm: đang đứng load (readyState < 3) hoặc buffer phía trước < 5s thì
+// HOÃN lượt tua — tua lúc thiếu buffer chỉ tạo vòng lặp tua-đứng-tua (currentTime
+// đứng nhưng targetPos vẫn trôi, 4s sau lại tua). Chờ đệm đủ mới nhảy 1 phát
+// đuổi kịp → người xem trễ mượt sau host thay vì giật slideshow.
 function followPos() {
     if (isHost()) return;
     var tp = targetPos(state);
     if (tp == null || !art) return;
     if (art.duration && isFinite(art.duration)
         && Math.abs(art.currentTime - tp) > 3) {
+        var v = art.video;
+        if (v.readyState < 3 || bufferedAhead(v) < 5) return;
         art.currentTime = tp;
     }
 }
