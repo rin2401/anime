@@ -299,10 +299,13 @@ function syncFromState() {
         if (!autoStartIfNeeded(state, false)) showEpPick();
         return;
     }
-    if (!isHost() && loadedUrl && art) {
+    // Theo node cho CẢ HAI vai (host đơn máy: thao tác của mình luôn khớp
+    // node nên nhánh này no-op; 2 máy cùng acc host thì máy này kéo theo
+    // thao tác của máy kia và ngược lại — ai thao tác cuối cùng thắng)
+    if (loadedUrl && art) {
         if (state.playing === false) { if (!art.video.paused) art.pause(); }
-        else if (state.playing === true) { if (art.video.paused) art.play(); }
-        // tốc độ phát theo host (host đổi 2x thì người xem cũng 2x)
+        else if (state.playing === true) { if (art.video.paused) { try { art.play(); } catch (e) { } } }
+        // tốc độ phát theo node (host đổi 2x thì cả phòng 2x)
         var tr = Number(state.rate) || 1;
         if (art.playbackRate !== tr) art.playbackRate = tr;
         applyViewerDisplaySettings();
@@ -329,8 +332,12 @@ function bufferedAhead(v) {
 // HOÃN lượt tua — tua lúc thiếu buffer chỉ tạo vòng lặp tua-đứng-tua (currentTime
 // đứng nhưng targetPos vẫn trôi, 4s sau lại tua). Chờ đệm đủ mới nhảy 1 phát
 // đuổi kịp → người xem trễ mượt sau host thay vì giật slideshow.
+// Kéo theo mốc node (pos + ngoại suy theo updatedAt/rate). CHẠY CHO CẢ HOST:
+// 2 máy cùng acc host (máy tính + điện thoại) là 2 "host" — ai cũng ghi node
+// nhưng phải THEO node nữa thì mới đồng bộ với nhau; host đơn máy thì thao
+// tác của chính mình luôn khớp node nên vòng này là no-op. Guard buffer giữ
+// nguyên: đang đứng load / buffer mỏng thì bỏ lượt tua (đỡ giật slideshow).
 function followPos() {
-    if (isHost()) return;
     var tp = targetPos(state);
     if (tp == null || !art) return;
     if (art.duration && isFinite(art.duration)
@@ -371,6 +378,10 @@ function applySync() {
         applyHostDisplaySettings();
         art.currentTime = Number(state.pos) || 0;
         lastSeekLogPos = Number(state.pos) || 0; // seek ban đầu không phải "tua"
+        // phát/dừng THEO node (2 máy cùng acc host đồng bộ với nhau; mobile
+        // autoplay bị chặn thì play() im lặng thất bại — chờ tap mở tiếng)
+        if (state.playing === false) { if (!art.video.paused) art.pause(); }
+        else if (state.playing === true) { if (art.video.paused) { try { art.play(); } catch (e) { } } }
         return;
     }
     if (!state || !loadedUrl || !art) return;
@@ -950,8 +961,16 @@ function mountPlayer(url) {
             // chặn patch pos/playing khỏi đè mốc node lúc autoplay mở nguồn
             if (!isHost() || !hostSynced) return;
             // playing lấy từ video.paused (ground truth) — art.playing là state
-            // nội bộ artplayer, stale quanh lúc đổi nguồn
-            patchRoom({ pos: (art.currentTime || 0), playing: !art.video.paused });
+            // nội bộ artplayer, stale quanh lúc đổi nguồn.
+            // LƯU Ý: seeked KHÔNG kèm playing — seek mở màn (applySync) trên
+            // mobile autoplay bị chặn sẽ ghi nhầm playing:false lên node,
+            // dừng cả phòng oan; play/pause là event chuyển trạng thái nên
+            // playing do chúng gánh, seeked chỉ cần đương pos
+            if (ev === 'video:seeked') {
+                patchRoom({ pos: (art.currentTime || 0) });
+            } else {
+                patchRoom({ pos: (art.currentTime || 0), playing: !art.video.paused });
+            }
             if (typeof RoomChat === 'undefined' || !RoomChat.action) return;
             if (ev === 'video:play') RoomChat.action('đã phát tiếp', 'play');
             else if (ev === 'video:pause') RoomChat.action('đã tạm dừng', 'pause');
