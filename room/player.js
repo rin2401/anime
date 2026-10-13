@@ -153,8 +153,8 @@ function targetPos(s) {
 
 // Áp state vừa nhận: đổi nguồn nếu host đổi tập, theo play/pause, seek nếu lệch.
 // Host (uid trùng state.host) là nguồn sự thật — KHÔNG tự theo mình: chỉ mount
-// url mới (khi đổi tập từ trang artplayer) và hiện nút share, không play/pause
-// cưỡng bức, không followPos.
+// url mới (khi đổi tập từ trang create), không play/pause cưỡng bức, không
+// followPos.
 function syncFromState() {
     if (!state) return;
     if (state.url && state.url !== loadedUrl) {
@@ -172,7 +172,6 @@ function syncFromState() {
         else if (state.playing === true) { if (art.video.paused) art.play(); }
         followPos();
     }
-    updateHostUi();
 }
 
 // Seek về phía host khi lệch quá 3s (đủ rộng để không dập lệnh tua của host,
@@ -267,56 +266,8 @@ function mmss(s) {
     return m + ':' + ('0' + ss).slice(-2);
 }
 
-// Host xác nhận xong -> hiện nút 🔗 share link phòng (panel DOM, host bấm để
-// gửi link cho bạn). Người xem không thấy nút này.
-var hostUiBound = false;
-function updateHostUi() {
-    if (!isHost()) return;
-    var btn = document.getElementById('room-share-btn');
-    if (btn) btn.hidden = false;
-    if (hostUiBound) return;
-    hostUiBound = true;
-    btn.addEventListener('click', function () { showRoomShare(); });
-    bindRoomShare();
-}
-
-// ── Panel share link phòng (thay prompt() — webview chặn prompt im lặng).
-// Copy qua clipboard API, fail thì fallback execCommand (TV/webview cũ).
-function showRoomShare() {
-    var wrap = document.getElementById('room-share');
-    if (!wrap) return;
-    document.getElementById('room-share-code').textContent = roomCode;
-    document.getElementById('room-share-link').textContent =
-        location.origin + '/anime/room/?id=' + roomCode;
-    document.getElementById('room-share-copy').textContent = 'Copy link';
-    wrap.hidden = false;
-}
-
-function copyFallback(text, done) {
-    var ta = document.createElement('textarea');
-    ta.value = text;
-    ta.style.position = 'fixed';
-    ta.style.opacity = '0';
-    document.body.appendChild(ta);
-    ta.select();
-    try { if (document.execCommand('copy')) done(); } catch (e) { }
-    document.body.removeChild(ta);
-}
-
-function bindRoomShare() {
-    var wrap = document.getElementById('room-share');
-    if (!wrap) return;
-    document.getElementById('room-share-close').addEventListener('click', function () { wrap.hidden = true; });
-    wrap.addEventListener('click', function (e) { if (e.target === wrap) wrap.hidden = true; });
-    document.getElementById('room-share-copy').addEventListener('click', function () {
-        var link = location.origin + '/anime/room/?id=' + roomCode;
-        var btn = document.getElementById('room-share-copy');
-        var done = function () { btn.textContent = 'Đã copy!'; };
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(link).then(done).catch(function () { copyFallback(link, done); });
-        } else copyFallback(link, done);
-    });
-}
+// Link share phòng = chính URL của trang (thanh địa chỉ) — host copy từ đó,
+// không cần nút/panel share riêng.
 
 function setMediaSession(title) {
     if ('mediaSession' in navigator) {
