@@ -283,52 +283,113 @@ function normalizeText(s) {
 
 function cSetStatus(s) { document.getElementById('c-status').textContent = s || ''; }
 
-// ── RoomMoviePicker: modal ĐỔI PHIM dùng trong TRANG ROOM (nút Đổi phim ở
-// chatbox, chỉ chủ phòng thấy). Lazy-wire DOM ở lần mở đầu vì khối init của
-// sảnh bị bỏ qua khi URL có ?id. Dùng chung cache Sheet (cRows) + parser với
-// modal tạo phòng; chọn bộ xong gọi callback (player.js tự patch room node). ──
+// ── RoomMoviePicker: modal CHỌN PHIM dùng trong TRANG ROOM (nút Chọn phim ở
+// chatbox + nút trên overlay #ep-pick, chỉ chủ phòng thấy). Mở ra là có sẵn
+// grid poster GỢI Ý giống trang chủ (1 bộ 1 card — gom mùa theo cột series,
+// ảnh bìa qua Photon w=300), gõ tên thì chuyển sang kết quả tìm kiếm. Lazy-
+// wire DOM vì khối init của sảnh bị bỏ qua khi URL có ?id. Dùng chung cache
+// Sheet (cRows) với modal tạo phòng; chọn bộ xong gọi callback (player.js
+// patch room node + tự phát theo lịch sử xem). ──
 var RoomMoviePicker = (function () {
     var wired = false;
     var onPick = null;
     var timer = 0;
+    var DEF_MAX = 24;   // số card gợi ý mặc định
 
     function setStatus(s) {
         var el = document.getElementById('m-status');
         if (el) el.textContent = s || '';
     }
 
-    function render(list) {
+    function setHead(s) {
+        var el = document.getElementById('m-head');
+        if (el) el.textContent = s || '';
+    }
+
+    // Poster nhỏ qua Photon (300px) — cùng URL với trang chủ nên trùng cache
+    function thumb(u) {
+        if (!u) return imageUrl;
+        if (u.indexOf('http') !== 0) return u;
+        return 'https://i0.wp.com/' + u.replace(/^https?:\/\//, '') + '?w=300&quality=70&ssl=1';
+    }
+
+    function hasSource(r) {
+        return !!(r.playlist || r.anilist_id || r.phimapi || r.gdrive);
+    }
+
+    // Card gợi ý: gom mùa cùng bộ (cột series) còn 1 card như trang chủ —
+    // dòng đại diện là mùa 1 (id == series), fallback dòng đầu. Bộ nào cũng
+    // còn tìm thấy từng mùa riêng khi gõ tên.
+    function defaultList() {
+        var rows = (cRows || []).filter(hasSource);
+        // Thứ tự như trang chủ: status giảm dần (RELEASING lên trước)
+        rows.sort(function (a, b) {
+            return String(b.status || '').localeCompare(String(a.status || ''));
+        });
+        var seen = {}, out = [];
+        rows.forEach(function (r) {
+            var s = String(r.series || '').trim();
+            if (!s) { out.push(r); return; }
+            if (seen[s]) return;
+            seen[s] = true;
+            var members = (cRows || []).filter(function (x) { return String(x.series || '').trim() === s; });
+            out.push(members.filter(function (x) { return String(x.id) === s; })[0] || members[0] || r);
+        });
+        return out.slice(0, DEF_MAX);
+    }
+
+    function card(row) {
+        var d = document.createElement('div');
+        d.className = 'card';
+        var img = document.createElement('img');
+        img.loading = 'lazy';
+        img.src = thumb(row.image);
+        img.onerror = function () { this.src = imageUrl; };
+        var name = document.createElement('div');
+        name.className = 'name';
+        name.textContent = row.name || '(không tên)';
+        // Dòng phụ: năm + thể loại/trạng thái (gọn như card trang chủ)
+        var bits = [row.year, row.category || row.status].filter(function (x) { return !!x; });
+        var meta = document.createElement('div');
+        meta.className = 'meta';
+        meta.textContent = bits.join(' · ');
+        d.appendChild(img);
+        d.appendChild(name);
+        if (bits.length) d.appendChild(meta);
+        d.addEventListener('click', function () {
+            var cb = onPick;
+            close();
+            if (cb) cb(row);
+        });
+        return d;
+    }
+
+    function render(list, head) {
         var box = document.getElementById('m-results');
         if (!box) return;
         box.innerHTML = '';
-        list.slice(0, 24).forEach(function (row) {
-            var d = document.createElement('div');
-            d.className = 'card';
-            var img = document.createElement('img');
-            img.loading = 'lazy';
-            img.src = row.image || imageUrl;
-            img.onerror = function () { this.src = imageUrl; };
-            var name = document.createElement('div');
-            name.className = 'name';
-            name.textContent = row.name || '(không tên)';
-            d.appendChild(img);
-            d.appendChild(name);
-            d.addEventListener('click', function () {
-                var cb = onPick;
-                close();
-                if (cb) cb(row);
-            });
-            box.appendChild(d);
-        });
-        setStatus(list.length ? '' : 'Không tìm thấy bộ nào khớp.');
+        var frag = document.createDocumentFragment();
+        list.slice(0, 60).forEach(function (row) { frag.appendChild(card(row)); });
+        box.appendChild(frag);
+        box.scrollTop = 0;
+        setHead(head);
+    }
+
+    function showDefaults() {
+        if (!cRows) return;
+        var list = defaultList();
+        render(list, 'Phim gợi ý');
+        setStatus(list.length ? '' : 'Không có phim nào trong danh mục.');
     }
 
     function doSearch() {
         var qEl = document.getElementById('m-q');
         if (!cRows || !qEl) return;
         var q = normalizeText(qEl.value).trim();
-        if (!q) { document.getElementById('m-results').innerHTML = ''; setStatus(''); return; }
-        render(cRows.filter(function (r) { return r.name && normalizeText(r.name).indexOf(q) !== -1; }));
+        if (!q) { showDefaults(); return; }
+        var hits = cRows.filter(function (r) { return r.name && normalizeText(r.name).indexOf(q) !== -1; });
+        render(hits, 'Kết quả tìm kiếm');
+        setStatus(hits.length ? hits.length + ' bộ khớp “' + qEl.value.trim() + '”' : 'Không tìm thấy bộ nào khớp.');
     }
 
     function close() {
@@ -362,16 +423,18 @@ var RoomMoviePicker = (function () {
         // qua im lặng (người dùng tưởng tìm không ra phim)
         qEl.disabled = !cRows;
         document.getElementById('m-results').innerHTML = '';
-        setStatus(cRows ? 'Nhập tên phim để tìm.' : 'Đang tải danh sách phim…');
         m.classList.add('open');
-        setTimeout(function () { if (!qEl.disabled) qEl.focus(); }, 50);
-        if (!cRows) {
+        if (cRows) {
+            showDefaults();               // mở ra là có sẵn phim gợi ý
+            setTimeout(function () { qEl.focus(); }, 50);
+        } else {
+            setHead('Phim gợi ý');
+            setStatus('Đang tải danh sách phim…');
             fetchSheetRows().then(function (r) {
                 cRows = r;
                 qEl.disabled = false;
-                setStatus('Nhập tên phim để tìm.');
+                showDefaults();
                 qEl.focus();
-                if (qEl.value.trim()) doSearch(); // gõ sớm (nếu kịp) -> tìm lại
             }).catch(function () { setStatus('Tải danh sách phim lỗi — thử lại.'); });
         }
     }

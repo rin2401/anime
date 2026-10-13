@@ -175,6 +175,7 @@ var authResolved = false; // firebase.auth đã xác định xong uid (tránh kh
 var episodeList = [];   // danh sách tập của bộ đang phát (nút playlist control bar)
 var epsLoadedFor = ''; // pid/k đã tải tập rồi (tránh refetch mỗi lần đổi tập)
 var switchArmed = false; // đang chờ tập mới phát thật sau khi host đổi tập (bỏ qua event rác lúc load nguồn)
+var autoTriedFor = '';   // host: pid|k đã tự chọn tập mở màn rồi (khỏi lặp mỗi lần sync)
 
 // uid của mình (host xác định qua state.host === uid); khách chưa đăng nhập = null
 function myUid() {
@@ -274,15 +275,16 @@ function syncFromState() {
         }
         loadEpisodesThenMount(state);
     } else if (!state.url) {
-        // Phòng chưa có tập (chọn bộ là vào phòng luôn, chọn tập sau; hoặc
-        // host vừa ĐỔI PHIM) — cập nhật tên phim lên header chatbox rồi hiện
-        // overlay chọn tập cho host
+        // Phòng chưa có tập: cập nhật tên phim lên header chatbox rồi
+        // - chưa chọn phim  -> overlay mời host chọn phim (người xem chờ)
+        // - host đã có phim -> TỰ chọn tập mở màn và phát luôn, KHÔNG hiện
+        //   màn chọn tập (bộ chưa crawl ra nguồn thì overlay báo rõ)
         if (state.title) {
             document.title = state.title;
             var elu = document.getElementById('room-label');
             if (elu) elu.textContent = state.title;
         }
-        showEpPick();
+        if (!autoStartIfNeeded(state, false)) showEpPick();
         return;
     }
     if (!isHost() && loadedUrl && art) {
@@ -384,9 +386,25 @@ function loadEpisodesThenMount(st) {
     loadEpisodes(st).then(function () { mountPlayer(st.url); });
 }
 
-// Phòng CHƯA CÓ phim/tập: phòng mới tạo chỉ có tên + mật khẩu, host chọn
-// phim NGAY TẠI ĐÂY (nút Đổi phim, dùng chung RoomMoviePicker với chatbox);
-// đã có phim thì host thấy grid chọn tập. Người xem chỉ chờ.
+// Overlay #ep-pick ở chế độ CHỈ BÁO TRẠNG THÁI (không có gì để bấm): dùng khi
+// host chọn phim xong đang tải tập, hoặc bộ chưa crawl ra nguồn phát
+function showLoading(text) {
+    var pk = document.getElementById('ep-pick');
+    if (!pk) return;
+    if (art) {
+        try { art.destroy(false); } catch (e) { }
+        art = null;
+    }
+    loadedUrl = '';
+    pk.style.display = 'flex';
+    document.getElementById('ep-pick-title').textContent = text;
+    document.getElementById('ep-pick-grid').innerHTML = '';
+}
+
+// Phòng CHƯA CHỌN PHIM (phòng mới tạo chỉ có tên + mật khẩu): host thấy nút
+// chọn phim, người xem chờ. Phòng ĐÃ có phim thì không còn màn chọn tập nữa —
+// host tự phát theo lịch sử xem (autoStartIfNeeded), đổi tập bằng playlist
+// trên artplayer; người xem chỉ chờ host.
 function showEpPick() {
     var pk = document.getElementById('ep-pick');
     if (!pk) return;
@@ -414,26 +432,35 @@ function showEpPick() {
         }
         return;
     }
-    if (isHost()) {
-        titleEl.textContent = 'Chọn tập để bắt đầu:';
-        loadEpisodes(state).then(function () {
-            if (state.url) return; // host đã chọn ở nơi khác
-            grid.innerHTML = '';
-            episodeList.forEach(function (ep) {
-                var b = document.createElement('button');
-                b.type = 'button';
-                b.textContent = displayEp(ep.id);
-                b.addEventListener('click', function () { pickEp(ep); });
-                grid.appendChild(b);
-            });
-            if (!episodeList.length) titleEl.textContent = 'Bộ này chưa có nguồn phát (chưa crawl).';
-        });
-    } else {
-        titleEl.textContent = 'Chờ host chọn tập…';
-    }
+    titleEl.textContent = isHost() ? 'Đang tải phim…' : 'Chờ host chọn tập…';
 }
 
-// ── CHỦ PHÒNG ĐỔI PHIM cho phòng (nút Đổi phim ở header chatbox) ──
+// itemKey của phòng khi KHÔNG có dòng Sheet (mở lại phòng cũ, reload): ưu tiên
+// itk đã ghi vào node lúc chọn phim, không có thì suy từ pid/k — bộ gdrive
+// (itemKey 'gd:<id>') chỉ khớp được nếu node có itk (chọn từ Sheet luôn có)
+function roomItemKey(st) {
+    if (!st) return '';
+    if (st.itk) return String(st.itk);
+    if (st.pid) return String(st.pid);
+    if (st.k) return 'kk:' + st.k;
+    return '';
+}
+
+// Host vào phòng có phim nhưng chưa có tập (vừa chọn phim, hoặc mở lại phòng
+// đang trong lúc tải): TỰ chọn tập mở màn rồi phát — không hiện màn chọn tập.
+// force = vừa chọn phim nên phải thử lại kể cả đã thử cho bộ này rồi.
+function autoStartIfNeeded(st, force) {
+    if (!isHost() || !st) return false;
+    var key = String(st.pid || '') + '|' + String(st.k || '');
+    if (!key || key === '|') return false;         // chưa chọn phim
+    if (!force && autoTriedFor === key) return true;
+    autoTriedFor = key;
+    showLoading('Đang tải phim…');
+    autoPlayStart(roomItemKey(st));
+    return true;
+}
+
+// ── CHỦ PHÒNG CHỌN PHIM cho phòng (nút Chọn phim ở header chatbox) ──
 // Chọn bộ mới từ Sheet: patch room node {url:'', title, pid, k, img} → overlay
 // #ep-pick hiện ra cho host chọn tập đầu (pickEp phát lên node như thường).
 // Giữ nguyên host/created/name/priv/pw — không tạo phòng mới, link share không
@@ -470,8 +497,9 @@ function historyStartEp(itemKey) {
     }).catch(function () { return first; });
 }
 
-// Chọn/đổi phim cho phòng: ghi pid/k vào node rồi PHÁT LUÔN tập đầu — host
-// không phải bấm tập nữa; đổi tập về sau bằng playlist trên artplayer.
+// Chọn phim cho phòng: ghi pid/k + itk (itemKey để tra lịch sử khi mở lại) vào
+// node rồi PHÁT LUÔN — không còn màn chọn tập, host vào xem ngay; đổi tập sau
+// đó bằng playlist trên artplayer.
 function changeRoomMovie(row) {
     if (!isHost() || !row || !state) return;
     var pid = row.playlist || row.anilist_id || row.gdrive || '';
@@ -486,24 +514,27 @@ function changeRoomMovie(row) {
     state.title = title;
     state.pid = String(pid || '');
     state.k = String(k || '');
+    state.itk = itemKey;
     state.pos = 0;
     state.playing = false;
-    patchRoom({ url: '', title: title, pid: String(pid || ''), k: String(k || ''), img: row.image || '', pos: 0, playing: false });
+    patchRoom({
+        url: '', title: title, pid: String(pid || ''), k: String(k || ''),
+        itk: itemKey, img: row.image || '', pos: 0, playing: false,
+    });
     document.title = title;
     var el = document.getElementById('room-label');
     if (el) el.textContent = title;
     if (typeof RoomChat !== 'undefined' && RoomChat.action) {
-        RoomChat.action('đã đổi phim — ' + title, 'movie');
+        RoomChat.action('đã chọn phim — ' + title, 'movie');
     }
-    showEpPick();
-    autoPlayStart(itemKey);
+    autoStartIfNeeded(state, true);
 }
 
 // Tải danh sách tập của bộ vừa chọn rồi phát tập mở màn (lịch sử xem của host)
 function autoPlayStart(itemKey) {
     loadEpisodes(state).then(function () {
         if (state.url) return; // đã có tập khác đang phát trong lúc chờ
-        if (!episodeList.length) return; // showEpPick đã ghi "chưa có nguồn phát"
+        if (!episodeList.length) { showLoading('Bộ này chưa có nguồn phát (chưa crawl).'); return; }
         return historyStartEp(itemKey).then(function (sel) {
             if (sel && !state.url) pickEp(sel.ep, sel.pos);
         });
@@ -880,7 +911,13 @@ window.addEventListener('load', function () {
     // Mở chat ngay từ đầu — phòng chưa chọn tập không mount player nên không
     // đi qua autoOpenChat() trong mountPlayer
     autoOpenChat();
-    // Nút Đổi phim ở header chatbox — CHỈ chủ phòng thấy (CSS .viewer-lock
+    // Nạp sẵn catalog Sheet cho modal CHỌN PHIM: khối init của sảnh bị bỏ qua
+    // khi URL có ?id nên nếu đợi tới lúc mở modal mới fetch thì grid gợi ý
+    // hiện trễ vài giây
+    if (typeof fetchSheetRows === 'function') {
+        fetchSheetRows().then(function (r) { cRows = r; }).catch(function () { });
+    }
+    // Nút Chọn phim ở header chatbox — CHỈ chủ phòng thấy (CSS .viewer-lock
     // ẩn với người xem; changeRoomMovie tự chặn nếu không phải host)
     var changeMovieBtn = document.getElementById('chat-change-movie');
     if (changeMovieBtn) {

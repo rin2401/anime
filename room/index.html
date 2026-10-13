@@ -646,42 +646,106 @@
             font-weight: 700;
         }
 
-        #c-results, #m-results {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
-            gap: 10px;
+        /* ── Modal CHỌN PHIM: rộng hơn modal thường để grid poster giống
+           trang chủ (1 bộ 1 card, ảnh bìa qua Photon w=300) ── */
+        .modal-card.modal-wide {
+            width: min(880px, 95vw);
+        }
+
+        .m-search {
+            position: relative;
             margin-top: 12px;
         }
 
-        #c-results .card, #m-results .card {
+        .m-search > svg {
+            position: absolute;
+            left: 11px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 15px;
+            height: 15px;
+            color: rgba(255, 255, 255, 0.45);
+            pointer-events: none;
+        }
+
+        #m-q {
+            width: 100%;
+            background: #2b2f33;
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 9px;
+            padding: 10px 12px 10px 34px;
+            font-family: inherit;
+            font-size: 14px;
+            outline: 0;
+            color-scheme: dark;
+        }
+
+        #m-q:focus {
+            border-color: #23ade5;
+        }
+
+        #m-head {
+            margin-top: 14px;
+            font-size: 11.5px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        #m-results {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
+            gap: 12px;
+            margin-top: 10px;
+            max-height: min(54vh, 430px);
+            overflow-y: auto;
+            padding: 2px;
+        }
+
+        #m-results .card {
             cursor: pointer;
-            border-radius: 8px;
+            border-radius: 10px;
             background: #23272d;
             border: 1px solid rgba(255, 255, 255, 0.1);
             padding: 6px;
             text-align: center;
+            transition: transform 0.12s ease, border-color 0.12s ease;
         }
 
-        #c-results .card img, #m-results .card img {
+        #m-results .card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(35, 173, 229, 0.6);
+        }
+
+        #m-results .card img {
             width: 100%;
             aspect-ratio: 2 / 3;
             object-fit: cover;
-            border-radius: 6px;
+            border-radius: 7px;
             display: block;
+            background: #1b1e23;
         }
 
-        #c-results .card .name, #m-results .card .name {
-            font-size: 11.5px;
-            margin-top: 5px;
-            min-height: 2.8em;
+        #m-results .card .name {
+            font-size: 12px;
+            line-height: 1.35;
+            margin-top: 6px;
+            min-height: 2.7em;
             overflow: hidden;
             display: -webkit-box;
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
         }
 
-        #c-results .card.picked, #m-results .card.picked {
-            border-color: #23ade5;
+        #m-results .card .meta {
+            margin-top: 3px;
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.45);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .c-form {
@@ -762,6 +826,7 @@
     <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://r3fire.firebaseio.com">
+    <link rel="preconnect" href="https://i0.wp.com">
 
     <script defer src="https://cdn.jsdelivr.net/npm/hls.js@1.6.16/dist/hls.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/artplayer@5.4.0/dist/artplayer.js"></script>
@@ -786,7 +851,7 @@
             </div>
         </div>
         <aside id="chat-side">
-            <div id="chat-head"><span id="room-code"></span> <span id="room-label">Đang kết nối phòng…</span><button id="chat-change-movie" type="button" title="Đổi phim cho phòng"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/></svg><span>Đổi phim</span></button></div>
+            <div id="chat-head"><span id="room-code"></span> <span id="room-label">Đang kết nối phòng…</span><button id="chat-change-movie" type="button" title="Chọn phim cho phòng"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/></svg><span>Chọn phim</span></button></div>
             <div id="chat-panel"></div>
         </aside>
     </div>
@@ -850,13 +915,18 @@
             </div>
         </div>
     </div>
-    <!-- Modal ĐỔI PHIM trong phòng (chủ phòng): tìm bộ mới → chọn bộ là room
-         node đổi nguồn và PHÁT LUÔN tập mở màn (theo lịch sử xem của host,
-         chưa xem thì tập đầu). Cùng nguồn Sheet với phòng (RoomMoviePicker). -->
+    <!-- Modal CHỌN PHIM trong phòng (chủ phòng): mở ra là có sẵn grid poster
+         gợi ý như trang chủ (1 bộ 1 card, gom mùa theo cột series), gõ tên thì
+         chuyển sang kết quả tìm kiếm. Chọn bộ là room node đổi nguồn và PHÁT
+         LUÔN tập mở màn (theo lịch sử xem của host). Dùng RoomMoviePicker. -->
     <div class="modal" id="movie-modal">
-        <div class="modal-card">
-            <div class="modal-head"><span>Đổi phim cho phòng</span><button class="modal-x" type="button" aria-label="Đóng"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button></div>
-            <input id="m-q" type="search" placeholder="Tìm phim…" autocomplete="off">
+        <div class="modal-card modal-wide">
+            <div class="modal-head"><span>Chọn phim cho phòng</span><button class="modal-x" type="button" aria-label="Đóng"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button></div>
+            <div class="m-search">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27a6.47 6.47 0 0 0 1.48-5.34c-.47-2.78-2.79-5-5.59-5.34a6.505 6.505 0 0 0-7.27 7.27c.34 2.8 2.56 5.12 5.34 5.59a6.47 6.47 0 0 0 5.34-1.48l.27.28v.79l4.25 4.25c.41.41 1.08.41 1.49 0 .41-.41.41-1.08 0-1.49L15.5 14zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                <input id="m-q" type="search" placeholder="Tìm phim theo tên…" autocomplete="off">
+            </div>
+            <div id="m-head">Phim gợi ý</div>
             <div id="m-results"></div>
             <div id="m-status"></div>
         </div>
