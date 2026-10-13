@@ -1014,6 +1014,29 @@ function mmss(s) {
 // Link share phòng = chính URL của trang (thanh địa chỉ) — host copy từ đó,
 // không cần nút/panel share riêng.
 
+// Copy chuỗi vào clipboard: API mới fail (webview cũ / không focus) thì
+// fallback textarea + execCommand cũ kỹ — callback báo thành/bại để UI flash
+function copyText(txt, cb) {
+    var fallback = function () {
+        var ta = document.createElement('textarea');
+        ta.value = txt;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        var ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { }
+        document.body.removeChild(ta);
+        cb(ok);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).then(function () { cb(true); }, fallback);
+    } else {
+        fallback();
+    }
+}
+
 function setMediaSession(title) {
     if ('mediaSession' in navigator) {
         navigator.mediaSession.metadata = new MediaMetadata({
@@ -1173,6 +1196,44 @@ window.addEventListener('load', function () {
             if (typeof RoomMoviePicker === 'undefined') return;
             RoomMoviePicker.open(changeRoomMovie);
         });
+    }
+    // Mã QR link phòng + copy mã phòng (header chatbox): QR sinh CỤC BỘC bằng
+    // qrcode-generator vendored (room/qrcode.min.js) — link phòng không đi qua
+    // dịch vụ QR ngoài. Cả host lẫn người xem đều dùng được (chia sẻ).
+    var qrBtn = document.getElementById('chat-qr');
+    var copyBtn = document.getElementById('chat-copy');
+    if (qrBtn || copyBtn) {
+        var roomLink = location.origin + location.pathname + '?id=' + encodeURIComponent(roomCode);
+        var qrPop = document.getElementById('qr-pop');
+        if (qrBtn && qrPop) {
+            qrBtn.addEventListener('click', function () {
+                var on = qrPop.classList.toggle('open');
+                if (on && !qrPop.getAttribute('data-built')) {
+                    qrPop.setAttribute('data-built', '1');
+                    try {
+                        var qr = window.qrcode(0, 'M'); // typeNumber 0 = tự chọn size nhỏ nhất vừa
+                        qr.addData(roomLink);
+                        qr.make();
+                        qrPop.innerHTML = qr.createImgTag(4, 8) // cellSize 4, margin 8 (quiet zone)
+                            + '<div class="qr-cap">Quét để vào phòng</div>';
+                    } catch (e) {
+                        qrPop.textContent = 'Không tạo được mã QR';
+                    }
+                }
+            });
+        }
+        if (copyBtn) {
+            copyBtn.addEventListener('click', function () {
+                copyText(roomCode, function (ok) {
+                    copyBtn.classList.toggle('ok', ok);
+                    copyBtn.title = ok ? 'Đã copy: ' + roomCode : 'Không copy được';
+                    setTimeout(function () {
+                        copyBtn.classList.remove('ok');
+                        copyBtn.title = 'Copy mã phòng';
+                    }, 1500);
+                });
+            });
+        }
     }
     // Auth xác định xong uid -> đánh dấu để applyViewerLock không khoá nhầm
     // host trong khoảng auth chưa kịp restore session. Auth về MUỘN hơn
