@@ -124,6 +124,21 @@
             fill: #23ade5;
         }
 
+        /* NGƯỜI XEM: khoá control phát từ phía player (class do player.js gắn
+           khi xác định mình không phải host) — nút play, thanh tua, bấm giữa
+           màn hình đều tê + mờ nhạt cho biết bị khoá. Volume/thời lượng/pip/
+           fullscreen vẫn dùng vì là việc riêng từng máy. Lớp cưỡng chế hoàn
+           tác event vẫn chạy ở player.js phòng khi webview cũ lơ is CSS. */
+        #room-layout.viewer-lock .art-control-playAndPause,
+        #room-layout.viewer-lock .art-progress {
+            pointer-events: none;
+            opacity: 0.45;
+        }
+
+        #room-layout.viewer-lock .art-state {
+            pointer-events: none;
+        }
+
         /* Sảnh chờ khi mở /anime/room/ không có ?id: nhập mã phòng hoặc sang
            trang tạo phòng. Đè lên vùng video (không có gì để phát). */
         #room-join {

@@ -115,6 +115,7 @@ var roomCode = '';     // mã phòng từ ?id= (host dùng để PATCH + share l
 var hostSynced = false; // host: đã áp mốc lần đầu chưa (tránh patch pos=0 lúc autoplay)
 var lastSeekLogPos = 0; // host: mốc tua đã log chat lần gần nhất (tua nhỏ không log)
 var chatAutoOpened = false; // đã tự mở sidebar chat cho màn rộng chưa (1 lần/trang)
+var authResolved = false; // firebase.auth đã xác định xong uid (tránh khoá nhầm host khi auth chưa về)
 
 // uid của mình (host xác định qua state.host === uid); khách chưa đăng nhập = null
 function myUid() {
@@ -125,6 +126,15 @@ function myUid() {
 
 function isHost() {
     return !!(state && state.host && myUid() && state.host === myUid());
+}
+
+// Khoá control phát từ phía player cho NGƯỜI XEM (CSS .viewer-lock tê nút
+// play/thanh tua/bấm giữa màn) — chỉ gắn khi auth đã chắc chắn uid MÀ uid
+// đó không phải host, tránh khoá nhầm host lúc auth chưa kịp về.
+function applyViewerLock() {
+    var layout = document.getElementById('room-layout');
+    if (!layout) return;
+    layout.classList.toggle('viewer-lock', !!(authResolved && !isHost()));
 }
 
 // Host ghi state: play/pause/seek/hết tập — chỉ ghi khi state ĐỔI, người xem
@@ -173,6 +183,7 @@ function syncFromState() {
         else if (state.playing === true) { if (art.video.paused) art.play(); }
         followPos();
     }
+    applyViewerLock();
 }
 
 // Seek về phía host khi lệch quá 3s (đủ rộng để không dập lệnh tua của host,
@@ -401,8 +412,8 @@ function watchRoom(code) {
     setInterval(followPos, 4000);
 }
 
-// ── Phím tắt (người xem vẫn tua/volume riêng; vị trí sẽ bị kéo về theo host
-// trong vòng 4s nếu lệch quá 3s) ──
+// ── Phím tắt: volume là việc riêng từng máy; tua chỉ host (người xem bị
+// khoá từ UI + hoàn tác event, tua cũng bị kéo về mốc host) ──
 function playPause() {
     art ? (art.video.paused ? art.play() : art.pause()) : 0;
 }
@@ -413,10 +424,10 @@ function volumeDown() {
     if (art && art.volume >= 0.1) art.volume -= 0.1;
 }
 function seekRight() {
-    if (art) art.currentTime += 5;
+    if (isHost() && art) art.currentTime += 5;
 }
 function seekLeft() {
-    if (art) art.currentTime -= 5;
+    if (isHost() && art) art.currentTime -= 5;
 }
 function vidFullscreen() {
     if (art) art.fullscreen = !art.fullscreen;
@@ -461,5 +472,15 @@ window.addEventListener('load', function () {
     // (nút bật/tắt nằm trong control bar artplayer — thêm ở mountPlayer)
     if (typeof RoomChat !== 'undefined') {
         RoomChat.mount(document.getElementById('chat-panel'), function () { return id; });
+    }
+    // Auth xác định xong uid -> đánh dấu để applyViewerLock không khoá nhầm
+    // host trong khoảng auth chưa kịp restore session
+    if (typeof firebase !== 'undefined' && firebase.auth) {
+        try {
+            firebase.auth().onAuthStateChanged(function () {
+                authResolved = true;
+                applyViewerLock();
+            });
+        } catch (e) { }
     }
 });
