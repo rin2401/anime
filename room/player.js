@@ -294,6 +294,28 @@ function mountPlayer(url) {
             }
         });
     });
+
+    // Người xem KHÔNG được tự điều khiển: play/pause/seek cục bộ bị hoàn tác
+    // NGAY về trạng thái host (không đợi vòng poll 3s) — host đang pause mà
+    // bấm play cũng bị dừng lại tức thì kèm notice giải thích; tua bị kéo
+    // về mốc host. Volume/fullscreen là việc riêng từng máy nên không chặn.
+    ['video:play', 'video:pause', 'video:seeked'].forEach(function (ev) {
+        art.on(ev, function () {
+            if (isHost() || !state || !loadedUrl) return;
+            var wrong = false;
+            if (state.playing === false && !art.video.paused) { art.pause(); wrong = true; }
+            else if (state.playing === true && art.video.paused) { art.play(); wrong = true; }
+            var tp = targetPos(state);
+            if (tp != null && art.duration && isFinite(art.duration)
+                && Math.abs(art.currentTime - tp) > 1) {
+                art.currentTime = tp;
+                wrong = true;
+            }
+            if (wrong && ev !== 'video:seeked') {
+                art.notice.show = 'Phòng do host điều khiển — bạn xem theo';
+            }
+        });
+    });
 }
 
 // 123 -> "2:03" cho tin hệ thống "đã tua tới"
