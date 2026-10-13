@@ -168,7 +168,8 @@ var state = null;      // nội dung node room/{code} đang biết
 var loadedUrl = '';    // url đã gắn vào player (tránh mount lại mỗi update)
 var art = null;
 var roomCode = '';     // mã phòng từ ?id= (host dùng để PATCH + share link)
-var hostSynced = false; // host: đã áp mốc lần đầu chưa (tránh patch pos=0 lúc autoplay)
+var hostSynced = false; // host: đã áp mốc lần đầu chưa (cửa sổ mount: chặn patch pos=0 lúc autoplay trước seek)
+var hostReady = false;  // host: đã rõ vai là ĐƯỢC PHÉP GHI node (dán cứng, không reset theo mount)
 var lastSeekLogPos = 0; // host: mốc tua đã log chat lần gần nhất (tua nhỏ không log)
 var chatAutoOpened = false; // đã tự mở sidebar chat mặc định chưa (1 lần/trang, mọi cỡ màn)
 var authResolved = false; // firebase.auth đã xác định xong uid (tránh khoá nhầm host khi auth chưa về)
@@ -198,9 +199,16 @@ function applyViewerLock() {
 }
 
 // Host ghi state: play/pause/seek/hết tập — chỉ ghi khi state ĐỔI, người xem
-// tự ngoại suy pos + (now - updatedAt)/1000 giữa 2 lần ghi
+// tự ngoại suy pos + (now - updatedAt)/1000 giữa 2 lần ghi.
+// Quyền ghi theo hostReady (dán cứng khi host rõ vai) — KHÔNG theo hostSynced:
+// hostSynced là cửa sổ mount (reset mỗi lần mountPlayer, bật lại khi ready),
+// nếu event ready không bao giờ bắn (m3u8 chậm/lỗi) thì cờ kẹt false mãi và
+// mọi patchRoom chết im lặng, kể cả chọn phim — đúng bug đã gặp: tin chat vẫn
+// hiện (đi đường khác) mà node không đổi, người xem không theo được.
 function patchRoom(patch) {
-    if (!isHost() || !hostSynced) return;
+    // không có player đang mount thì không có rủi ro autoplay patch trước seek
+    if (!hostSynced && !art) markHostReady();
+    if (!isHost() || !hostReady) return;
     patch.updatedAt = Date.now();
     // SDK (WebSocket) tự gắn token của user đang đăng nhập — gọn hơn
     // getIdToken + fetch tay; TV cũ không có SDK thì đi REST như cũ
@@ -334,7 +342,7 @@ function followPos() {
 // có thể resolve TRƯỚC snapshot đầu tiên, lúc đó isHost() còn false nên
 // applySync bị bỏ qua -> cờ không bao giờ bật, mọi patchRoom chết im lặng.
 function markHostReady() {
-    if (isHost()) hostSynced = true;
+    if (isHost()) hostReady = true;
 }
 
 // Player sẵn sàng -> đặt mốc theo host ngay lần đầu. Host: mốc pos trong node
@@ -343,6 +351,9 @@ function markHostReady() {
 function applySync() {
     if (isHost()) {
         markHostReady();
+        // hết cửa sổ mount (player đã sẵn sàng, mốc sẽ được áp ngay dưới đây):
+        // listener video:play/pause/seeked được phép patch pos/playing lại
+        hostSynced = true;
         if (!state || !loadedUrl || !art) return;
         art.currentTime = Number(state.pos) || 0;
         lastSeekLogPos = Number(state.pos) || 0; // seek ban đầu không phải "tua"
@@ -719,10 +730,12 @@ function mountPlayer(url) {
                 if (ev === 'video:play' && !art.video.paused) switchArmed = false;
                 return;
             }
+            // Cửa sổ mount (hostSynced false tới khi applySync áp mốc xong):
+            // chặn patch pos/playing khỏi đè mốc node lúc autoplay mở nguồn
+            if (!isHost() || !hostSynced) return;
             // playing lấy từ video.paused (ground truth) — art.playing là state
             // nội bộ artplayer, stale quanh lúc đổi nguồn
             patchRoom({ pos: (art.currentTime || 0), playing: !art.video.paused });
-            if (!isHost() || !hostSynced) return;
             if (typeof RoomChat === 'undefined' || !RoomChat.action) return;
             if (ev === 'video:play') RoomChat.action('đã phát tiếp', 'play');
             else if (ev === 'video:pause') RoomChat.action('đã tạm dừng', 'pause');
