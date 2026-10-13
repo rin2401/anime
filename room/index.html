@@ -203,7 +203,7 @@
             border: 1px solid rgba(255, 255, 255, 0.15);
             border-radius: 12px;
             padding: 18px 20px;
-            width: min(380px, 92vw);
+            width: min(430px, 92vw);
             font-size: 14px;
             line-height: 1.5;
             color: #fff;
@@ -250,6 +250,72 @@
             color: #23ade5;
             text-decoration: none;
         }
+
+        /* Danh sách phòng đang mở trong sảnh chờ: mỗi phòng 1 dòng, chấm
+           xanh = đang phát, xám = tạm dừng; mới cập nhật trước. */
+        .room-list-title {
+            margin: 14px 0 6px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: rgba(255, 255, 255, 0.55);
+        }
+
+        #room-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-height: 40vh;
+            overflow: auto;
+        }
+
+        .room-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #2b2f33;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 9px 12px;
+            color: #fff;
+            text-decoration: none;
+        }
+
+        .room-item:hover {
+            border-color: #23ade5;
+        }
+
+        .room-item-dot {
+            flex: none;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #6b7280;
+        }
+
+        .room-item.live .room-item-dot {
+            background: #23ade5;
+        }
+
+        .room-item-title {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .room-item-age {
+            flex: none;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.55);
+        }
+
+        .room-item-empty {
+            padding: 8px 0;
+            color: rgba(255, 255, 255, 0.5);
+        }
     </style>
 
     <link rel="preconnect" href="https://cdn.jsdelivr.net">
@@ -283,6 +349,8 @@
                 <input id="join-code" placeholder="Mã phòng, vd dwjnqx" autocomplete="off">
                 <button id="join-btn" type="button">Vào</button>
             </div>
+            <div class="room-list-title">Phòng đang mở</div>
+            <div id="room-list"></div>
             <a id="create-link" href="/anime/room/create/">Tạo phòng mới →</a>
         </div>
     </div>

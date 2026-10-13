@@ -271,7 +271,10 @@ function followPos() {
     if (art.duration && isFinite(art.duration)
         && Math.abs(art.currentTime - tp) > 3) {
         var v = art.video;
-        if (v.readyState < 3 || bufferedAhead(v) < 5) return;
+        // Đang pause thì tua NGAY (không có gì phát để ngắt, seek còn kích
+        // download tại mốc mới) — kẹt không theo được host tua trong lúc pause
+        // vì video pause không tải thêm buffer, bufferedAhead mãi < 5s.
+        if (!v.paused && (v.readyState < 3 || bufferedAhead(v) < 5)) return;
         art.currentTime = tp;
     }
 }
@@ -593,6 +596,50 @@ function vidFullscreen() {
     if (art) art.fullscreen = !art.fullscreen;
 }
 
+// ── Sảnh chờ: danh sách phòng đang mở (GET /room.json public theo rules) ──
+// Phòng im > 24h coi như đã tan (host đóng tab không xoá node), mới nhất
+// trước; schema legacy (không có url/title) bỏ qua.
+function ageText(ms) {
+    var m = Math.round(ms / 60000);
+    if (m < 1) return 'vừa xong';
+    if (m < 60) return m + ' phút trước';
+    var h = Math.round(m / 60);
+    if (h < 24) return h + ' giờ trước';
+    return Math.round(h / 24) + ' ngày trước';
+}
+
+function loadRoomList() {
+    fetch(RTDB + '/room.json').then(function (r) { return r.json(); }).then(function (rooms) {
+        var box = document.getElementById('room-list');
+        if (!box) return;
+        var items = [];
+        for (var code in rooms) {
+            var r = rooms[code];
+            if (!r || !r.url || !r.title) continue;
+            var age = Date.now() - Number(r.updatedAt || 0);
+            if (age > 86400000) continue;
+            items.push({ code: code, title: r.title, playing: !!r.playing, age: age });
+        }
+        items.sort(function (a, b) { return a.age - b.age; });
+        box.innerHTML = '';
+        if (!items.length) {
+            box.innerHTML = '<div class="room-item-empty">Chưa có phòng nào đang mở</div>';
+            return;
+        }
+        items.slice(0, 20).forEach(function (it) {
+            var a = document.createElement('a');
+            a.className = 'room-item' + (it.playing ? ' live' : '');
+            a.href = '/anime/room/?id=' + it.code;
+            a.innerHTML = '<span class="room-item-dot"></span>'
+                + '<span class="room-item-title"></span>'
+                + '<span class="room-item-age"></span>';
+            a.querySelector('.room-item-title').textContent = it.title;
+            a.querySelector('.room-item-age').textContent = ageText(it.age);
+            box.appendChild(a);
+        });
+    }).catch(function () { });
+}
+
 window.addEventListener('load', function () {
     Mousetrap.bind('up', volumeUp);
     Mousetrap.bind('down', volumeDown);
@@ -603,7 +650,7 @@ window.addEventListener('load', function () {
     var params = new URLSearchParams(window.location.search);
     var id = params.get("id");
     if (!id) {
-        // Sảnh chờ: nhập mã phòng hoặc sang trang tạo phòng
+        // Sảnh chờ: nhập mã phòng, danh sách phòng đang mở, hoặc sang trang tạo phòng
         var join = document.getElementById('room-join');
         if (join) {
             join.style.display = 'flex';
@@ -621,6 +668,8 @@ window.addEventListener('load', function () {
                 if (e.key === 'Enter') { e.preventDefault(); go(); }
             });
             codeInput.focus();
+            loadRoomList();
+            setInterval(loadRoomList, 15000); // phòng mới mở/tan hiện dần
         }
         return;
     }
