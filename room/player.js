@@ -982,6 +982,24 @@ function mountPlayer(url) {
         }
     });
 
+    // Lưới an toàn cho HOST trên mobile: toggle của artplayer (tap giữa màn
+    // -> play/pause) đôi khi bị nuốt trên webview iOS — viewer đã có listener
+    // hoàn tác tự gọi play() lại, host thì không. Listener capture (chạy
+    // TRƯỚC handler của artplayer trên $video) ghi lại ý định theo trạng thái
+    // video lúc chạm; listener bubble (chạy SAU) chỉ can thiệp khi ý định là
+    // PHÁT mà video vẫn đứng im — gọi play() trong cùng chuỗi gesture. Tap
+    // lúc đang phát (ý pause) không bị đụng.
+    var tapWasPaused = false;
+    art.container.addEventListener('click', function () {
+        if (art && art.video) tapWasPaused = art.video.paused;
+    }, true);
+    art.container.addEventListener('click', function () {
+        if (!isHost() || !art || !art.video) return;
+        if (tapWasPaused && art.video.paused) {
+            try { art.play(); } catch (e) { }
+        }
+    }, false);
+
     // Người xem KHÔNG được tự điều khiển: play/pause/seek cục bộ bị hoàn tác
     // NGAY về trạng thái host (không đợi vòng poll 3s) — host đang pause mà
     // bấm play cũng bị dừng lại tức thì kèm notice giải thích; tua bị kéo
