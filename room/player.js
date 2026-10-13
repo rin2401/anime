@@ -170,7 +170,7 @@ var art = null;
 var roomCode = '';     // mã phòng từ ?id= (host dùng để PATCH + share link)
 var hostSynced = false; // host: đã áp mốc lần đầu chưa (tránh patch pos=0 lúc autoplay)
 var lastSeekLogPos = 0; // host: mốc tua đã log chat lần gần nhất (tua nhỏ không log)
-var chatAutoOpened = false; // đã tự mở sidebar chat cho màn rộng chưa (1 lần/trang)
+var chatAutoOpened = false; // đã tự mở sidebar chat mặc định chưa (1 lần/trang, mọi cỡ màn)
 var authResolved = false; // firebase.auth đã xác định xong uid (tránh khoá nhầm host khi auth chưa về)
 var episodeList = [];   // danh sách tập của bộ đang phát (nút playlist control bar)
 var epsLoadedFor = ''; // pid/k đã tải tập rồi (tránh refetch mỗi lần đổi tập)
@@ -421,16 +421,15 @@ function mountPlayer(url) {
             setTimeout(function () { try { art.resize(); } catch (e) { } }, 60);
         },
     });
-    // Màn rộng mở sẵn sidebar (một lần duy nhất, không lặp khi đổi tập);
-    // mobile đóng mặc định cho phim tràn màn, bấm nút chat khi cần
-    if (!chatAutoOpened && window.innerWidth >= 900) {
+    // Mở sẵn sidebar chat mặc định ở MỌI cỡ màn (một lần duy nhất, không lặp
+    // khi đổi tập) — mobile user muốn chat bật ngay (kiểu live stream);
+    // mobile đóng chat thì video chiếm trọn màn hình (CSS #video-area flex:1)
+    if (!chatAutoOpened) {
         chatAutoOpened = true;
         document.getElementById('room-layout').classList.add('chat-open');
         var el0 = document.querySelector('.art-control-chat');
         if (el0) el0.classList.add('active');
         setTimeout(function () { try { art.resize(); } catch (e) { } }, 60);
-    } else {
-        chatAutoOpened = true;
     }
     // đổi tập khi chat đang mở -> nút giữ trạng thái active đúng
     if (document.getElementById('room-layout').classList.contains('chat-open')) {

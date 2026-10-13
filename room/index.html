@@ -79,6 +79,13 @@
                 height: min(calc(100vw * 9 / 16), 56vh);
             }
 
+            /* Chat ĐÓNG: video chiếm trọn màn hình (full như trang artplayer)
+               — chat-side display:none nên flex:1 dồn hết chiều cao cho video */
+            #room-layout:not(.chat-open) #video-area {
+                flex: 1;
+                height: auto;
+            }
+
             .artplayer-app {
                 position: relative;
                 inset: auto;
