@@ -40,7 +40,7 @@ var RoomChat = (function () {
         var st = document.createElement('style');
         st.id = 'room-chat-style';
         st.textContent = `
-.room-chat { display:flex; flex-direction:column; font:13px/1.45 -apple-system,"Segoe UI",Roboto,sans-serif; color:#fff; }
+.room-chat { display:flex; flex-direction:column; font:13px/1.45 "PingFang SC","Helvetica Neue","Microsoft YaHei",Roboto,Arial,sans-serif; color:#fff; }
 .room-chat-list { flex:1; overflow-y:auto; padding:8px 10px; }
 .room-chat-msg { margin:4px 0; word-wrap:break-word; }
 .room-chat-msg b { color:#23ade5; margin-right:4px; }
@@ -48,8 +48,8 @@ var RoomChat = (function () {
 .room-chat-msg .t { color:rgba(255,255,255,.45); font-size:11px; margin-right:6px; }
 .room-chat-msg.sys { color:rgba(255,255,255,.55); font-style:italic; }
 .room-chat-input { display:flex; gap:6px; padding:8px; border-top:1px solid rgba(255,255,255,.15); }
-.room-chat-input input { flex:1; min-width:0; background:#2b2f33; color:#fff; border:0; border-radius:8px; padding:8px 10px; outline:0; color-scheme:dark; }
-.room-chat-input button { background:#23ade5; color:#fff; border:0; border-radius:8px; padding:0 12px; font-weight:700; cursor:pointer; }
+.room-chat-input input { flex:1; min-width:0; background:#2b2f33; color:#fff; border:0; border-radius:8px; padding:8px 10px; outline:0; color-scheme:dark; font-family:inherit; font-size:13px; }
+.room-chat-input button { background:#23ade5; color:#fff; border:0; border-radius:8px; padding:0 12px; font-weight:700; cursor:pointer; font-family:inherit; }
 .room-chat-empty { color:rgba(255,255,255,.5); padding:8px 10px; }
 `;
         document.head.appendChild(st);

@@ -16,9 +16,12 @@
     <meta property="og:image" content="/anime/image/r3.png">
 
     <style>
+        /* Font đồng nhất với artplayer (stack PingFang/Roboto của player) —
+           mọi thứ trong trang room kế thừa: chatbox, header, sảnh chờ */
         body {
             background-color: black;
             margin: 0;
+            font-family: "PingFang SC", "Helvetica Neue", "Microsoft YaHei", Roboto, Arial, sans-serif;
         }
 
         /* ── Layout phòng: chat là SIDEBAR, không đè video ──
@@ -156,7 +159,8 @@
             border-radius: 12px;
             padding: 18px 20px;
             width: min(380px, 92vw);
-            font: 14px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
             color: #fff;
         }
 
@@ -178,7 +182,8 @@
             border: 1px solid rgba(255, 255, 255, 0.15);
             border-radius: 8px;
             padding: 9px 12px;
-            font: 14px -apple-system, "Segoe UI", Roboto, sans-serif;
+            font-size: 14px;
+            font-family: inherit;
             outline: 0;
             text-transform: lowercase;
         }
@@ -189,6 +194,7 @@
             border: 0;
             border-radius: 8px;
             padding: 0 16px;
+            font-family: inherit;
             font-weight: 700;
             cursor: pointer;
         }
