@@ -72,9 +72,23 @@ function ageText(ms) {
     return Math.round(h / 24) + ' ngày trước';
 }
 
+var lastRooms = {}; // bản rooms mới nhất — re-render khi auth resolve (nút ✏️ phòng của mình)
+
+// uid đang đăng nhập (null khi chưa resolve/khách) — dùng để biết card nào là
+// phòng CỦA MÌNH (hiện nút sửa)
+function myUid() {
+    try {
+        var u = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth().currentUser : null;
+        return u ? u.uid : null;
+    } catch (e) { return null; }
+}
+
 function renderRoomList(rooms) {
+    lastRooms = rooms || {};
+    rooms = lastRooms;
     var box = document.getElementById('room-list');
     if (!box) return;
+    var me = myUid();
     var items = [];
     for (var code in rooms) {
         var r = rooms[code];
@@ -84,6 +98,7 @@ function renderRoomList(rooms) {
         items.push({
             code: code, name: r.name || '', title: r.title, playing: !!r.playing,
             priv: !!r.priv, pw: r.pw || '', img: r.img || '', age: age,
+            host: r.host || '', mine: !!me && r.host === me,
         });
     }
     items.sort(function (a, b) { return a.age - b.age; });
@@ -99,6 +114,7 @@ function renderRoomList(rooms) {
             '<div class="room-card-img">' +
             (it.img ? '<img loading="lazy" alt="">' : '<div class="room-card-noimg">🎬</div>') +
             (it.priv ? '<span class="room-card-lock">🔒</span>' : '') +
+            (it.mine ? '<span class="room-card-edit" title="Sửa phòng">✏️</span>' : '') +
             '</div>' +
             '<div class="room-card-body">' +
             '<div class="room-card-name"></div>' +
@@ -115,6 +131,13 @@ function renderRoomList(rooms) {
         d.querySelector('.room-card-title').textContent = it.title;
         d.querySelector('.room-card-status').textContent = it.playing ? 'Đang phát' : 'Tạm dừng';
         d.querySelector('.room-card-age').textContent = ageText(it.age);
+        var editBtn = d.querySelector('.room-card-edit');
+        if (editBtn) {
+            editBtn.addEventListener('click', function (e) {
+                e.stopPropagation(); // không vào phòng khi bấm sửa
+                openRoomEdit(it);
+            });
+        }
         d.addEventListener('click', function () {
             if (it.priv) {
                 RoomPw.ask(it.name || ('Phòng ' + it.code), it.pw, function () {
@@ -128,6 +151,90 @@ function renderRoomList(rooms) {
         });
         box.appendChild(d);
     });
+}
+
+// ── Modal SỬA PHÒNG (chủ phòng): đổi tên / riêng-tư / mật khẩu. PATCH đúng
+// mấy field đó, KHÔNG đụng url/pos/playing/pid (không làm gián đoạn người xem).
+// Mật khẩu để trống = giữ nguyên hash cũ. ──
+var editingCode = null;
+
+function eSetStatus(s) { document.getElementById('e-status').textContent = s || ''; }
+
+function openRoomEdit(it) {
+    var u = myUid();
+    if (!u || it.host !== u) return; // chỉ chủ phòng
+    editingCode = it.code;
+    document.getElementById('e-title').textContent = 'Sửa phòng — ' + it.code;
+    document.getElementById('e-name').value = it.name || '';
+    var privEl = document.getElementById('e-priv');
+    var pwEl = document.getElementById('e-pw');
+    privEl.checked = !!it.priv;
+    pwEl.value = '';
+    pwEl.style.display = privEl.checked ? 'block' : 'none';
+    eSetStatus('');
+    document.getElementById('edit-modal').classList.add('open');
+    setTimeout(function () { document.getElementById('e-name').focus(); }, 50);
+}
+
+function closeRoomEdit() {
+    document.getElementById('edit-modal').classList.remove('open');
+    editingCode = null;
+}
+
+function saveRoomEdit() {
+    var u = myUid();
+    var code = editingCode;
+    if (!u || !code) return;
+    var name = (document.getElementById('e-name').value || '').trim().slice(0, 40);
+    var priv = !!document.getElementById('e-priv').checked;
+    var pwPlain = (document.getElementById('e-pw').value || '').trim();
+    if (priv && !pwPlain && !(lastRooms[code] && lastRooms[code].pw)) {
+        eSetStatus('Phòng riêng cần mật khẩu.'); return;
+    }
+    var btn = document.getElementById('e-save');
+    btn.disabled = true;
+    eSetStatus('Đang lưu…');
+    var done = function () {
+        btn.disabled = false;
+        // tin hệ thống để người trong phòng biết phòng vừa đổi
+        var nm = u.displayName || (u.email || '').split('@')[0];
+        chatSys(code, '🛠 ' + nm + ' đã cập nhật phòng' + (name ? ' — ' + name : ''));
+        closeRoomEdit();
+        eSetStatus('');
+    };
+    var fail = function (e) {
+        btn.disabled = false;
+        eSetStatus('Lưu lỗi: ' + (e && e.message ? e.message : e));
+    };
+    // không đổi mật khẩu -> không gửi field pw (giữ hash cũ)
+    var applyPatch = function (patch) {
+        if (typeof firebase !== 'undefined' && firebase.database) {
+            return firebase.database().ref('room/' + code).update(patch);
+        }
+        return u.getIdToken().then(function (tok) {
+            return fetch(RTDB + '/room/' + code + '.json?auth=' + tok, {
+                method: 'PATCH', body: JSON.stringify(patch),
+            }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); });
+        });
+    };
+    var patch = { name: name, priv: priv, updatedAt: Date.now() };
+    var run = pwPlain
+        ? sha256(pwPlain).then(function (h) { patch.pw = priv ? h : ''; return applyPatch(patch); })
+        : (function () { if (!priv) patch.pw = ''; return applyPatch(patch); })();
+    run.then(done).catch(fail);
+}
+
+// Tin hệ thống vào chatbox phòng (khách/rỗng thì bỏ qua im lặng)
+function chatSys(code, text) {
+    var u = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth().currentUser : null;
+    var nm = u ? (u.displayName || (u.email || '').split('@')[0]) : 'Ai đó';
+    var entry = { uid: u ? u.uid : 'sys', name: nm, text: text, ts: Date.now(), sys: 1 };
+    var post = function (tok) {
+        return fetch(RTDB + '/chat/' + code + '.json' + (tok ? '?auth=' + tok : ''), {
+            method: 'POST', body: JSON.stringify(entry),
+        });
+    };
+    (u ? u.getIdToken() : Promise.resolve(null)).then(post).catch(function () { });
 }
 
 // GET /room.json public theo rules — fallback cho thiết bị không có SDK
@@ -313,6 +420,24 @@ window.addEventListener('load', function () {
         x.addEventListener('click', function () { RoomPw.close(); });
     });
 
+    // modal sửa phòng (chủ phòng — nút ✏️ trên card của mình)
+    document.getElementById('e-save').addEventListener('click', saveRoomEdit);
+    document.getElementById('e-cancel').addEventListener('click', closeRoomEdit);
+    Array.prototype.forEach.call(document.querySelectorAll('#edit-modal .modal-x'), function (x) {
+        x.addEventListener('click', function () { closeRoomEdit(); });
+    });
+    document.getElementById('e-priv').addEventListener('change', function () {
+        var pwEl = document.getElementById('e-pw');
+        pwEl.style.display = this.checked ? 'block' : 'none';
+    });
+    document.getElementById('e-name').addEventListener('keydown', function (e) {
+        if (e.isComposing === true || e.keyCode === 229) return;
+        if (e.key === 'Enter') { e.preventDefault(); saveRoomEdit(); }
+    });
+    document.getElementById('edit-modal').addEventListener('click', function (e) {
+        if (e.target === this) closeRoomEdit();
+    });
+
     // modal tạo phòng
     var createModal = document.getElementById('create-modal');
     document.getElementById('create-btn').addEventListener('click', function () {
@@ -336,6 +461,8 @@ window.addEventListener('load', function () {
     if (typeof firebase !== 'undefined' && firebase.auth) {
         firebase.auth().onAuthStateChanged(function (u) {
             document.getElementById('c-auth').style.display = (!u) ? 'block' : 'none';
+            // auth vừa resolve -> vẽ lại list để nút ✏️ hiện đúng phòng CỦA MÌNH
+            renderRoomList(lastRooms);
         });
     }
     fetchSheetRows().then(function (r) { cRows = r; }).catch(function () { });

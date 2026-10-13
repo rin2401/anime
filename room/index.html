@@ -395,6 +395,28 @@
             font-size: 12px;
         }
 
+        /* Nút sửa phòng: chỉ hiện trên card phòng CỦA MÌNH (host trùng uid),
+           góc trái để không đè 🔒 góc phải. */
+        .room-card-edit {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            width: 28px;
+            height: 28px;
+            line-height: 28px;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .room-card-edit:hover {
+            background: #23ade5;
+            border-color: #23ade5;
+        }
+
         .room-card-body {
             padding: 8px 10px 10px;
         }
@@ -583,7 +605,7 @@
             gap: 8px;
         }
 
-        #c-name, #c-pw {
+        #c-name, #c-pw, #e-name, #e-pw {
             background: #2b2f33;
             color: #fff;
             border: 1px solid rgba(255, 255, 255, 0.15);
@@ -603,11 +625,44 @@
             cursor: pointer;
         }
 
-        #c-status {
+        #c-status, #e-status {
             margin-top: 10px;
             color: rgba(255, 255, 255, 0.6);
             font-size: 13px;
             min-height: 1.2em;
+        }
+
+        /* Hàng nút Huỷ / Lưu của modal sửa phòng */
+        .modal-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-top: 12px;
+        }
+
+        .modal-actions button {
+            border: 0;
+            border-radius: 8px;
+            padding: 9px 16px;
+            font-size: 14px;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+        }
+
+        #e-cancel {
+            background: #3a3f45;
+            color: #fff;
+        }
+
+        #e-save {
+            background: #23ade5;
+            color: #fff;
+        }
+
+        #e-save:disabled {
+            opacity: 0.6;
+            cursor: default;
         }
     </style>
 
@@ -679,6 +734,24 @@
         </div>
     </div>
 
+    <!-- Modal sửa phòng: CHỦ PHÒNG đổi tên / riêng-tư / mật khẩu. Không đổi
+         phim ở đây — muốn đổi phim thì dùng nút "＋ Tạo phòng" (tái dùng đúng
+         mã phòng cũ nên link share không đổi). -->
+    <div class="modal" id="edit-modal">
+        <div class="modal-card modal-sm">
+            <div class="modal-head"><span id="e-title">Sửa phòng</span><button class="modal-x" type="button">✕</button></div>
+            <div class="c-form">
+                <input id="e-name" placeholder="Tên phòng (tuỳ chọn)" maxlength="40" autocomplete="off">
+                <label class="c-priv"><input type="checkbox" id="e-priv"> Phòng riêng — người vào cần mật khẩu</label>
+                <input id="e-pw" type="password" placeholder="Để trống = giữ mật khẩu cũ" style="display:none" autocomplete="new-password">
+            </div>
+            <div id="e-status"></div>
+            <div class="modal-actions">
+                <button id="e-cancel" type="button">Huỷ</button>
+                <button id="e-save" type="button">Lưu</button>
+            </div>
+        </div>
+    </div>
     <!-- Modal mật khẩu: vào phòng riêng từ card (sảnh) hoặc từ link trực tiếp -->
     <div class="modal" id="pw-modal">
         <div class="modal-card modal-sm">
