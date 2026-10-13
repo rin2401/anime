@@ -179,6 +179,7 @@ var switchArmed = false; // đang chờ tập mới phát thật sau khi host đ
 var autoTriedFor = '';   // host: pid|k đã tự chọn tập mở màn rồi (khỏi lặp mỗi lần sync)
 var lastAr = '';         // host: aspectRatio đã patch lên node lần cuối
 var lastFlip = '';       // host: flip đã patch lên node lần cuối (chuỗi, '' = chưa patch)
+var followArmed = 0;     // mốc thời gian lần follow play/pause gần nhất (chat bỏ qua echo)
 
 // uid của mình (host xác định qua state.host === uid); khách chưa đăng nhập = null
 function myUid() {
@@ -303,8 +304,13 @@ function syncFromState() {
     // node nên nhánh này no-op; 2 máy cùng acc host thì máy này kéo theo
     // thao tác của máy kia và ngược lại — ai thao tác cuối cùng thắng)
     if (loadedUrl && art) {
-        if (state.playing === false) { if (!art.video.paused) art.pause(); }
-        else if (state.playing === true) { if (art.video.paused) { try { art.play(); } catch (e) { } } }
+        // followArmed: đánh dấu play/pause này là DO THEO node — listener
+        // chat bỏ qua echo trong 1.5s (2 máy cùng acc host kéo nhau)
+        if (state.playing === false) {
+            if (!art.video.paused) { followArmed = Date.now(); art.pause(); }
+        } else if (state.playing === true) {
+            if (art.video.paused) { followArmed = Date.now(); try { art.play(); } catch (e) { } }
+        }
         // tốc độ phát theo node (host đổi 2x thì cả phòng 2x)
         var tr = Number(state.rate) || 1;
         if (art.playbackRate !== tr) art.playbackRate = tr;
@@ -347,6 +353,9 @@ function followPos() {
         // download tại mốc mới) — kẹt không theo được host tua trong lúc pause
         // vì video pause không tải thêm buffer, bufferedAhead mãi < 5s.
         if (!v.paused && (v.readyState < 3 || bufferedAhead(v) < 5)) return;
+        // mốc tua do follow KHÔNG phải thao tác người dùng -> không thành tin
+        // "đã tua tới" oan (seeked handler so cur với lastSeekLogPos)
+        lastSeekLogPos = tp;
         art.currentTime = tp;
     }
 }
@@ -379,9 +388,13 @@ function applySync() {
         art.currentTime = Number(state.pos) || 0;
         lastSeekLogPos = Number(state.pos) || 0; // seek ban đầu không phải "tua"
         // phát/dừng THEO node (2 máy cùng acc host đồng bộ với nhau; mobile
-        // autoplay bị chặn thì play() im lặng thất bại — chờ tap mở tiếng)
-        if (state.playing === false) { if (!art.video.paused) art.pause(); }
-        else if (state.playing === true) { if (art.video.paused) { try { art.play(); } catch (e) { } } }
+        // autoplay bị chặn thì play() im lặng thất bại — chờ tap mở tiếng).
+        // followArmed đánh dấu echo để listener chat không log đôi
+        if (state.playing === false) {
+            if (!art.video.paused) { followArmed = Date.now(); art.pause(); }
+        } else if (state.playing === true) {
+            if (art.video.paused) { followArmed = Date.now(); try { art.play(); } catch (e) { } }
+        }
         return;
     }
     if (!state || !loadedUrl || !art) return;
@@ -972,6 +985,14 @@ function mountPlayer(url) {
                 patchRoom({ pos: (art.currentTime || 0), playing: !art.video.paused });
             }
             if (typeof RoomChat === 'undefined' || !RoomChat.action) return;
+            // Event do MÌNH THEO node (2 máy cùng acc host kéo nhau: follow đặt
+            // play/pause -> video nổ event -> nghe như thao tác mới) -> khỏi
+            // log chat đôi ("đã phát tiếp" x2). So state.playing KHÔNG được:
+            // SDK phát snapshot từ cache cục bộ NGAY khi update nên tới lúc
+            // listener đọc thì state.playing đã là giá trị mới (tưởng hết cả
+            // thao tác thật) — dùng mốc thời gian followArmed đặt tại chỗ
+            // follow gọi play/pause thay vì so state.
+            if (Date.now() - followArmed < 1500) return;
             if (ev === 'video:play') RoomChat.action('đã phát tiếp', 'play');
             else if (ev === 'video:pause') RoomChat.action('đã tạm dừng', 'pause');
             else if (ev === 'video:ended') RoomChat.action('đã xem hết tập', 'movie');
