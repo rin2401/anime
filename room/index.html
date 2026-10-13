@@ -90,23 +90,31 @@
             }
         }
 
-        /* Badge góc trái trong vùng video: mã phòng + nhãn đang phát */
-        #room-badge {
-            position: absolute;
-            left: 10px;
-            bottom: 10px;
-            max-width: 60%;
-            padding: 6px 10px;
-            border-radius: 8px;
-            background: rgba(0, 0, 0, 0.6);
-            color: #fff;
-            font: 13px/1.4 -apple-system, "Segoe UI", Roboto, sans-serif;
-            pointer-events: none;
-            z-index: 10;
+        /* Header chatbox: mã phòng + tên đang phát (dời từ badge đè video —
+           user muốn video sạch, thông tin phòng nằm trong chat) */
+        #chat-head {
+            display: flex;
+            gap: 6px;
+            align-items: baseline;
+            padding: 9px 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            font-size: 12.5px;
+            color: rgba(255, 255, 255, 0.75);
+            flex: 0 0 auto;
         }
 
         #room-code {
             font-weight: 700;
+            color: #23ade5;
+            letter-spacing: 0.5px;
+        }
+
+        #room-label {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         /* Nút 💬 góc phải trên: bật/tắt sidebar chat */
@@ -292,9 +300,11 @@
     <div id="room-layout">
         <div id="video-area">
             <div class="artplayer-app"></div>
-            <div id="room-badge"><span id="room-code"></span> <span id="room-label">Đang kết nối phòng…</span></div>
         </div>
-        <aside id="chat-side"><div id="chat-panel"></div></aside>
+        <aside id="chat-side">
+            <div id="chat-head"><span id="room-code"></span> <span id="room-label">Đang kết nối phòng…</span></div>
+            <div id="chat-panel"></div>
+        </aside>
     </div>
     <button id="chat-toggle" type="button" aria-label="Chat">💬</button>
     <button id="room-share-btn" type="button" aria-label="Share link phòng" hidden>🔗</button>
