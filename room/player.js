@@ -64,6 +64,29 @@ function createBlobUrl(data, mimeType = "application/vnd.apple.mpegurl") {
     return URL.createObjectURL(blob);
 }
 
+// Master playlist (không có #EXTINF) -> URL variant tốt nhất (BANDWIDTH cao
+// nhất) đã tuyệt đối; null khi không đọc được variant nào
+function pickVariantUrl(txt, baseUrl) {
+    var best = null, bestBw = -1;
+    var lines = txt.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+        if (lines[i].indexOf('#EXT-X-STREAM-INF') !== 0) continue;
+        var m = lines[i].match(/BANDWIDTH=(\d+)/);
+        var bw = m ? parseInt(m[1], 10) : 0;
+        var u = '';
+        for (var j = i + 1; j < lines.length; j++) {
+            if (lines[j].trim() === '' || lines[j].charAt(0) === '#') continue;
+            u = lines[j].trim();
+            break;
+        }
+        if (u && bw >= bestBw) {
+            bestBw = bw;
+            best = /^https?:\/\//i.test(u) ? u : baseUrl + u;
+        }
+    }
+    return best;
+}
+
 async function playM3u8(video, url, art) {
     const hlsMimeType = "application/vnd.apple.mpegurl";
 
@@ -78,8 +101,51 @@ async function playM3u8(video, url, art) {
         art.hls = hls;
         art.on('destroy', () => hls.destroy());
     } else if (video.canPlayType(hlsMimeType)) {
+        // Native HLS (iPhone/iPad — không có MSE cho hls.js): KHÔNG chạy được
+        // loader lọc quảng cáo, native sẽ phát nguyên playlist mà kkphim chèn
+        // quảng cáo giữa cặp #EXT-X-DISCONTINUITY -> điện thoại xem quảng cáo
+        // và lệch mốc so với máy tính (đã lọc) cùng 1 phòng. Host kkphim mở
+        // CORS * nên tự fetch playlist, lọc bằng removeAds rồi đút playlist
+        // sạch qua data: URI (lối đã dùng cho m3u8 AVS ở playM3u8Text).
+        var src = url;
+        try {
+            var fu = decodeURIComponent(url);
+            var res = await fetch(fu);
+            var txt = await res.text();
+            var mediaUrl = fu;
+            if (txt.indexOf('#EXTINF') === -1) {
+                // master playlist -> lấy variant (hls.js ABR tự chọn, native
+                // phải chốt 1: BANDWIDTH cao nhất)
+                var v = pickVariantUrl(txt, fu.split('/').slice(0, -1).join('/') + '/');
+                if (v) {
+                    mediaUrl = v;
+                    var res2 = await fetch(v);
+                    txt = await res2.text();
+                }
+            }
+            txt = removeAds(txt, mediaUrl);
+            src = 'data:' + hlsMimeType + ';base64,'
+                + btoa(unescape(encodeURIComponent(txt)));
+        } catch (e) {
+            src = url; // fetch chết (CORS/mạng) -> phát nguyên playlist còn hơn đen màn
+        }
         video.type = hlsMimeType;
-        video.src = url;
+        video.src = src;
+        if (src !== url) {
+            // data: playlist mà iOS từ chối (lỗi phát) thì quay về URL gốc,
+            // chỉ 1 lần — tránh vòng lặp error
+            var fellBack = false;
+            var onErr = function () {
+                if (fellBack) return;
+                fellBack = true;
+                video.removeEventListener('error', onErr);
+                if (String(video.src).indexOf('data:') === 0) {
+                    video.type = hlsMimeType;
+                    video.src = url;
+                }
+            };
+            video.addEventListener('error', onErr);
+        }
     }
 }
 
