@@ -227,11 +227,13 @@ function patchRoom(patch) {
     }).catch(function () { });
 }
 
-// Vị trí theo host: pos + thời gian trôi từ lần host cập nhật gần nhất
+// Vị trí theo host: pos + thời gian trôi từ lần host cập nhật gần nhất.
+// Tốc độ (rate) nhân vào thời gian trôi — host xem 2x thì 10s sau vị trí
+// của host đã đi 20s, không nhân là người xem trôi chậm dần rồi bị tua.
 function targetPos(s) {
     if (!s || s.pos == null) return null;
     var pos = Number(s.pos) || 0;
-    if (s.playing) pos += (Date.now() - Number(s.updatedAt || 0)) / 1000;
+    if (s.playing) pos += ((Date.now() - Number(s.updatedAt || 0)) / 1000) * (Number(s.rate) || 1);
     // Host bỏ chạy hết tập không đổi gì -> quay vòng theo duration (loop)
     var d = art ? art.duration : 0;
     if (d && d > 0 && pos > d) pos = pos % d;
@@ -298,6 +300,9 @@ function syncFromState() {
     if (!isHost() && loadedUrl && art) {
         if (state.playing === false) { if (!art.video.paused) art.pause(); }
         else if (state.playing === true) { if (art.video.paused) art.play(); }
+        // tốc độ phát theo host (host đổi 2x thì người xem cũng 2x)
+        var tr = Number(state.rate) || 1;
+        if (art.playbackRate !== tr) art.playbackRate = tr;
         followPos();
     }
 }
@@ -355,6 +360,10 @@ function applySync() {
         // listener video:play/pause/seeked được phép patch pos/playing lại
         hostSynced = true;
         if (!state || !loadedUrl || !art) return;
+        // host reload trang giữa lúc đang xem 2x -> áp lại tốc độ từ node
+        // (ratechange nổ ra bị chặn vì rate trùng state.rate)
+        var hr = Number(state.rate) || 1;
+        if (art.playbackRate !== hr) art.playbackRate = hr;
         art.currentTime = Number(state.pos) || 0;
         lastSeekLogPos = Number(state.pos) || 0; // seek ban đầu không phải "tua"
         return;
@@ -362,6 +371,8 @@ function applySync() {
     if (!state || !loadedUrl || !art) return;
     var tp = targetPos(state);
     if (tp != null && art.duration && isFinite(art.duration)) art.currentTime = tp;
+    var vr = Number(state.rate) || 1;
+    if (art.playbackRate !== vr) art.playbackRate = vr;
     if (state.playing === false) art.pause();
     else art.play();
 }
@@ -748,6 +759,22 @@ function mountPlayer(url) {
                 }
             }
         });
+    });
+
+    // Host chỉnh tốc độ phát (settings playbackRate) -> phát lên node để
+    // người xem theo (art.playbackRate + targetPos nhân rate). Event này nổ
+    // cả lúc nguồn mới được load (rate reset về 1) và lúc MÌNH áp rate từ
+    // node (reload/đổi tập xong applySync áp lại) nên chỉ tính event khi
+    // player đã ổn (hết cửa sổ mount + switch) VÀ rate khác state.rate —
+    // tránh vòng lặp patch và spam tin chatbox.
+    art.on('video:ratechange', function () {
+        if (!isHost() || switchArmed || !hostSynced) return;
+        var r = art.playbackRate;
+        if (!r || r === (Number(state.rate) || 1)) return;
+        patchRoom({ rate: r, pos: (art.currentTime || 0), playing: !art.video.paused });
+        if (typeof RoomChat !== 'undefined' && RoomChat.action) {
+            RoomChat.action('đã chỉnh tốc độ ' + r + 'x', 'rate');
+        }
     });
 
     // Người xem KHÔNG được tự điều khiển: play/pause/seek cục bộ bị hoàn tác
