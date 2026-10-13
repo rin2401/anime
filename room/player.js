@@ -201,6 +201,14 @@ function applyViewerLock() {
 function patchRoom(patch) {
     if (!isHost() || !hostSynced) return;
     patch.updatedAt = Date.now();
+    // SDK (WebSocket) tự gắn token của user đang đăng nhập — gọn hơn
+    // getIdToken + fetch tay; TV cũ không có SDK thì đi REST như cũ
+    if (typeof firebase !== 'undefined' && firebase.database) {
+        try {
+            firebase.database().ref('room/' + roomCode).update(patch).catch(function () { });
+            return;
+        } catch (e) { }
+    }
     var u = firebase.auth().currentUser;
     u.getIdToken().then(function (tok) {
         return fetch(RTDB + '/room/' + roomCode + '.json?auth=' + tok, {
@@ -225,8 +233,31 @@ function targetPos(s) {
 // Host (uid trùng state.host) là nguồn sự thật — KHÔNG tự theo mình: chỉ mount
 // url mới (khi đổi tập từ trang create), không play/pause cưỡng bức, không
 // followPos.
+// Phòng riêng: người xem đã nhập đúng mật khẩu lần này (sessionStorage) —
+// host miễn, reload cùng tab không hỏi lại
+function pwOk() {
+    try {
+        return sessionStorage.getItem('roompw:' + roomCode) === String(state.pw || '');
+    } catch (e) { return false; }
+}
+
 function syncFromState() {
     if (!state) return;
+    // Phòng riêng: chờ auth rõ vai (host/khách) rồi mới quyết định — nếu
+    // mount ngay từ poll đầu thì khách xem lén được vài giây trước cổng
+    if (state.priv && !authResolved) return;
+    // Phòng riêng (priv): người xem phải qua modal mật khẩu TRƯỚC khi mount
+    // nguồn. Poll 3s gọi lại nên modal tự bật lại nếu bị đóng.
+    if (state.priv && !isHost() && !pwOk()) {
+        if (art) art.pause();
+        if (typeof RoomPw !== 'undefined') {
+            RoomPw.ask(state.name || ('Phòng ' + roomCode), String(state.pw || ''), function () {
+                try { sessionStorage.setItem('roompw:' + roomCode, String(state.pw || '')); } catch (e) { }
+                syncFromState();
+            });
+        }
+        return;
+    }
     if (state.url && state.url !== loadedUrl) {
         loadedUrl = state.url;
         if (state.title) {
@@ -519,9 +550,9 @@ function setMediaSession(title) {
     }
 }
 
-// ── Nhận state: REST streaming (EventSource) + poll 3s luôn chạy ──
+// ── Nhận state (lớp FALLBACK REST cho thiết bị không có Firebase SDK) ──
 // Loại event nằm ở TÊN event SSE ('put'/'patch'), không có trong payload
-// (payload chỉ có {path, data}).
+// (payload chỉ có {path, data}). Thiết bị có SDK dùng WebSocket của SDK.
 function onStateEvent(type, d) {
     if (!d || typeof d !== 'object') return;
     if (type === 'put') {
@@ -548,17 +579,32 @@ function onStateEvent(type, d) {
 }
 
 function watchRoom(code) {
-    // Poll 3s luôn chạy: GET là snapshot chuẩn, không phụ thuộc EventSource
-    // (webview cũ/treo nền thường chết stream im lặng). SSE chỉ để phản ứng
-    // nhanh play/pause/seek của host.
-    if (typeof EventSource !== 'undefined') {
-        var es = new EventSource(RTDB + '/room/' + code + '.json');
-        ['put', 'patch'].forEach(function (ev) {
-            es.addEventListener(ev, function (e) {
-                try { onStateEvent(ev, JSON.parse(e.data)); } catch (err) { }
+    // Ưu tiên Firebase SDK (WebSocket): đẩy state tức thì, tự reconnect và
+    // tự resync khi tab quay lại foreground — không cần poll dày. Poll chỉ
+    // còn làm heartbeat 30s dự phòng (webview lạ làm chết socket im lặng).
+    // Không có SDK (TV rất cũ không tải được script) -> SSE + poll 3s như cũ.
+    var usedSdk = false;
+    if (typeof firebase !== 'undefined' && firebase.database) {
+        try {
+            firebase.database().ref('room/' + code).on('value', function (snap) {
+                var data = snap.val();
+                if (JSON.stringify(data) === JSON.stringify(state)) return;
+                state = data || null;
+                syncFromState();
+            }, function (err) { /* mất quyền/mạng: heartbeat gánh */ });
+            usedSdk = true;
+        } catch (e) { }
+    }
+    if (!usedSdk) {
+        if (typeof EventSource !== 'undefined') {
+            var es = new EventSource(RTDB + '/room/' + code + '.json');
+            ['put', 'patch'].forEach(function (ev) {
+                es.addEventListener(ev, function (e) {
+                    try { onStateEvent(ev, JSON.parse(e.data)); } catch (err) { }
+                });
             });
-        });
-        es.onerror = function () { /* EventSource tự reconnect; poll gánh phía sau */ };
+            es.onerror = function () { /* EventSource tự reconnect; poll gánh phía sau */ };
+        }
     }
     setInterval(function () {
         fetch(RTDB + '/room/' + code + '.json')
@@ -569,7 +615,7 @@ function watchRoom(code) {
                 syncFromState();
             })
             .catch(() => { });
-    }, 3000);
+    }, usedSdk ? 30000 : 3000);
     // Vòng kéo theo host giữa các update (host đang phát thì không ghi liên tục)
     setInterval(followPos, 4000);
 }
@@ -595,50 +641,6 @@ function vidFullscreen() {
     if (art) art.fullscreen = !art.fullscreen;
 }
 
-// ── Sảnh chờ: danh sách phòng đang mở (GET /room.json public theo rules) ──
-// Phòng im > 24h coi như đã tan (host đóng tab không xoá node), mới nhất
-// trước; schema legacy (không có url/title) bỏ qua.
-function ageText(ms) {
-    var m = Math.round(ms / 60000);
-    if (m < 1) return 'vừa xong';
-    if (m < 60) return m + ' phút trước';
-    var h = Math.round(m / 60);
-    if (h < 24) return h + ' giờ trước';
-    return Math.round(h / 24) + ' ngày trước';
-}
-
-function loadRoomList() {
-    fetch(RTDB + '/room.json').then(function (r) { return r.json(); }).then(function (rooms) {
-        var box = document.getElementById('room-list');
-        if (!box) return;
-        var items = [];
-        for (var code in rooms) {
-            var r = rooms[code];
-            if (!r || !r.url || !r.title) continue;
-            var age = Date.now() - Number(r.updatedAt || 0);
-            if (age > 86400000) continue;
-            items.push({ code: code, title: r.title, playing: !!r.playing, age: age });
-        }
-        items.sort(function (a, b) { return a.age - b.age; });
-        box.innerHTML = '';
-        if (!items.length) {
-            box.innerHTML = '<div class="room-item-empty">Chưa có phòng nào đang mở</div>';
-            return;
-        }
-        items.slice(0, 20).forEach(function (it) {
-            var a = document.createElement('a');
-            a.className = 'room-item' + (it.playing ? ' live' : '');
-            a.href = '/anime/room/?id=' + it.code;
-            a.innerHTML = '<span class="room-item-dot"></span>'
-                + '<span class="room-item-title"></span>'
-                + '<span class="room-item-age"></span>';
-            a.querySelector('.room-item-title').textContent = it.title;
-            a.querySelector('.room-item-age').textContent = ageText(it.age);
-            box.appendChild(a);
-        });
-    }).catch(function () { });
-}
-
 window.addEventListener('load', function () {
     Mousetrap.bind('up', volumeUp);
     Mousetrap.bind('down', volumeDown);
@@ -649,33 +651,21 @@ window.addEventListener('load', function () {
     var params = new URLSearchParams(window.location.search);
     var id = params.get("id");
     if (!id) {
-        // Sảnh chờ: nhập mã phòng, danh sách phòng đang mở, hoặc sang trang tạo phòng
+        // Sảnh chờ (không ?id): lobby.js gánh toàn bộ (card phòng, modal tạo
+        // phòng, modal mật khẩu) — player.js chỉ việc hiện overlay
         var join = document.getElementById('room-join');
-        if (join) {
-            join.style.display = 'flex';
-            var label = document.getElementById('room-label');
-            if (label) label.textContent = '';
-            var codeInput = document.getElementById('join-code');
-            var go = function () {
-                var c = (codeInput.value || '').trim().toLowerCase();
-                if (!/^[a-z2-9]{6}$/.test(c)) return;
-                window.location.href = '/anime/room/?id=' + c;
-            };
-            document.getElementById('join-btn').addEventListener('click', go);
-            codeInput.addEventListener('keydown', function (e) {
-                if (e.isComposing === true || e.keyCode === 229) return; // IME ghép vần
-                if (e.key === 'Enter') { e.preventDefault(); go(); }
-            });
-            codeInput.focus();
-            loadRoomList();
-            setInterval(loadRoomList, 15000); // phòng mới mở/tan hiện dần
-        }
+        if (join) join.style.display = 'block';
         return;
     }
     var codeLabel = document.getElementById('room-code');
     if (codeLabel) codeLabel.textContent = id;
     roomCode = id;
     watchRoom(id);
+    // Dự phòng: auth chết/không tải được thì phòng riêng vẫn phải dùng được
+    // (sau 5s coi như đã rõ vai — host sẽ đi qua cổng mật khẩu như khách)
+    setTimeout(function () {
+        if (!authResolved) { authResolved = true; syncFromState(); }
+    }, 5000);
     // Chat: dùng chung room/chat.js, panel nằm trong sidebar #chat-side
     // (nút bật/tắt nằm trong control bar artplayer — thêm ở mountPlayer)
     if (typeof RoomChat !== 'undefined') {
@@ -691,6 +681,10 @@ window.addEventListener('load', function () {
                 authResolved = true;
                 applyViewerLock();
                 if (isHost() && !hostSynced && art && loadedUrl) applySync();
+                // Đánh giá lại syncFromState khi auth rõ vai: cổng mật khẩu
+                // phòng riêng (poll chỉ gọi khi dữ liệu ĐỔI nên lần đầu chạy
+                // lúc auth chưa resolve bị bỏ lỡ) + mount phòng riêng đang chờ
+                syncFromState();
             });
         } catch (e) { }
     }

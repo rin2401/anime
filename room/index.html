@@ -194,39 +194,61 @@
             color: #fff !important;
         }
 
-        /* Sảnh chờ khi mở /anime/room/ không có ?id: nhập mã phòng hoặc sang
-           trang tạo phòng. Đè lên vùng video (không có gì để phát). */
+        /* Sảnh chờ: gallery card phòng + nút tạo phòng (form bật modal) */
         #room-join {
             position: fixed;
             inset: 0;
-            display: none;
-            align-items: center;
-            justify-content: center;
+            overflow: auto;
+            background: #14161a;
             z-index: 40;
+            display: none;
         }
 
-        .room-join-card {
-            background: #1b1e23;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 12px;
-            padding: 18px 20px;
-            width: min(430px, 92vw);
-            font-size: 14px;
-            line-height: 1.5;
-            color: #fff;
+        .lobby-wrap {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 26px 16px 40px;
         }
 
-        .room-join-title {
+        .lobby-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+
+        .lobby-title {
+            font-size: 20px;
             font-weight: 700;
-            margin-bottom: 12px;
         }
 
-        .room-join-row {
+        .lobby-sub {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.55);
+            margin-top: 2px;
+        }
+
+        #create-btn {
+            background: #23ade5;
+            color: #fff;
+            border: 0;
+            border-radius: 10px;
+            padding: 10px 18px;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .lobby-joinrow {
             display: flex;
             gap: 8px;
+            max-width: 380px;
         }
 
-        #join-code {
+        #join-code, #pw-input {
             flex: 1;
             min-width: 0;
             background: #2b2f33;
@@ -240,7 +262,7 @@
             text-transform: lowercase;
         }
 
-        #join-btn {
+        #join-btn, #pw-btn {
             background: #23ade5;
             color: #fff;
             border: 0;
@@ -251,17 +273,8 @@
             cursor: pointer;
         }
 
-        #create-link {
-            display: block;
-            margin-top: 12px;
-            color: #23ade5;
-            text-decoration: none;
-        }
-
-        /* Danh sách phòng đang mở trong sảnh chờ: mỗi phòng 1 dòng, chấm
-           xanh = đang phát, xám = tạm dừng; mới cập nhật trước. */
         .room-list-title {
-            margin: 14px 0 6px;
+            margin: 20px 0 8px;
             font-size: 12px;
             font-weight: 700;
             text-transform: uppercase;
@@ -270,58 +283,313 @@
         }
 
         #room-list {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            max-height: 40vh;
-            overflow: auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 12px;
         }
 
-        .room-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            background: #2b2f33;
+        .room-empty {
+            grid-column: 1 / -1;
+            padding: 18px 0;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .room-card {
+            background: #1b1e23;
             border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 8px;
-            padding: 9px 12px;
-            color: #fff;
-            text-decoration: none;
+            border-radius: 10px;
+            overflow: hidden;
+            cursor: pointer;
         }
 
-        .room-item:hover {
+        .room-card:hover {
             border-color: #23ade5;
         }
 
-        .room-item-dot {
+        .room-card-img {
+            position: relative;
+            aspect-ratio: 2 / 3;
+            background: #0d0f12;
+        }
+
+        .room-card-img img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .room-card-noimg {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 34px;
+        }
+
+        .room-card-lock {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(0, 0, 0, 0.55);
+            border-radius: 6px;
+            padding: 3px 6px;
+            font-size: 12px;
+        }
+
+        .room-card-body {
+            padding: 8px 10px 10px;
+        }
+
+        .room-card-name {
+            font-weight: 700;
+            font-size: 13px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .room-card-title {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-top: 2px;
+        }
+
+        .room-card-meta {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 6px;
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.55);
+        }
+
+        .room-card-dot {
             flex: none;
-            width: 8px;
-            height: 8px;
+            width: 7px;
+            height: 7px;
             border-radius: 50%;
             background: #6b7280;
         }
 
-        .room-item.live .room-item-dot {
+        .room-card.live .room-card-dot {
             background: #23ade5;
         }
 
-        .room-item-title {
-            flex: 1;
-            min-width: 0;
+        .room-card-age {
+            margin-left: auto;
+        }
+
+        /* Modal (tạo phòng / mật khẩu): đè lên mọi thứ, card tối cuộn được */
+        .modal {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.65);
+            z-index: 60;
+            padding: 14px;
+        }
+
+        .modal.open {
+            display: flex;
+        }
+
+        .modal-card {
+            background: #1b1e23;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            width: min(600px, 94vw);
+            max-height: 90vh;
+            overflow: auto;
+            padding: 16px 18px;
+            font-size: 14px;
+            line-height: 1.5;
+            color: #fff;
+        }
+
+        .modal-card.modal-sm {
+            width: min(360px, 94vw);
+        }
+
+        .modal-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-weight: 700;
+            font-size: 16px;
+            margin-bottom: 12px;
+        }
+
+        .modal-x {
+            background: none;
+            border: 0;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 16px;
+            cursor: pointer;
+            padding: 4px 8px;
+        }
+
+        .modal-x:hover {
+            color: #fff;
+        }
+
+        .pw-sub {
+            margin: 0 0 10px;
+            color: rgba(255, 255, 255, 0.65);
+            font-size: 13px;
+        }
+
+        #pw-err {
+            min-height: 1.2em;
+            margin-top: 8px;
+            color: #ff6b6b;
+            font-size: 13px;
+        }
+
+        /* Form trong modal tạo phòng */
+        #c-q {
+            width: 100%;
+            box-sizing: border-box;
+            background: #2b2f33;
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            padding: 11px 13px;
+            font-family: inherit;
+            font-size: 14px;
+            outline: 0;
+        }
+
+        #c-auth {
+            display: none;
+            margin-bottom: 12px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: rgba(35, 173, 229, 0.12);
+            border: 1px solid rgba(35, 173, 229, 0.35);
+            font-size: 13px;
+        }
+
+        #c-auth a {
+            color: #23ade5;
+            font-weight: 700;
+        }
+
+        #c-results {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        #c-results .card {
+            cursor: pointer;
+            border-radius: 8px;
+            background: #23272d;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 6px;
+            text-align: center;
+        }
+
+        #c-results .card img {
+            width: 100%;
+            aspect-ratio: 2 / 3;
+            object-fit: cover;
+            border-radius: 6px;
+            display: block;
+        }
+
+        #c-results .card .name {
+            font-size: 11.5px;
+            margin-top: 5px;
+            min-height: 2.8em;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+
+        #c-results .card.picked {
+            border-color: #23ade5;
+        }
+
+        #c-eps {
+            margin-top: 14px;
+        }
+
+        #c-eps h3 {
+            margin: 0 0 8px;
+            font-size: 14px;
+        }
+
+        #c-ep-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 6px;
+        }
+
+        #c-ep-grid button {
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 6px;
+            padding: 8px 0;
+            font-size: 13px;
+            font-family: inherit;
+            cursor: pointer;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
 
-        .room-item-age {
-            flex: none;
-            font-size: 12px;
-            color: rgba(255, 255, 255, 0.55);
+        #c-ep-grid button:hover {
+            border-color: #23ade5;
         }
 
-        .room-item-empty {
-            padding: 8px 0;
-            color: rgba(255, 255, 255, 0.5);
+        .c-form {
+            margin-top: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        #c-name, #c-pw {
+            background: #2b2f33;
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+            padding: 9px 12px;
+            font-family: inherit;
+            font-size: 14px;
+            outline: 0;
+        }
+
+        .c-priv {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.8);
+            cursor: pointer;
+        }
+
+        #c-status {
+            margin-top: 10px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 13px;
+            min-height: 1.2em;
+        }
+
+        @media (max-width: 480px) {
+            #c-ep-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
         }
     </style>
 
@@ -335,6 +603,9 @@
     <script defer src="/anime/artplayer/artplayer-plugin-playlist.browser.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
     <script defer src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth-compat.js"></script>
+    <!-- SDK database: đồng bộ room/chat realtime qua WebSocket (tự reconnect
+         + resync) thay SSE + poll tay — phải đứng TRƯỚC auth.js/chat.js/... -->
+    <script defer src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
 </head>
 
 <body>
@@ -348,23 +619,62 @@
         </aside>
     </div>
 
-    <!-- Sảnh chờ khi không có ?id= mã phòng: nhập mã hoặc sang trang tạo phòng -->
+    <!-- Sảnh chờ khi không có ?id= mã phòng: gallery card + tạo phòng (modal) -->
     <div id="room-join">
-        <div class="room-join-card">
-            <div class="room-join-title">Vào phòng xem chung</div>
-            <div class="room-join-row">
+        <div class="lobby-wrap">
+            <div class="lobby-head">
+                <div>
+                    <div class="lobby-title">Phòng xem chung</div>
+                    <div class="lobby-sub">Cùng xem đồng bộ với bạn bè — chủ phòng điều khiển phát</div>
+                </div>
+                <button id="create-btn" type="button">＋ Tạo phòng</button>
+            </div>
+            <div class="lobby-joinrow">
                 <input id="join-code" placeholder="Mã phòng, vd dwjnqx" autocomplete="off">
                 <button id="join-btn" type="button">Vào</button>
             </div>
             <div class="room-list-title">Phòng đang mở</div>
             <div id="room-list"></div>
-            <a id="create-link" href="/anime/room/create/">Tạo phòng mới →</a>
         </div>
     </div>
-    <!-- auth.js (khởi tạo firebase) phải đứng trước chat.js/player.js; cả ba defer
-         nên chạy đúng thứ tự -->
+
+    <!-- Modal tạo phòng: tìm phim → chọn tập → tên/mode/mật khẩu -->
+    <div class="modal" id="create-modal">
+        <div class="modal-card">
+            <div class="modal-head"><span>Tạo phòng xem chung</span><button class="modal-x" type="button">✕</button></div>
+            <div id="c-auth">Cần đăng nhập để tạo phòng. <a href="/anime/auth/">Đăng nhập →</a></div>
+            <input id="c-q" type="search" placeholder="Tìm phim cho phòng…" autocomplete="off">
+            <div id="c-results"></div>
+            <div id="c-eps" style="display:none">
+                <h3 id="c-eps-title"></h3>
+                <div id="c-ep-grid"></div>
+            </div>
+            <div class="c-form">
+                <input id="c-name" placeholder="Tên phòng (tuỳ chọn, vd: chill cuối tuần)" maxlength="40" autocomplete="off">
+                <label class="c-priv"><input type="checkbox" id="c-priv"> Phòng riêng — người vào cần mật khẩu</label>
+                <input id="c-pw" placeholder="Mật khẩu phòng" style="display:none" autocomplete="off">
+            </div>
+            <div id="c-status"></div>
+        </div>
+    </div>
+
+    <!-- Modal mật khẩu: vào phòng riêng từ card (sảnh) hoặc từ link trực tiếp -->
+    <div class="modal" id="pw-modal">
+        <div class="modal-card modal-sm">
+            <div class="modal-head"><span id="pw-title">Phòng riêng</span><button class="modal-x" type="button">✕</button></div>
+            <p class="pw-sub">Phòng này cần mật khẩu để vào.</p>
+            <div class="lobby-joinrow">
+                <input id="pw-input" placeholder="Mật khẩu" autocomplete="off">
+                <button id="pw-btn" type="button">Vào</button>
+            </div>
+            <div id="pw-err"></div>
+        </div>
+    </div>
+    <!-- auth.js (khởi tạo firebase) phải đứng trước chat.js/lobby.js/player.js;
+         cả bốn defer nên chạy đúng thứ tự -->
     <script defer src="/anime/auth/auth.js"></script>
     <script defer src="/anime/room/chat.js"></script>
+    <script defer src="/anime/room/lobby.js"></script>
     <script defer src="/anime/room/player.js"></script>
 </body>
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-1PSF8GWBEY"></script>
