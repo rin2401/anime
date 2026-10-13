@@ -424,9 +424,10 @@ function showEpPick() {
             var pick = document.createElement('button');
             pick.type = 'button';
             pick.id = 'ep-pick-movie';
-            // icon lấy từ RoomChat.ico (nguồn SVG chung của phòng, không emoji)
+            // Chữ giống hệt nút ở header chatbox + tiêu đề modal ("Chọn phim
+            // cho phòng") — cùng một hành động thì cùng một nhãn
             pick.innerHTML = (typeof RoomChat !== 'undefined' && RoomChat.ico ? RoomChat.ico('movie') : '')
-                + '<span>Chọn phim để phát</span>';
+                + '<span>Chọn phim</span>';
             pick.addEventListener('click', function () { RoomMoviePicker.open(changeRoomMovie); });
             grid.appendChild(pick);
         }
