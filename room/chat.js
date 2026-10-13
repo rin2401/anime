@@ -12,9 +12,9 @@
 // orderBy ts + limitToLast=10 (cần .indexOn) — băng thông luôn biên giới
 // nhỏ bất kể node đang có bao nhiêu tin cũ.
 //
-// Widget tự quản stream riêng cho node chat: EventSource (tin từng cái)
-// + poll 4s luôn chạy (webview cũ hay chết stream im lặng). Cả trang room
-// lẫn trang artplayer (host) dùng chung file này.
+// Widget tự quản stream riêng cho node chat: Firebase SDK (child_added từng
+// tin, tự reconnect/resync) khi có; TV cũ không tải được SDK thì SSE + poll
+// 4s. Trang room dùng chung file này cho cả host lẫn người xem.
 //
 // RoomChat.mount(el, getCode) — el là thẻ chứa panel (trang tự hiện/ẩn),
 // getCode() trả mã phòng hiện tại (có thể null/ra sau khi host tạo phòng).
@@ -68,7 +68,10 @@ var RoomChat = (function () {
         var msgs = {};      // id -> entry (chỉ tin mới sau khi vào phòng)
         var order = [];     // id theo ts tăng dần
         var curCode = null;
-        var es = null;
+        var es = null;      // EventSource fallback (không có SDK)
+        var sdkQuery = null; // query SDK đang mở (để .off khi đổi phòng)
+        var usedSdk = false;
+        var lastPoll = 0;
         var joinTs = 0;
 
         function user() {
@@ -246,7 +249,9 @@ var RoomChat = (function () {
 
         function watch(code) {
             if (es) { es.close(); es = null; }
+            if (sdkQuery) { try { sdkQuery.off(); } catch (e) { } sdkQuery = null; }
             curCode = code;
+            usedSdk = false;
             if (!code) return;
             joinTs = Date.now() - GRACE_MS;
             msgs = {}; order = []; render(); // đổi phòng = bắt đầu lại từ tin mới
@@ -254,7 +259,24 @@ var RoomChat = (function () {
             // Người vào phòng -> 1 tin hệ thống cho cả phòng thấy ai mới đến
             // (reload cũng tính là vào lại — chat tạm nên không sao)
             action('đã vào phòng', '👋');
-            if (typeof EventSource !== 'undefined') {
+            // Ưu tiên Firebase SDK: child_added chỉ đẩy TIN MỚI (query limit 10
+            // + lọc joinTs trong add() nên không hiện lịch sử), child_removed
+            // nghe tin bị dọn ở máy khác. Không SDK -> SSE như cũ.
+            if (typeof firebase !== 'undefined' && firebase.database) {
+                try {
+                    var q = firebase.database().ref('chat/' + code)
+                        .orderByChild('ts').limitToLast(10);
+                    q.on('child_added', function (snap) {
+                        add(snap.key, snap.val()); render();
+                    });
+                    q.on('child_removed', function (snap) {
+                        add(snap.key, null); render();
+                    });
+                    sdkQuery = q;
+                    usedSdk = true;
+                } catch (e) { }
+            }
+            if (!usedSdk && typeof EventSource !== 'undefined') {
                 es = new EventSource(RTDB + '/chat/' + code + '.json');
                 ['put', 'patch'].forEach(function (ev) {
                     es.addEventListener(ev, function (e) {
@@ -268,13 +290,16 @@ var RoomChat = (function () {
             }
         }
 
-        // Poll 4s: fallback khi stream chết — chỉ tải 10 tin mới nhất
-        // (limitToLast + indexOn ts), không bao giờ tải lịch sử. Mã phòng
-        // mới xuất hiện (host bấm tạo phòng) -> bật stream.
+        // Poll fallback: SDK gánh realtime thì vòng này chỉ là heartbeat 30s
+        // (phòng chat tạm, chết socket im lặng thì chậm nhất 30s vẫn đuổi kịp);
+        // không SDK (TV cũ) -> poll 4s như cũ. Vòng 4s vẫn chạy để bắt mã phòng
+        // mới xuất hiện (getCode() đổi) tức thì.
         setInterval(function () {
             var code = getCode();
             if (code !== curCode) { watch(code); return; }
             if (!code) return;
+            if (Date.now() - lastPoll < (usedSdk ? 30000 : 4000)) return;
+            lastPoll = Date.now();
             fetch(RTDB + '/chat/' + code + '.json?orderBy=%22ts%22&limitToLast=10')
                 .then(r => r.json())
                 .then(data => { if (data) apply('/', data); })
