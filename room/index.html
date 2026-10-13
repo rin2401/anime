@@ -99,6 +99,21 @@
             border-color: #23ade5;
         }
 
+        /* Nút chọn phim (phòng chưa có phim) — 1 nút chiếm cả hàng grid */
+        #ep-pick-movie {
+            grid-column: 1 / -1;
+            padding: 12px 0 !important;
+            font-size: 14px !important;
+            font-weight: 700;
+            background: rgba(35, 173, 229, 0.18) !important;
+            border-color: rgba(35, 173, 229, 0.55) !important;
+        }
+
+        #ep-pick-movie:hover {
+            background: #23ade5 !important;
+            color: #fff;
+        }
+
         @media (max-width: 480px) {
             #ep-pick-grid {
                 grid-template-columns: repeat(4, 1fr);
@@ -174,6 +189,31 @@
             font-weight: 700;
             color: #23ade5;
             letter-spacing: 0.5px;
+        }
+
+        /* Nút "Đổi phim" của CHỦ PHÒNG đặt ở header chatbox (badge phòng đã
+           dời về đây nên action phòng cũng ở đây cho gọn). Người xem bị
+           .viewer-lock ẩn hẳn. */
+        #chat-change-movie {
+            flex: 0 0 auto;
+            background: rgba(35, 173, 229, 0.15);
+            color: #7fd4ff;
+            border: 1px solid rgba(35, 173, 229, 0.5);
+            border-radius: 6px;
+            padding: 3px 8px;
+            font-size: 11.5px;
+            font-family: inherit;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        #chat-change-movie:hover {
+            background: #23ade5;
+            color: #fff;
+        }
+
+        #room-layout.viewer-lock #chat-change-movie {
+            display: none !important;
         }
 
         #room-label {
@@ -560,14 +600,14 @@
             font-weight: 700;
         }
 
-        #c-results {
+        #c-results, #m-results {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
             gap: 10px;
             margin-top: 12px;
         }
 
-        #c-results .card {
+        #c-results .card, #m-results .card {
             cursor: pointer;
             border-radius: 8px;
             background: #23272d;
@@ -576,7 +616,7 @@
             text-align: center;
         }
 
-        #c-results .card img {
+        #c-results .card img, #m-results .card img {
             width: 100%;
             aspect-ratio: 2 / 3;
             object-fit: cover;
@@ -584,7 +624,7 @@
             display: block;
         }
 
-        #c-results .card .name {
+        #c-results .card .name, #m-results .card .name {
             font-size: 11.5px;
             margin-top: 5px;
             min-height: 2.8em;
@@ -594,7 +634,7 @@
             -webkit-box-orient: vertical;
         }
 
-        #c-results .card.picked {
+        #c-results .card.picked, #m-results .card.picked {
             border-color: #23ade5;
         }
 
@@ -625,7 +665,14 @@
             cursor: pointer;
         }
 
-        #c-status, #e-status {
+        .c-hint {
+            margin-top: 10px;
+            font-size: 12px;
+            line-height: 1.5;
+            color: rgba(255, 255, 255, 0.55);
+        }
+
+        #c-status, #e-status, #m-status {
             margin-top: 10px;
             color: rgba(255, 255, 255, 0.6);
             font-size: 13px;
@@ -685,15 +732,15 @@
     <div id="room-layout">
         <div id="video-area">
             <div class="artplayer-app"></div>
-            <!-- Phòng chưa có tập (host chọn bộ xong, chưa chọn tập): host
-                 bấm grid phát tập đầu, người xem chờ -->
+            <!-- Phòng chưa có phim: host thấy nút chọn phim; phòng có phim
+                 nhưng chưa có tập (bộ chưa crawl kịp): host bấm grid chọn tập -->
             <div id="ep-pick">
                 <div id="ep-pick-title"></div>
                 <div id="ep-pick-grid"></div>
             </div>
         </div>
         <aside id="chat-side">
-            <div id="chat-head"><span id="room-code"></span> <span id="room-label">Đang kết nối phòng…</span></div>
+            <div id="chat-head"><span id="room-code"></span> <span id="room-label">Đang kết nối phòng…</span><button id="chat-change-movie" type="button" title="Đổi phim cho phòng">🎬 Đổi phim</button></div>
             <div id="chat-panel"></div>
         </aside>
     </div>
@@ -717,20 +764,25 @@
         </div>
     </div>
 
-    <!-- Modal tạo phòng: tìm phim → chọn bộ là vào phòng (chọn tập sau,
-         trong trang room) → tên/mode/mật khẩu -->
+    <!-- Modal tạo phòng: CHỈ tên phòng + mật khẩu — vào phòng rồi mới chọn
+         phim (nút 🎬 trong header chatbox). Tập phát tự chọn theo lịch sử xem
+         của người chọn phim: đã xem thì tiếp tục đúng tập/mốc, chưa xem thì
+         tập đầu tiên; đổi tập sau đó bằng playlist trong artplayer. -->
     <div class="modal" id="create-modal">
-        <div class="modal-card">
+        <div class="modal-card modal-sm">
             <div class="modal-head"><span>Tạo phòng xem chung</span><button class="modal-x" type="button">✕</button></div>
             <div id="c-auth">Cần đăng nhập để tạo phòng. <a href="/anime/auth/">Đăng nhập →</a></div>
-            <input id="c-q" type="search" placeholder="Tìm phim cho phòng…" autocomplete="off">
-            <div id="c-results"></div>
             <div class="c-form">
                 <input id="c-name" placeholder="Tên phòng (tuỳ chọn, vd: chill cuối tuần)" maxlength="40" autocomplete="off">
                 <label class="c-priv"><input type="checkbox" id="c-priv"> Phòng riêng — người vào cần mật khẩu</label>
-                <input id="c-pw" placeholder="Mật khẩu phòng" style="display:none" autocomplete="off">
+                <input id="c-pw" type="password" placeholder="Mật khẩu phòng" style="display:none" autocomplete="new-password">
             </div>
+            <div class="c-hint">Vào phòng rồi chọn phim — phát tiếp đúng chỗ bạn đang xem dở.</div>
             <div id="c-status"></div>
+            <div class="modal-actions">
+                <button id="c-cancel" type="button">Huỷ</button>
+                <button id="c-create" type="button">Tạo phòng</button>
+            </div>
         </div>
     </div>
 
@@ -752,6 +804,17 @@
             </div>
         </div>
     </div>
+    <!-- Modal ĐỔI PHIM trong phòng (chủ phòng): tìm bộ mới → chọn bộ là room
+         node đổi nguồn và PHÁT LUÔN tập mở màn (theo lịch sử xem của host,
+         chưa xem thì tập đầu). Cùng nguồn Sheet với phòng (RoomMoviePicker). -->
+    <div class="modal" id="movie-modal">
+        <div class="modal-card">
+            <div class="modal-head"><span>Đổi phim cho phòng</span><button class="modal-x" type="button">✕</button></div>
+            <input id="m-q" type="search" placeholder="Tìm phim…" autocomplete="off">
+            <div id="m-results"></div>
+            <div id="m-status"></div>
+        </div>
+    </div>
     <!-- Modal mật khẩu: vào phòng riêng từ card (sảnh) hoặc từ link trực tiếp -->
     <div class="modal" id="pw-modal">
         <div class="modal-card modal-sm">
@@ -767,6 +830,7 @@
     <!-- auth.js (khởi tạo firebase) phải đứng trước chat.js/lobby.js/player.js;
          cả bốn defer nên chạy đúng thứ tự -->
     <script defer src="/anime/auth/auth.js"></script>
+    <script defer src="/anime/auth/user-history.js"></script>
     <script defer src="/anime/room/chat.js"></script>
     <script defer src="/anime/room/lobby.js"></script>
     <script defer src="/anime/room/player.js"></script>

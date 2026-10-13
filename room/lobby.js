@@ -92,11 +92,13 @@ function renderRoomList(rooms) {
     var items = [];
     for (var code in rooms) {
         var r = rooms[code];
-        if (!r || !r.url || !r.title) continue;
+        // Phòng mới có thể CHƯA chọn phim (url/title còn là tên phòng) — vẫn
+        // phải hiện trong sảnh để người khác vào chờ host chọn
+        if (!r || !r.host) continue;
         var age = Date.now() - Number(r.updatedAt || 0);
         if (age > 86400000) continue;
         items.push({
-            code: code, name: r.name || '', title: r.title, playing: !!r.playing,
+            code: code, name: r.name || '', title: r.title || '', playing: !!r.playing,
             priv: !!r.priv, pw: r.pw || '', img: r.img || '', age: age,
             host: r.host || '', mine: !!me && r.host === me,
         });
@@ -128,8 +130,10 @@ function renderRoomList(rooms) {
             img.onerror = function () { this.parentNode.innerHTML = '<div class="room-card-noimg">🎬</div>'; };
         }
         d.querySelector('.room-card-name').textContent = it.name || ('Phòng ' + it.code);
-        d.querySelector('.room-card-title').textContent = it.title;
-        d.querySelector('.room-card-status').textContent = it.playing ? 'Đang phát' : 'Tạm dừng';
+        // Phòng chưa chọn phim: title còn là tên phòng -> ghi rõ đang chờ chọn
+        d.querySelector('.room-card-title').textContent = it.title || 'Chưa chọn phim';
+        d.querySelector('.room-card-status').textContent =
+            !it.title ? 'Chờ chọn phim' : (it.playing ? 'Đang phát' : 'Tạm dừng');
         d.querySelector('.room-card-age').textContent = ageText(it.age);
         var editBtn = d.querySelector('.room-card-edit');
         if (editBtn) {
@@ -243,13 +247,10 @@ function loadRoomList() {
         .then(renderRoomList).catch(function () { });
 }
 
-// ── Modal tạo phòng: tìm phim (Sheet gviz) → chọn tập → tên/mode/mật khẩu ──
-// Copy pattern trang create cũ (đã gộp về đây): ưu tiên nguồn playlist >
-// anilist_id > phimapi > gdrive. Danh sách tập do player.js tự tải trong
-// trang room (pid/k ghi vào node) — lobby không cần map tập nữa.
+// ── Modal tạo phòng: CHỈ tên + mật khẩu (chọn phim sau, trong trang room) ──
+// Sheet catalog vẫn được nạp sẵn ở đây vì RoomMoviePicker dùng chung cache.
 var imageUrl = "/anime/image/r3_512.png";
 var cRows = null;       // cache Sheet catalog
-var cPickedRow = null;  // bộ đang chọn
 
 function fetchSheetRows() {
     var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/gviz/tq?tqx=out:json&tq&gid=' + SHEET_GID;
@@ -275,6 +276,102 @@ function normalizeText(s) {
 
 function cSetStatus(s) { document.getElementById('c-status').textContent = s || ''; }
 
+// ── RoomMoviePicker: modal ĐỔI PHIM dùng trong TRANG ROOM (nút 🎬 ở header
+// chatbox, chỉ chủ phòng thấy). Lazy-wire DOM ở lần mở đầu vì khối init của
+// sảnh bị bỏ qua khi URL có ?id. Dùng chung cache Sheet (cRows) + parser với
+// modal tạo phòng; chọn bộ xong gọi callback (player.js tự patch room node). ──
+var RoomMoviePicker = (function () {
+    var wired = false;
+    var onPick = null;
+    var timer = 0;
+
+    function setStatus(s) {
+        var el = document.getElementById('m-status');
+        if (el) el.textContent = s || '';
+    }
+
+    function render(list) {
+        var box = document.getElementById('m-results');
+        if (!box) return;
+        box.innerHTML = '';
+        list.slice(0, 24).forEach(function (row) {
+            var d = document.createElement('div');
+            d.className = 'card';
+            var img = document.createElement('img');
+            img.loading = 'lazy';
+            img.src = row.image || imageUrl;
+            img.onerror = function () { this.src = imageUrl; };
+            var name = document.createElement('div');
+            name.className = 'name';
+            name.textContent = row.name || '(không tên)';
+            d.appendChild(img);
+            d.appendChild(name);
+            d.addEventListener('click', function () {
+                var cb = onPick;
+                close();
+                if (cb) cb(row);
+            });
+            box.appendChild(d);
+        });
+        setStatus(list.length ? '' : 'Không tìm thấy bộ nào khớp.');
+    }
+
+    function doSearch() {
+        var qEl = document.getElementById('m-q');
+        if (!cRows || !qEl) return;
+        var q = normalizeText(qEl.value).trim();
+        if (!q) { document.getElementById('m-results').innerHTML = ''; setStatus(''); return; }
+        render(cRows.filter(function (r) { return r.name && normalizeText(r.name).indexOf(q) !== -1; }));
+    }
+
+    function close() {
+        document.getElementById('movie-modal').classList.remove('open');
+        onPick = null;
+    }
+
+    function wire() {
+        if (wired) return;
+        wired = true;
+        document.getElementById('m-q').addEventListener('input', function () {
+            clearTimeout(timer);
+            timer = setTimeout(doSearch, 300);
+        });
+        Array.prototype.forEach.call(document.querySelectorAll('#movie-modal .modal-x'), function (x) {
+            x.addEventListener('click', close);
+        });
+        document.getElementById('movie-modal').addEventListener('click', function (e) {
+            if (e.target === this) close();
+        });
+    }
+
+    function open(cb) {
+        var m = document.getElementById('movie-modal');
+        if (!m) return;
+        wire();
+        onPick = cb;
+        var qEl = document.getElementById('m-q');
+        qEl.value = '';
+        // Sheet chưa về thì khoá ô nhập: doSearch lúc cRows còn rỗng sẽ bị bỏ
+        // qua im lặng (người dùng tưởng tìm không ra phim)
+        qEl.disabled = !cRows;
+        document.getElementById('m-results').innerHTML = '';
+        setStatus(cRows ? 'Nhập tên phim để tìm.' : 'Đang tải danh sách phim…');
+        m.classList.add('open');
+        setTimeout(function () { if (!qEl.disabled) qEl.focus(); }, 50);
+        if (!cRows) {
+            fetchSheetRows().then(function (r) {
+                cRows = r;
+                qEl.disabled = false;
+                setStatus('Nhập tên phim để tìm.');
+                qEl.focus();
+                if (qEl.value.trim()) doSearch(); // gõ sớm (nếu kịp) -> tìm lại
+            }).catch(function () { setStatus('Tải danh sách phim lỗi — thử lại.'); });
+        }
+    }
+
+    return { open: open };
+})();
+
 function myCode() {
     try {
         var c = localStorage.getItem('room:hostcode') || '';
@@ -282,48 +379,9 @@ function myCode() {
     } catch (e) { return ''; }
 }
 
-function renderCResults(list) {
-    var resultsEl = document.getElementById('c-results');
-    resultsEl.innerHTML = '';
-    list.slice(0, 24).forEach(function (row) {
-        var d = document.createElement('div');
-        d.className = 'card';
-        var img = document.createElement('img');
-        img.loading = 'lazy';
-        img.src = row.image || imageUrl;
-        img.onerror = function () { this.src = imageUrl; };
-        var name = document.createElement('div');
-        name.className = 'name';
-        name.textContent = row.name || '(không tên)';
-        d.appendChild(img);
-        d.appendChild(name);
-        d.addEventListener('click', function () { cPickRow(row, d); });
-        resultsEl.appendChild(d);
-    });
-    cSetStatus(list.length ? '' : 'Không tìm thấy bộ nào khớp.');
-}
-
-function cDoSearch() {
-    if (!cRows) return;
-    var qEl = document.getElementById('c-q');
-    var nq = normalizeText(qEl.value).trim();
-    if (!nq) { document.getElementById('c-results').innerHTML = ''; return; }
-    renderCResults(cRows.filter(function (r) { return r.name && normalizeText(r.name).indexOf(nq) !== -1; }));
-}
-
-// Chọn bộ là VÀO PHÒNG NGAY — host chọn tập SAU trong trang room (overlay
-// #ep-pick của player.js), không còn bước chọn tập ở modal.
-function cPickRow(row, cardEl) {
-    var resultsEl = document.getElementById('c-results');
-    Array.prototype.forEach.call(resultsEl.children, function (c) { c.classList.remove('picked'); });
-    if (cardEl) cardEl.classList.add('picked');
-    cPickedRow = row;
-    cCreateRoom();
-}
-
-// Tạo/cập nhật phòng rồi vào thẳng trang room. Code tái dùng localStorage
-// room:hostcode: link share ổn định, chọn bộ khác là cùng phòng đổi nguồn.
-// url để RỖNG — phòng mở chưa có tập, host chọn trong trang room.
+// Tạo phòng rồi vào thẳng trang room — phòng CHƯA có phim (host chọn phim
+// trong trang room bằng nút 🎬). Code tái dùng localStorage room:hostcode:
+// link share ổn định, mở lại là cùng phòng.
 function cCreateRoom() {
     var u = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth().currentUser : null;
     if (!u) {
@@ -331,8 +389,6 @@ function cCreateRoom() {
         cSetStatus('');
         return;
     }
-    if (!cPickedRow) return;
-    var hadCode = !!myCode();
     var code = myCode();
     if (!code) {
         var chars = 'abcdefghjkmnpqrstuvwxyz23456789';
@@ -345,24 +401,20 @@ function cCreateRoom() {
     var priv = !!privEl.checked;
     var pwPlain = priv ? (pwEl.value || '').trim() : '';
     if (priv && !pwPlain) { cSetStatus('Phòng riêng cần mật khẩu.'); return; }
-    var title = cPickedRow.name || 'Phòng xem chung';
-    var pid = cPickedRow.playlist || cPickedRow.anilist_id;
-    var k = cPickedRow.phimapi;
-    if (!pid && !k) pid = cPickedRow.gdrive;
-    var img = cPickedRow.image || '';
     cSetStatus('Đang tạo phòng…');
     sha256(pwPlain).then(function (pwHash) {
         var payload = {
             host: u.uid,
             created: Date.now(),
             url: '',
-            title: title,
+            // Tên phòng làm nhãn tạm; chọn phim xong title đổi thành tên phim
+            title: roomName || ('Phòng ' + code),
             name: roomName,
             priv: priv,
             pw: priv ? pwHash : '',
-            img: img,
-            pid: String(pid || ''),
-            k: String(k || ''),
+            img: '',
+            pid: '',
+            k: '',
             pos: 0,
             playing: false,
             updatedAt: Date.now(),
@@ -378,12 +430,14 @@ function cCreateRoom() {
             // Tin hệ thống vào chatbox phòng (xám nghiêng) — keepalive sống
             // qua lần điều hướng
             var nm = u.displayName || (u.email || '').split('@')[0];
-            var text = (hadCode ? '🎬 ' + nm + ' đã đổi sang ' : '🎬 ' + nm + ' đã mở phòng — ') + title;
             u.getIdToken().then(function (tok) {
                 return fetch(RTDB + '/chat/' + code + '.json?auth=' + tok, {
                     method: 'POST',
                     keepalive: true,
-                    body: JSON.stringify({ uid: u.uid, name: nm, text: text, ts: Date.now(), sys: 1 }),
+                    body: JSON.stringify({
+                        uid: u.uid, name: nm, ts: Date.now(), sys: 1,
+                        text: '🎬 ' + nm + ' đã mở phòng — ' + (roomName || ('Phòng ' + code)),
+                    }),
                 });
             }).catch(function () { });
             window.location.href = '/anime/room/?id=' + code;
@@ -438,25 +492,30 @@ window.addEventListener('load', function () {
         if (e.target === this) closeRoomEdit();
     });
 
-    // modal tạo phòng
+    // modal tạo phòng: chỉ tên + mật khẩu, chọn phim sau khi vào phòng
     var createModal = document.getElementById('create-modal');
     document.getElementById('create-btn').addEventListener('click', function () {
         createModal.classList.add('open');
-        setTimeout(function () { document.getElementById('c-q').focus(); }, 50);
+        cSetStatus('');
+        setTimeout(function () { document.getElementById('c-name').focus(); }, 50);
     });
     Array.prototype.forEach.call(document.querySelectorAll('#create-modal .modal-x'), function (x) {
         x.addEventListener('click', function () { createModal.classList.remove('open'); });
+    });
+    document.getElementById('c-cancel').addEventListener('click', function () {
+        createModal.classList.remove('open');
+    });
+    document.getElementById('c-create').addEventListener('click', cCreateRoom);
+    ['c-name', 'c-pw'].forEach(function (id) {
+        document.getElementById(id).addEventListener('keydown', function (e) {
+            if (e.isComposing === true || e.keyCode === 229) return; // IME ghép vần
+            if (e.key === 'Enter') { e.preventDefault(); cCreateRoom(); }
+        });
     });
     var privEl = document.getElementById('c-priv');
     privEl.addEventListener('change', function () {
         var pwEl = document.getElementById('c-pw');
         pwEl.style.display = privEl.checked ? 'block' : 'none';
-    });
-    var qEl = document.getElementById('c-q');
-    var searchTimer = 0;
-    qEl.addEventListener('input', function () {
-        clearTimeout(searchTimer);
-        searchTimer = setTimeout(cDoSearch, 300);
     });
     if (typeof firebase !== 'undefined' && firebase.auth) {
         firebase.auth().onAuthStateChanged(function (u) {
@@ -465,6 +524,7 @@ window.addEventListener('load', function () {
             renderRoomList(lastRooms);
         });
     }
+    // Nạp sẵn catalog Sheet cho RoomMoviePicker (dùng chung cache cRows)
     fetchSheetRows().then(function (r) { cRows = r; }).catch(function () { });
 
     // Danh sách phòng: SDK đẩy realtime (phòng mới mở/tan hiện tức thì);
