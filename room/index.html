@@ -117,34 +117,11 @@
             white-space: nowrap;
         }
 
-        /* Nút chat góc phải trên: bật/tắt sidebar chat — icon SVG cùng họ
-           Material với control bar artplayer (emoji 💬 lệch phong cách) */
-        #chat-toggle {
-            position: fixed;
-            top: calc(10px + env(safe-area-inset-top));
-            right: 10px;
-            width: 38px;
-            height: 38px;
-            border-radius: 19px;
-            border: 0;
-            background: rgba(0, 0, 0, 0.6);
-            color: #fff;
-            cursor: pointer;
-            z-index: 30;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        #chat-toggle svg {
-            display: block;
-            width: 20px;
-            height: 20px;
-            fill: currentColor;
-        }
-
-        #chat-toggle.active {
-            background: #23ade5;
+        /* Nút chat nằm TRONG control bar artplayer (.art-control-chat) —
+           icon SVG Material đồng bộ họ icon với các nút play/settings; bật
+           chat thì icon xanh theme. CSS ở đây vì control do player.js thêm. */
+        .art-control-chat.active svg {
+            fill: #23ade5;
         }
 
         /* Sảnh chờ khi mở /anime/room/ không có ?id: nhập mã phòng hoặc sang
@@ -230,9 +207,6 @@
             <div id="chat-panel"></div>
         </aside>
     </div>
-    <button id="chat-toggle" type="button" aria-label="Chat">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
-    </button>
 
     <!-- Sảnh chờ khi không có ?id= mã phòng: nhập mã hoặc sang trang tạo phòng -->
     <div id="room-join">

@@ -114,6 +114,7 @@ var art = null;
 var roomCode = '';     // mã phòng từ ?id= (host dùng để PATCH + share link)
 var hostSynced = false; // host: đã áp mốc lần đầu chưa (tránh patch pos=0 lúc autoplay)
 var lastSeekLogPos = 0; // host: mốc tua đã log chat lần gần nhất (tua nhỏ không log)
+var chatAutoOpened = false; // đã tự mở sidebar chat cho màn rộng chưa (1 lần/trang)
 
 // uid của mình (host xác định qua state.host === uid); khách chưa đăng nhập = null
 function myUid() {
@@ -236,6 +237,42 @@ function mountPlayer(url) {
     // (Artplayer tự đoán theo đuôi file, customType m3u8 bắt cả link phim1280)
     void type;
     art.on('ready', applySync);
+
+    // Nút chat trong CONTROL BAR (thay nút nổi góc phải — gọn, cùng hàng với
+    // play/settings): icon SVG Material chat bubble, bật chat thì icon xanh.
+    // Control bar tự ẩn khi xem phim nên không vướng màn hình.
+    art.controls.add({
+        name: 'chat',
+        position: 'right',
+        index: 2,
+        html: '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>',
+        tooltip: 'Chat phòng',
+        click: function () {
+            var layout = document.getElementById('room-layout');
+            var on = layout.classList.toggle('chat-open');
+            var el = document.querySelector('.art-control-chat');
+            if (el) el.classList.toggle('active', on);
+            // video vừa co/giãn theo container -> bảo artplayer tính lại
+            setTimeout(function () { try { art.resize(); } catch (e) { } }, 60);
+        },
+    });
+    // Màn rộng mở sẵn sidebar (một lần duy nhất, không lặp khi đổi tập);
+    // mobile đóng mặc định cho phim tràn màn, bấm nút chat khi cần
+    if (!chatAutoOpened && window.innerWidth >= 900) {
+        chatAutoOpened = true;
+        document.getElementById('room-layout').classList.add('chat-open');
+        var el0 = document.querySelector('.art-control-chat');
+        if (el0) el0.classList.add('active');
+        setTimeout(function () { try { art.resize(); } catch (e) { } }, 60);
+    } else {
+        chatAutoOpened = true;
+    }
+    // đổi tập khi chat đang mở -> nút giữ trạng thái active đúng
+    if (document.getElementById('room-layout').classList.contains('chat-open')) {
+        var el1 = document.querySelector('.art-control-chat');
+        if (el1) el1.classList.add('active');
+    }
+
     // Host phát điều khiển của MÌNH vào room node (người xem chỉ đọc):
     // play/pause/seek/hết tập — không ghi timeupdate liên tục.
     // Mỗi hành động còn ghi 1 TIN HỆ THỐNG vào chatbox (xám nghiêng) để cả
@@ -399,24 +436,8 @@ window.addEventListener('load', function () {
     roomCode = id;
     watchRoom(id);
     // Chat: dùng chung room/chat.js, panel nằm trong sidebar #chat-side
+    // (nút bật/tắt nằm trong control bar artplayer — thêm ở mountPlayer)
     if (typeof RoomChat !== 'undefined') {
         RoomChat.mount(document.getElementById('chat-panel'), function () { return id; });
-        bindChatToggle();
     }
 });
-
-// Nút 💬 góc phải trên: bật/tắt sidebar chat (bên cạnh video trên màn rộng,
-// khối dưới video trên mobile — không đè phim). Màn rộng >=900px mở sẵn.
-function bindChatToggle() {
-    var btn = document.getElementById('chat-toggle');
-    var layout = document.getElementById('room-layout');
-    if (!btn || !layout) return;
-    btn.addEventListener('click', function () {
-        var on = layout.classList.toggle('chat-open');
-        btn.classList.toggle('active', on);
-    });
-    if (window.innerWidth >= 900) {
-        layout.classList.add('chat-open');
-        btn.classList.add('active');
-    }
-}
