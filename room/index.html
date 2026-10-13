@@ -20,6 +20,10 @@
            mọi thứ trong trang room kế thừa: chatbox, header, sảnh chờ */
         body {
             background-color: black;
+            /* Màu chữ mặc định TRẮNG: nhiều chỗ (tiêu đề sảnh chờ, tên phòng
+               trong card) không khai báo color → trước đây thừa hưởng màu đen
+               mặc định của trình duyệt = chữ đen trên nền tối, vô hình. */
+            color: #fff;
             margin: 0;
             font-family: "PingFang SC", "Helvetica Neue", "Microsoft YaHei", Roboto, Arial, sans-serif;
         }

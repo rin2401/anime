@@ -89,8 +89,12 @@
             #filter-container .search-btn {
                 order: 1;
             }
-            #filter-container .user-avatar {
+            /* nút Xem chung đứng cạnh search, avatar đẩy sát mép phải */
+            #filter-container .watch-btn {
                 order: 2;
+            }
+            #filter-container .user-avatar {
+                order: 3;
                 margin-left: auto;
             }
         }
@@ -411,6 +415,174 @@
         .home-btn:focus {
             outline: 2px solid #60a5fa;
         }
+
+        /* Nút "Xem chung" cạnh avatar: mở sảnh chờ phòng xem chung. Cùng
+           đường kính 38px với .search-btn/.home-btn/.user-avatar. */
+        .watch-btn {
+            box-sizing: border-box;
+            width: 38px;
+            height: 38px;
+            padding: 0;
+            border: 1px solid #6c757d;
+            color: #fff;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .watch-btn img {
+            display: block;
+            margin: 4px;
+        }
+
+        .watch-btn:hover {
+            background: #444;
+        }
+
+        .watch-btn:focus {
+            outline: 2px solid #60a5fa;
+        }
+
+        /* ── Modal Hồ sơ (sửa tên hiển thị) ── */
+        #profile-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.65);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            z-index: 2000;
+        }
+
+        #profile-modal.open {
+            display: flex;
+        }
+
+        #profile-modal .pm-card {
+            background: #222;
+            color: #fff;
+            border: 1px solid #3a3f45;
+            border-radius: 12px;
+            padding: 18px;
+            width: min(360px, 92vw);
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+
+        #profile-modal .pm-title {
+            font-size: 17px;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        #profile-modal .pm-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        #profile-modal .pm-head img {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            object-fit: cover;
+            background: #333;
+        }
+
+        #profile-modal .pm-email {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            word-break: break-all;
+        }
+
+        #profile-modal .pm-label {
+            display: block;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 6px;
+        }
+
+        #pm-name {
+            width: 100%;
+            box-sizing: border-box;
+            background: #2b2f33;
+            color: #fff;
+            border: 1px solid #3a3f45;
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 14px;
+            font-family: inherit;
+            outline: 0;
+            color-scheme: dark;
+        }
+
+        #pm-name:focus {
+            border-color: #23ade5;
+        }
+
+        #pm-err {
+            min-height: 16px;
+            font-size: 12px;
+            color: #ff7b7b;
+            margin-top: 6px;
+        }
+
+        #profile-modal .pm-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-top: 6px;
+        }
+
+        #profile-modal .pm-actions button {
+            border: 0;
+            border-radius: 8px;
+            padding: 9px 16px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        #pm-cancel {
+            background: #3a3f45;
+            color: #fff;
+        }
+
+        #pm-save {
+            background: #23ade5;
+            color: #fff;
+        }
+
+        #pm-save:disabled {
+            opacity: 0.6;
+            cursor: default;
+        }
+
+        /* Toast nhỏ xác nhận đã lưu */
+        #app-toast {
+            position: fixed;
+            left: 50%;
+            bottom: 28px;
+            transform: translateX(-50%) translateY(10px);
+            background: #23ade5;
+            color: #fff;
+            font: 700 13px/1 Arial, sans-serif;
+            padding: 10px 16px;
+            border-radius: 999px;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s, transform 0.2s;
+            z-index: 2100;
+        }
+
+        #app-toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
     </style>
     <!-- defer: không chặn render; các script defer chạy theo đúng thứ tự trước DOMContentLoaded -->
     <script defer src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
@@ -440,9 +612,15 @@
                     alt="Search">
             </button>
         </div>
+        <button class="watch-btn" id="watchBtn" title="Xem chung">
+            <img width="28px" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='%23fff' viewBox='0 0 24 24'
+                %3E%3Cpath d='M16 11c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 3-1.34 3-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5C15 14.17 10.33 13 8 13zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z' /%3E%3C/svg%3E"
+                alt="Xem chung">
+        </button>
         <div class="user-avatar" title="User" id="user-avatar-btn">
             <img id="user-avatar" alt="User Avatar">
             <div class="avatar-dropdown" id="avatarDropdown">
+                <button id="profileBtnDropdown">Hồ sơ</button>
                 <button id="historyBtnDropdown">Lịch sử xem</button>
                 <button id="signOutBtnDropdown">Sign Out</button>
             </div>
@@ -450,6 +628,26 @@
 
     </div>
     <div class="image-container" id="imageContainer"></div>
+
+    <!-- Modal Hồ sơ: xem email + sửa tên hiển thị (đồng bộ Firebase Auth
+         displayName — chat phòng, tin hệ thống đều đọc tên này) -->
+    <div id="profile-modal">
+        <div class="pm-card">
+            <div class="pm-title">Hồ sơ</div>
+            <div class="pm-head">
+                <img id="pm-avatar" alt="">
+                <div class="pm-email" id="pm-email"></div>
+            </div>
+            <label class="pm-label" for="pm-name">Tên hiển thị</label>
+            <input id="pm-name" type="text" maxlength="40" placeholder="Tên của bạn" enterkeyhint="done">
+            <div id="pm-err"></div>
+            <div class="pm-actions">
+                <button id="pm-cancel" type="button">Huỷ</button>
+                <button id="pm-save" type="button">Lưu</button>
+            </div>
+        </div>
+    </div>
+    <div id="app-toast"></div>
 
     <script defer src="/anime/auth/auth.js"></script>
     <script defer src="/anime/auth/user-history.js"></script>
@@ -1256,6 +1454,7 @@
                     const gravatarUrl = `https://www.gravatar.com/avatar/${emailHash}?d=identicon&s=200`;
                     userAvatar.src = gravatarUrl;
                 }
+                avatarBtn.title = user.displayName || 'User';
                 avatarBtn.style.display = "flex"
                 filterContainer.style.display = "flex"
                 initData()
@@ -1279,6 +1478,66 @@
                 });
             }
         };
+        // Nút Xem chung: vào sảnh chờ phòng (tạo phòng / nhập mã / chọn phòng)
+        document.getElementById('watchBtn').onclick = function () {
+            window.location.href = "/anime/room/";
+        };
+
+        // ── Modal Hồ sơ: sửa tên hiển thị (Firebase Auth displayName — chat
+        // phòng + tin hệ thống đọc đúng tên này nên đổi là ăn ngay) ──
+        var profileModal = document.getElementById('profile-modal');
+        var pmName = document.getElementById('pm-name');
+        var pmErr = document.getElementById('pm-err');
+        var pmSave = document.getElementById('pm-save');
+        var toastTimer = 0;
+
+        function toast(text) {
+            var t = document.getElementById('app-toast');
+            t.textContent = text;
+            t.classList.add('show');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(function () { t.classList.remove('show'); }, 1800);
+        }
+
+        function openProfile() {
+            avatarDropdown.classList.remove('show');
+            var u = firebase.auth().currentUser;
+            if (!u) return;
+            document.getElementById('pm-avatar').src = userAvatar.src;
+            document.getElementById('pm-email').textContent = u.email || '';
+            pmName.value = u.displayName || (u.email || '').split('@')[0];
+            pmErr.textContent = '';
+            profileModal.classList.add('open');
+            setTimeout(function () { pmName.focus(); }, 50);
+        }
+
+        function closeProfile() { profileModal.classList.remove('open'); }
+
+        function saveProfile() {
+            var u = firebase.auth().currentUser;
+            if (!u) return;
+            var name = (pmName.value || '').trim();
+            if (!name) { pmErr.textContent = 'Tên không được để trống.'; return; }
+            pmSave.disabled = true;
+            u.updateProfile({ displayName: name }).then(function () {
+                avatarBtn.title = name;
+                closeProfile();
+                toast('Đã lưu tên hiển thị');
+            }).catch(function (e) {
+                pmErr.textContent = 'Lỗi lưu: ' + (e && e.message ? e.message : e);
+            }).then(function () { pmSave.disabled = false; });
+        }
+
+        document.getElementById('profileBtnDropdown').onclick = openProfile;
+        document.getElementById('pm-cancel').onclick = closeProfile;
+        pmSave.onclick = saveProfile;
+        pmName.addEventListener('keydown', function (e) {
+            if (e.isComposing === true || e.keyCode === 229) return; // IME ghép vần
+            if (e.key === 'Enter') { e.preventDefault(); saveProfile(); }
+        });
+        profileModal.addEventListener('click', function (e) {
+            if (e.target === profileModal) closeProfile();
+        });
     </script>
 
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-1PSF8GWBEY"></script>
