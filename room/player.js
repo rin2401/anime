@@ -608,25 +608,6 @@ function pickSeasonEp(row, ep, label) {
     syncFromState();
 }
 
-// Overlay "Bấm để phát" khi autoplay bị TRÌNH DUYỆT chặn (mobile/iOS: play()
-// không có thao tác chạm bị từ chối). Người xem còn bị .viewer-lock tê mọi
-// nút nên overlay là cửa duy nhất để bắt đầu phát trên điện thoại — chạm vào
-// overlay là gesture hợp lệ nên play() được phép. Chỉ hiện khi node nói
-// ĐANG PHÁT mà video đứng im đã có dữ liệu (readyState >= 2: đang load thì
-// đỡ nhá — autoplay có thể tự chạy khi đủ dữ liệu), và sau khi ổn định >2.5s
-// kể từ lúc mount (đỡ flash overlay trên desktop autoplay chạy bình thường).
-var artMountedAt = 0;
-function checkTapPlay() {
-    var tp = document.getElementById('tap-play');
-    if (!tp) return;
-    if (!art || !state || !state.playing || !art.video || !art.video.paused
-        || art.video.readyState < 2 || Date.now() - artMountedAt < 2500) {
-        tp.style.display = 'none';
-        return;
-    }
-    tp.style.display = 'flex';
-}
-
 // Overlay #ep-pick ở chế độ CHỈ BÁO TRẠNG THÁI (không có gì để bấm): dùng khi
 // host chọn phim xong đang tải tập, hoặc bộ chưa crawl ra nguồn phát
 function showLoading(text) {
@@ -877,8 +858,12 @@ function mountPlayer(url) {
     // Sự kiện autoplay (video:play) của player mới xảy ra trước khi seek tới
     // mốc trong node — cấm patch trong khoảng đó (applySync bật lại cờ)
     hostSynced = false;
-    artMountedAt = Date.now();
     var type = url.endsWith('.json') ? 'json' : 'm3u8';
+    // Chạm giữa màn hình trên MOBILE = play/pause (như trang artplayer):
+    // mobile chặn autoplay không gesture, người xem cần tap để mở tiếng —
+    // listener hoàn tác phía dưới kéo ngay về trạng thái host nên không mất
+    // quyền điều khiển. Desktop click giữa vẫn toggle sẵn (default artplayer).
+    Artplayer.MOBILE_CLICK_PLAY = true;
     art = new Artplayer({
         container: '.artplayer-app',
         url: url,
@@ -1145,8 +1130,6 @@ function watchRoom(code) {
     setInterval(followPos, 4000);
     // Host chỉnh tỷ lệ khung hình / xoay trong settings -> dò 2s phát lên node
     setInterval(syncHostDisplaySettings, 2000);
-    // Overlay "Bấm để phát" khi autoplay bị chặn (mobile) — dò 2s cho cả 2 vai
-    setInterval(checkTapPlay, 2000);
 }
 
 // ── Phím tắt: volume là việc riêng từng máy; tua chỉ host (người xem bị
@@ -1217,22 +1200,6 @@ window.addEventListener('load', function () {
             if (!isHost()) return;
             if (typeof RoomMoviePicker === 'undefined') return;
             RoomMoviePicker.open(changeRoomMovie);
-        });
-    }
-    // Overlay "Bấm để phát" (autoplay bị chặn trên mobile): chạm = gesture
-    // hợp lệ nên play() được phép — người xem tua về mốc host rồi phát
-    var tapPlay = document.getElementById('tap-play');
-    if (tapPlay) {
-        tapPlay.addEventListener('click', function () {
-            if (!art || !state) return;
-            if (!isHost()) {
-                var tpv = targetPos(state);
-                if (tpv != null && art.duration && isFinite(art.duration)) {
-                    art.currentTime = tpv;
-                }
-            }
-            art.play();
-            tapPlay.style.display = 'none';
         });
     }
     // Mã QR link phòng + copy mã phòng (header chatbox): QR sinh CỤC BỘC bằng

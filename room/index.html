@@ -69,50 +69,6 @@
             overflow: auto;
         }
 
-        /* Overlay "Bấm để phát" khi autoplay bị chặn (mobile): nằm TRÊN player
-           nhưng dưới #ep-pick; không đụng .viewer-lock — người xem phải chạm
-           được (đây là cửa vào phòng, không phải điều khiển). */
-        #tap-play {
-            position: absolute;
-            inset: 0;
-            z-index: 20;
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
-            background: rgba(10, 12, 16, 0.45);
-            cursor: pointer;
-        }
-
-        #tap-play button {
-            width: 68px;
-            height: 68px;
-            padding: 0;
-            border: none;
-            border-radius: 50%;
-            background: rgba(35, 173, 229, 0.9);
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
-        }
-
-        #tap-play button svg {
-            width: 36px;
-            height: 36px;
-            display: block;
-            margin-left: 3px;
-        }
-
-        #tap-play .tp-text {
-            font-size: 13px;
-            color: rgba(255, 255, 255, 0.85);
-            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
-        }
-
         #ep-pick-title {
             font-weight: 700;
             font-size: 15px;
@@ -376,9 +332,11 @@
             opacity: 0.45;
         }
 
-        #room-layout.viewer-lock .art-state {
-            pointer-events: none;
-        }
+        /* .art-state (chạm/click giữa màn) KHÔNG bị khoá cho người xem:
+           mobile chặn autoplay không gesture nên tap giữa màn là CỬA để bắt
+           đầu phát (Artplayer.MOBILE_CLICK_PLAY bật ở player.js) — chạm xong
+           listener hoàn tác (c72a8cb) kéo ngay về trạng thái host nên quyền
+           điều khiển vẫn của host, người xem chỉ mượn gesture để mở tiếng. */
 
         /* Người xem: khoá thêm nút setting (playbackRate làm lệch nhịp đồng
            bộ) + cụm playlist (đổi tập là quyền host). Các nút thao tác này
@@ -974,18 +932,6 @@
             <div id="ep-pick">
                 <div id="ep-pick-title"></div>
                 <div id="ep-pick-grid"></div>
-            </div>
-            <!-- Autoplay bị chặn (mobile/iOS không cho play() không có thao tác
-                 chạm) mà người xem bị khoá mọi nút theo thiết kế "phòng do host
-                 điều khiển" -> overlay này là CỬA DUY NHẤT để bắt đầu phát trên
-                 điện thoại. KHÔNG thuộc .viewer-lock (chạm vào là gesture hợp lệ
-                 nên play() được phép). Chỉ hiện khi node nói đang phát mà video
-                 đứng im. -->
-            <div id="tap-play">
-                <button type="button" aria-label="Phát">
-                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
-                </button>
-                <div class="tp-text">Bấm để phát cùng phòng</div>
             </div>
         </div>
         <aside id="chat-side">
