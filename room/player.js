@@ -177,6 +177,8 @@ var episodeList = [];   // danh sách tập của bộ đang phát (nút playlis
 var epsLoadedFor = ''; // pid/k đã tải tập rồi (tránh refetch mỗi lần đổi tập)
 var switchArmed = false; // đang chờ tập mới phát thật sau khi host đổi tập (bỏ qua event rác lúc load nguồn)
 var autoTriedFor = '';   // host: pid|k đã tự chọn tập mở màn rồi (khỏi lặp mỗi lần sync)
+var lastAr = '';         // host: aspectRatio đã patch lên node lần cuối
+var lastFlip = '';       // host: flip đã patch lên node lần cuối (chuỗi, '' = chưa patch)
 
 // uid của mình (host xác định qua state.host === uid); khách chưa đăng nhập = null
 function myUid() {
@@ -303,6 +305,7 @@ function syncFromState() {
         // tốc độ phát theo host (host đổi 2x thì người xem cũng 2x)
         var tr = Number(state.rate) || 1;
         if (art.playbackRate !== tr) art.playbackRate = tr;
+        applyViewerDisplaySettings();
         followPos();
     }
 }
@@ -364,6 +367,8 @@ function applySync() {
         // (ratechange nổ ra bị chặn vì rate trùng state.rate)
         var hr = Number(state.rate) || 1;
         if (art.playbackRate !== hr) art.playbackRate = hr;
+        // áp lại cả tỷ lệ khung hình + xoay từ node (settings đồng bộ theo host)
+        applyHostDisplaySettings();
         art.currentTime = Number(state.pos) || 0;
         lastSeekLogPos = Number(state.pos) || 0; // seek ban đầu không phải "tua"
         return;
@@ -373,8 +378,50 @@ function applySync() {
     if (tp != null && art.duration && isFinite(art.duration)) art.currentTime = tp;
     var vr = Number(state.rate) || 1;
     if (art.playbackRate !== vr) art.playbackRate = vr;
+    applyViewerDisplaySettings();
     if (state.playing === false) art.pause();
     else art.play();
+}
+
+// Tỷ lệ khung hình + lật (flip) từ state node (host ghi, mọi máy áp) —
+// settings hiển thị của phòng ĐỒNG BỘ theo host: người xem bị ẩn nút settings
+// nên không tự chỉnh được, chỉ nhận theo node. LƯU Ý: art.aspectRatio và
+// art.flip đều là CHUỖI ('default'/'16:9', 'normal'/'horizontal'/'vertical')
+// — art.flip = 90 (số) nổ "t.charAt is not a function".
+function applyViewerDisplaySettings() {
+    if (!art || !state) return;
+    if (state.ar && String(art.aspectRatio || 'default') !== String(state.ar)) {
+        art.aspectRatio = String(state.ar);
+    }
+    if (state.flip && String(art.flip || 'normal') !== String(state.flip)) {
+        art.flip = String(state.flip);
+    }
+}
+
+// Host: áp từ node + ghi mốc đã patch để poller không patch lại chính nó
+function applyHostDisplaySettings() {
+    if (!art || !state) return;
+    // phòng cũ chưa từng ghi ar/flip -> giữ nguyên hiện trạng của player
+    var ar = String(state.ar || art.aspectRatio || 'default');
+    var fl = String(state.flip || art.flip || 'normal');
+    if (String(art.aspectRatio || 'default') !== ar) art.aspectRatio = ar;
+    if (String(art.flip || 'normal') !== fl) art.flip = fl;
+    lastAr = ar;
+    lastFlip = fl;
+}
+
+// Host chỉnh tỷ lệ khung hình / lật trong settings -> phát lên node cho cả
+// phòng theo. Artplayer KHÔNG có event cho 2 thao tác này (aspectRatio/flip
+// chỉ là setter) nên dò 2s một lần so với mốc đã patch — rẻ (đọc cục bộ) và
+// không lệ event của từng bản artplayer.
+function syncHostDisplaySettings() {
+    if (!isHost() || !art || !state || !hostSynced) return;
+    var ar = String(art.aspectRatio || 'default');
+    var fl = String(art.flip || 'normal');
+    if (ar === lastAr && fl === lastFlip) return;
+    lastAr = ar;
+    lastFlip = fl;
+    patchRoom({ ar: ar, flip: fl });
 }
 
 // Tải danh sách tập của bộ (pid = key Firebase anime/, k = slug kkphim —
@@ -406,6 +453,159 @@ function loadEpisodes(st) {
 
 function loadEpisodesThenMount(st) {
     loadEpisodes(st).then(function () { mountPlayer(st.url); });
+}
+
+// ── Gom tập MỌI MÙA vào panel playlist (như trang artplayer) ──
+// Sheet catalog là nguồn group: các dòng cùng giá trị cột `series` là các mùa
+// của một bộ. Plugin render sẵn tập MÙA HIỆN TẠI; các mùa khác inject thêm
+// header "Mùa N" + item tập vào .art-selector-list. Khác artplayer (bấm tập
+// mùa khác = điều hướng sang URL player mùa đó): trong phòng bấm tập mùa
+// khác = host PHÁT tập đó lên room node (đổi hẳn pid/k sang mùa mới), người
+// xem tự mount theo — mọi máy cùng xem chung như thiết kế phòng.
+
+// Sheet catalog đã nạp chưa (cRows là cache chung với lobby.js); chưa có thì
+// tự fetch (phòng mở trực tiếp link, init sảnh không chạy)
+function sheetRowsNow() {
+    if (cRows) return Promise.resolve(cRows);
+    if (typeof fetchSheetRows !== 'function') return Promise.resolve(null);
+    return fetchSheetRows().then(function (r) { cRows = r; return r; })
+        .catch(function () { return null; });
+}
+
+// Promise -> {members: [dòng Sheet các mùa], curIdx: chỉ số mùa đang phát}
+// theo (year, name); null khi bộ 1 mùa / không có trong Sheet.
+function currentSeriesMembers() {
+    return sheetRowsNow().then(function (rows) {
+        if (!rows || !state) return null;
+        var pid = String(state.pid || ''), k = String(state.k || '');
+        var match = null;
+        rows.forEach(function (row) {
+            if (pid && (String(row.playlist) == pid || String(row.gdrive) == pid
+                || String(row.anilist_id) == pid)) {
+                match = row;
+            } else if (!pid && k && String(row.phimapi) == k) {
+                match = row;
+            }
+        });
+        if (!match) return null;
+        var series = String(match.series || '').trim();
+        if (!series) return null;
+        var members = rows.filter(function (row) {
+            return String(row.series || '').trim() == series;
+        }).sort(function (a, b) {
+            var ya = parseInt(a.year) || 0, yb = parseInt(b.year) || 0;
+            if (ya != yb) return ya - yb;
+            return String(a.name || '').localeCompare(String(b.name || ''));
+        });
+        var curIdx = 0;
+        members.forEach(function (m, i) { if (m === match) curIdx = i; });
+        return { members: members, curIdx: curIdx };
+    }).catch(function () { return null; });
+}
+
+// Danh sách tập của một mùa khác trong series: pid (playlist/anilist/gdrive)
+// -> node Firebase anime/, slug phimapi -> kkphim — cùng map như luồng chính
+function fetchMemberEpisodes(row) {
+    var pid = row.playlist || row.anilist_id || row.gdrive || '';
+    if (pid) {
+        return fetch(RTDB + '/anime/' + pid + '.json').then(r => r.json())
+            .then(d => mapEpisodes(d, pid));
+    }
+    if (row.phimapi) {
+        return fetch('https://phimapi.com/phim/' + row.phimapi).then(r => r.json())
+            .then(d => kkphimEpisodes(d));
+    }
+    return Promise.resolve([]);
+}
+
+// Inject header mùa + tập các mùa khác vào panel playlist của player HIỆN
+// TẠI. Chốt `list` ngay đầu: chờ Sheet/xong fetch mà host đã đổi tập (player
+// bị destroy tạo mới) thì list cũ lìa DOM -> bỏ qua, list mới do lần gọi sau
+// của mountPlayer tự inject.
+function injectSeasonList() {
+    if (!art || !art.controls || !art.controls.playlist) return;
+    var list = art.controls.playlist.querySelector('.art-selector-list');
+    if (!list || list.querySelector('.art-season-header')) return;
+    currentSeriesMembers().then(function (res) {
+        if (!res || !res.members || res.members.length < 2) return;
+        if (!document.contains(list) || list.querySelector('.art-season-header')) return;
+        var members = res.members, curIdx = res.curIdx;
+        Promise.all(members.map(function (m) {
+            return members.indexOf(m) === curIdx
+                ? Promise.resolve(null)
+                : fetchMemberEpisodes(m).catch(function () { return []; });
+        })).then(function (results) {
+            if (!document.contains(list) || list.querySelector('.art-season-header')) return;
+            // Khối item của plugin nằm liền nhau: mùa TRƯỚC mùa hiện tại chèn
+            // trước khối (beforeRef = item đầu), mùa sau nối vào cuối panel.
+            // Mùa hiện tại chỉ có header (tập do plugin render sẵn).
+            var beforeRef = list.querySelector('.art-selector-item');
+            members.forEach(function (m, i) {
+                var after = i > curIdx;
+                var label = 'Mùa ' + (i + 1);
+                var header = document.createElement('div');
+                header.className = 'art-season-header';
+                header.textContent = label;
+                list.insertBefore(header, after ? null : beforeRef);
+                (results[i] || []).forEach(function (ep) {
+                    var item = document.createElement('div');
+                    item.className = 'art-selector-item art-season-ep';
+                    item.textContent = displayEp(ep.id);
+                    item.title = ep.title || '';
+                    item.style.textAlign = 'left';
+                    item.addEventListener('click', function (ev) {
+                        ev.stopPropagation();
+                        if (!isHost()) {
+                            art.notice.show = 'Phòng do host điều khiển — bạn xem theo';
+                            return;
+                        }
+                        pickSeasonEp(m, ep, label);
+                    });
+                    list.insertBefore(item, after ? null : beforeRef);
+                });
+            });
+        });
+    });
+}
+
+// Host bấm tập MÙA KHÁC: phòng đổi hẳn sang mùa đó — pid/k/itk theo dòng Sheet
+// của mùa mới (node Firebase/slug riêng), phát tập đã bấm lên node như pickEp
+// (pos 0, không theo lịch sử xem vì là mùa khác). syncFromState thấy url đổi
+// -> tải lại danh sách tập theo pid mới -> mount player mới (plugin render
+// đúng tập mùa mới, injectSeasonList gom lại các mùa còn lại).
+function pickSeasonEp(row, ep, label) {
+    if (!isHost() || !ep || !ep.url || !state) return;
+    var pid = row.playlist || row.anilist_id || row.gdrive || '';
+    var k = row.phimapi || '';
+    var itk = rowItemKey(row);
+    var title = (row.name ? row.name + ' — ' : '') + 'Tập ' + displayEp(ep.id);
+    // mốc mở màn không phải thao tác tua -> không thành tin "tua tới"
+    lastSeekLogPos = 0;
+    switchArmed = true;
+    setTimeout(function () { switchArmed = false; }, 15000);
+    // reset cục bộ theo mùa mới: episodeList tải lại từ pid/k mới khi mount
+    episodeList = [];
+    epsLoadedFor = '';
+    loadedUrl = '';
+    state.url = ep.url;
+    state.title = title;
+    state.pid = String(pid || '');
+    state.k = String(k || '');
+    state.itk = itk;
+    state.pos = 0;
+    state.playing = true;
+    patchRoom({
+        url: ep.url, title: title, pid: String(pid || ''), k: String(k || ''),
+        itk: itk, img: row.image || state.img || '', pos: 0, playing: true,
+    });
+    document.title = title;
+    var el = document.getElementById('room-label');
+    if (el) el.textContent = title;
+    if (typeof RoomChat !== 'undefined' && RoomChat.action) {
+        RoomChat.action('đã chọn tập ' + displayEp(ep.id)
+            + (label ? ' (' + label + ')' : ''), 'movie');
+    }
+    syncFromState();
 }
 
 // Overlay #ep-pick ở chế độ CHỈ BÁO TRẠNG THÁI (không có gì để bấm): dùng khi
@@ -798,6 +998,10 @@ function mountPlayer(url) {
             }
         });
     });
+
+    // Panel playlist: gom thêm tập các MÙA KHÁC của cùng bộ (header "Mùa N")
+    // như trang artplayer — host bấm tập mùa khác thì phòng đổi hẳn sang mùa đó
+    injectSeasonList();
 }
 
 // 123 -> "2:03" cho tin hệ thống "đã tua tới"
@@ -896,6 +1100,8 @@ function watchRoom(code) {
     }, usedSdk ? 30000 : 3000);
     // Vòng kéo theo host giữa các update (host đang phát thì không ghi liên tục)
     setInterval(followPos, 4000);
+    // Host chỉnh tỷ lệ khung hình / xoay trong settings -> dò 2s phát lên node
+    setInterval(syncHostDisplaySettings, 2000);
 }
 
 // ── Phím tắt: volume là việc riêng từng máy; tua chỉ host (người xem bị
