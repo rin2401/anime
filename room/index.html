@@ -201,7 +201,7 @@
             letter-spacing: 0.5px;
         }
 
-        /* Nút "Đổi phim" của CHỦ PHÒNG đặt ở header chatbox (badge phòng đã
+        /* Nút "Chọn phim" của CHỦ PHÒNG đặt ở header chatbox (badge phòng đã
            dời về đây nên action phòng cũng ở đây cho gọn). Người xem bị
            .viewer-lock ẩn hẳn. */
         #chat-change-movie {
@@ -876,7 +876,7 @@
     </div>
 
     <!-- Modal tạo phòng: CHỈ tên phòng + mật khẩu — vào phòng rồi mới chọn
-         phim (nút Đổi phim trong header chatbox). Tập phát tự chọn theo lịch sử xem
+         phim (nút Chọn phim trong header chatbox). Tập phát tự chọn theo lịch sử xem
          của người chọn phim: đã xem thì tiếp tục đúng tập/mốc, chưa xem thì
          tập đầu tiên; đổi tập sau đó bằng playlist trong artplayer. -->
     <div class="modal" id="create-modal">
@@ -897,9 +897,9 @@
         </div>
     </div>
 
-    <!-- Modal sửa phòng: CHỦ PHÒNG đổi tên / riêng-tư / mật khẩu. Không đổi
-         phim ở đây — muốn đổi phim thì dùng nút "＋ Tạo phòng" (tái dùng đúng
-         mã phòng cũ nên link share không đổi). -->
+    <!-- Modal sửa phòng: CHỦ PHÒNG đổi tên / riêng-tư / mật khẩu. Đổi PHIM
+         không ở đây — dùng nút "Chọn phim" trong phòng (giữ nguyên mã phòng
+         nên link share không đổi). -->
     <div class="modal" id="edit-modal">
         <div class="modal-card modal-sm">
             <div class="modal-head"><span id="e-title">Sửa phòng</span><button class="modal-x" type="button" aria-label="Đóng"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button></div>

@@ -450,7 +450,7 @@ function myCode() {
 }
 
 // Tạo phòng rồi vào thẳng trang room — phòng CHƯA có phim (host chọn phim
-// trong trang room bằng nút Đổi phim). Code tái dùng localStorage room:hostcode:
+// trong trang room bằng nút Chọn phim). Code tái dùng localStorage room:hostcode:
 // link share ổn định, mở lại là cùng phòng.
 function cCreateRoom() {
     var u = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth().currentUser : null;
