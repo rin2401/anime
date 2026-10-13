@@ -48,6 +48,59 @@
             height: 100%;
         }
 
+        /* Chọn tập khi phòng chưa có nguồn (host chọn bộ ở modal tạo phòng
+           xong vào thẳng phòng, tập chọn sau): grid chip 5 ô/hàng như panel
+           playlist artplayer */
+        #ep-pick {
+            position: absolute;
+            inset: 0;
+            z-index: 30;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            background: #14161a;
+            padding: 20px;
+            overflow: auto;
+        }
+
+        #ep-pick-title {
+            font-weight: 700;
+            font-size: 15px;
+        }
+
+        #ep-pick-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 6px;
+            width: min(480px, 92vw);
+        }
+
+        #ep-pick-grid button {
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 6px;
+            padding: 9px 0;
+            font-size: 13px;
+            font-family: inherit;
+            cursor: pointer;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        #ep-pick-grid button:hover {
+            border-color: #23ade5;
+        }
+
+        @media (max-width: 480px) {
+            #ep-pick-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+
         #chat-side {
             display: none;
             width: 300px;
@@ -519,39 +572,6 @@
             border-color: #23ade5;
         }
 
-        #c-eps {
-            margin-top: 14px;
-        }
-
-        #c-eps h3 {
-            margin: 0 0 8px;
-            font-size: 14px;
-        }
-
-        #c-ep-grid {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 6px;
-        }
-
-        #c-ep-grid button {
-            background: rgba(255, 255, 255, 0.08);
-            color: #fff;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 6px;
-            padding: 8px 0;
-            font-size: 13px;
-            font-family: inherit;
-            cursor: pointer;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        #c-ep-grid button:hover {
-            border-color: #23ade5;
-        }
-
         .c-form {
             margin-top: 14px;
             display: flex;
@@ -585,12 +605,6 @@
             font-size: 13px;
             min-height: 1.2em;
         }
-
-        @media (max-width: 480px) {
-            #c-ep-grid {
-                grid-template-columns: repeat(4, 1fr);
-            }
-        }
     </style>
 
     <link rel="preconnect" href="https://cdn.jsdelivr.net">
@@ -612,6 +626,12 @@
     <div id="room-layout">
         <div id="video-area">
             <div class="artplayer-app"></div>
+            <!-- Phòng chưa có tập (host chọn bộ xong, chưa chọn tập): host
+                 bấm grid phát tập đầu, người xem chờ -->
+            <div id="ep-pick">
+                <div id="ep-pick-title"></div>
+                <div id="ep-pick-grid"></div>
+            </div>
         </div>
         <aside id="chat-side">
             <div id="chat-head"><span id="room-code"></span> <span id="room-label">Đang kết nối phòng…</span></div>
@@ -638,17 +658,14 @@
         </div>
     </div>
 
-    <!-- Modal tạo phòng: tìm phim → chọn tập → tên/mode/mật khẩu -->
+    <!-- Modal tạo phòng: tìm phim → chọn bộ là vào phòng (chọn tập sau,
+         trong trang room) → tên/mode/mật khẩu -->
     <div class="modal" id="create-modal">
         <div class="modal-card">
             <div class="modal-head"><span>Tạo phòng xem chung</span><button class="modal-x" type="button">✕</button></div>
             <div id="c-auth">Cần đăng nhập để tạo phòng. <a href="/anime/auth/">Đăng nhập →</a></div>
             <input id="c-q" type="search" placeholder="Tìm phim cho phòng…" autocomplete="off">
             <div id="c-results"></div>
-            <div id="c-eps" style="display:none">
-                <h3 id="c-eps-title"></h3>
-                <div id="c-ep-grid"></div>
-            </div>
             <div class="c-form">
                 <input id="c-name" placeholder="Tên phòng (tuỳ chọn, vd: chill cuối tuần)" maxlength="40" autocomplete="off">
                 <label class="c-priv"><input type="checkbox" id="c-priv"> Phòng riêng — người vào cần mật khẩu</label>

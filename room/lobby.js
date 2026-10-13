@@ -138,11 +138,11 @@ function loadRoomList() {
 
 // ── Modal tạo phòng: tìm phim (Sheet gviz) → chọn tập → tên/mode/mật khẩu ──
 // Copy pattern trang create cũ (đã gộp về đây): ưu tiên nguồn playlist >
-// anilist_id > phimapi > gdrive.
+// anilist_id > phimapi > gdrive. Danh sách tập do player.js tự tải trong
+// trang room (pid/k ghi vào node) — lobby không cần map tập nữa.
 var imageUrl = "/anime/image/r3_512.png";
 var cRows = null;       // cache Sheet catalog
-var cPickedRow = null;  // bộ đang chọn tập
-var cPickedEps = [];
+var cPickedRow = null;  // bộ đang chọn
 
 function fetchSheetRows() {
     var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/gviz/tq?tqx=out:json&tq&gid=' + SHEET_GID;
@@ -164,50 +164,6 @@ function fetchSheetRows() {
 function normalizeText(s) {
     return String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
         .replace(/đ/g, "d");
-}
-
-function epNum(id) { return parseFloat(String(id).replace(/_/g, '.')) || 0; }
-
-function displayEp(id) {
-    return String(id).replace(/_/g, '.').replace(/[\s._-]+end\s*$/i, '').trim();
-}
-
-function mapEpisodes(data, animeId) {
-    var episodeList = [];
-    data = data || {}
-    Object.entries(data).forEach(function (pair) {
-        var id = pair[0], episode = pair[1];
-        if (!episode) return
-        if (!episode.file && !episode.m3u8) return
-        var file = episode.file ||
-            ('https://r3fire.firebaseio.com/anime/' + animeId + '/' + id + '.json')
-        id = episode.id || id
-        episodeList.push({ id: id, title: episode.title, url: file, image: episode.image || '' });
-    });
-    episodeList.sort(function (a, b) { return epNum(a.id) - epNum(b.id); });
-    return episodeList;
-}
-
-function kkphimEpisodes(data) {
-    var lastNum = 0, extra = 0;
-    var poster = data.movie && (data.movie.thumb_poster || data.movie.poster_url) || '';
-    return (data.episodes[0].server_data || []).map(function (item) {
-        var slug = item.slug || ''
-        var id = 1
-        var nm = (item.name || '').match(/(\d+(?:\.\d+)?)/)
-        if (nm) {
-            id = parseFloat(nm[1]); lastNum = id; extra = 0
-        } else if (slug.indexOf("tap-") === 0) {
-            var rest = slug.slice(4);
-            var num = Number(rest);
-            if (Number.isInteger(num)) {
-                id = num; lastNum = num; extra = 0
-            } else {
-                id = lastNum + 0.5 + extra / 100; extra++
-            }
-        }
-        return { id: id, title: (data.movie && data.movie.origin_name) + " - " + id, url: item.link_m3u8, image: poster };
-    });
 }
 
 function cSetStatus(s) { document.getElementById('c-status').textContent = s || ''; }
@@ -248,52 +204,27 @@ function cDoSearch() {
     renderCResults(cRows.filter(function (r) { return r.name && normalizeText(r.name).indexOf(nq) !== -1; }));
 }
 
+// Chọn bộ là VÀO PHÒNG NGAY — host chọn tập SAU trong trang room (overlay
+// #ep-pick của player.js), không còn bước chọn tập ở modal.
 function cPickRow(row, cardEl) {
     var resultsEl = document.getElementById('c-results');
     Array.prototype.forEach.call(resultsEl.children, function (c) { c.classList.remove('picked'); });
     if (cardEl) cardEl.classList.add('picked');
     cPickedRow = row;
-    var pid = row.playlist || row.anilist_id;
-    var k = row.phimapi;
-    if (!pid && !k) pid = row.gdrive;
-    cSetStatus('Đang tải danh sách tập…');
-    var p;
-    if (pid) {
-        p = fetch(RTDB + '/anime/' + pid + '.json').then(function (res) { return res.json(); })
-            .then(function (data) { return mapEpisodes(data, pid); });
-    } else if (k) {
-        p = fetch('https://phimapi.com/phim/' + k).then(function (res) { return res.json(); })
-            .then(function (data) { return kkphimEpisodes(data); });
-    } else {
-        p = Promise.resolve([]);
-    }
-    p.then(function (eps) {
-        cPickedEps = eps;
-        document.getElementById('c-eps-title').textContent = (row.name || '') + ' — chọn tập:';
-        var grid = document.getElementById('c-ep-grid');
-        grid.innerHTML = '';
-        eps.forEach(function (ep) {
-            var b = document.createElement('button');
-            b.type = 'button';
-            b.textContent = displayEp(ep.id);
-            b.addEventListener('click', function () { cCreateRoom(ep); });
-            grid.appendChild(b);
-        });
-        document.getElementById('c-eps').style.display = eps.length ? 'block' : 'none';
-        cSetStatus(eps.length ? '' : 'Bộ này chưa có nguồn phát (chưa crawl).');
-    }).catch(function () { cSetStatus('Tải danh sách tập lỗi — thử lại.'); });
+    cCreateRoom();
 }
 
 // Tạo/cập nhật phòng rồi vào thẳng trang room. Code tái dùng localStorage
-// room:hostcode: link share ổn định, chọn tập khác là cùng phòng đổi nguồn.
-function cCreateRoom(ep) {
+// room:hostcode: link share ổn định, chọn bộ khác là cùng phòng đổi nguồn.
+// url để RỖNG — phòng mở chưa có tập, host chọn trong trang room.
+function cCreateRoom() {
     var u = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth().currentUser : null;
     if (!u) {
         document.getElementById('c-auth').style.display = 'block';
         cSetStatus('');
         return;
     }
-    if (!ep || !ep.url) return;
+    if (!cPickedRow) return;
     var hadCode = !!myCode();
     var code = myCode();
     if (!code) {
@@ -307,17 +238,17 @@ function cCreateRoom(ep) {
     var priv = !!privEl.checked;
     var pwPlain = priv ? (pwEl.value || '').trim() : '';
     if (priv && !pwPlain) { cSetStatus('Phòng riêng cần mật khẩu.'); return; }
-    var title = (cPickedRow && cPickedRow.name ? cPickedRow.name + ' — Tập ' : 'Tập ') + displayEp(ep.id);
-    var pid = cPickedRow ? (cPickedRow.playlist || cPickedRow.anilist_id) : '';
-    var k = cPickedRow ? cPickedRow.phimapi : '';
-    if (cPickedRow && !pid && !k) pid = cPickedRow.gdrive;
-    var img = (cPickedRow && cPickedRow.image) || ep.image || '';
+    var title = cPickedRow.name || 'Phòng xem chung';
+    var pid = cPickedRow.playlist || cPickedRow.anilist_id;
+    var k = cPickedRow.phimapi;
+    if (!pid && !k) pid = cPickedRow.gdrive;
+    var img = cPickedRow.image || '';
     cSetStatus('Đang tạo phòng…');
     sha256(pwPlain).then(function (pwHash) {
         var payload = {
             host: u.uid,
             created: Date.now(),
-            url: ep.url,
+            url: '',
             title: title,
             name: roomName,
             priv: priv,

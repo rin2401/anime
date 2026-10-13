@@ -267,6 +267,10 @@ function syncFromState() {
             if (el) el.textContent = state.title;
         }
         loadEpisodesThenMount(state);
+    } else if (!state.url) {
+        // Phòng chưa có tập (host chọn bộ là vào phòng luôn, chọn tập sau)
+        showEpPick();
+        return;
     }
     if (!isHost() && loadedUrl && art) {
         if (state.playing === false) { if (!art.video.paused) art.pause(); }
@@ -314,13 +318,17 @@ function followPos() {
 // (vị trí lúc bấm 👥 từ artplayer) và KHÔNG cưỡng bức play/pause (autoplay
 // sẵn trong config; play/pause sau đó là của host, patch qua listener)
 function applySync() {
-    if (!state || !loadedUrl || !art) return;
     if (isHost()) {
+        // Host rõ vai là ĐÃ đủ quyền patch — kể cả phòng chưa mount (chưa
+        // chọn tập: pickEp cần patchRoom ngay khi art còn null) hay state
+        // chưa kịp tải (auth về trước poll đầu)
+        hostSynced = true;
+        if (!state || !loadedUrl || !art) return;
         art.currentTime = Number(state.pos) || 0;
         lastSeekLogPos = Number(state.pos) || 0; // seek ban đầu không phải "tua"
-        hostSynced = true;
         return;
     }
+    if (!state || !loadedUrl || !art) return;
     var tp = targetPos(state);
     if (tp != null && art.duration && isFinite(art.duration)) art.currentTime = tp;
     if (state.playing === false) art.pause();
@@ -330,11 +338,13 @@ function applySync() {
 // Tải danh sách tập của bộ (pid = key Firebase anime/, k = slug kkphim —
 // do trang create ghi vào room node) rồi mới mount player kèm plugin playlist.
 // Bộ cũ không có pid/k (tạo trước tính năng) -> playlist rỗng, player vẫn chạy.
-function loadEpisodesThenMount(st) {
+// Tải danh sách tập của bộ (pid = key Firebase anime/, k = slug kkphim —
+// do trang create ghi vào room node). Bộ cũ không có pid/k (tạo trước tính
+// năng) -> playlist rỗng. Cache theo key để đổi tập không refetch.
+function loadEpisodes(st) {
     var key = String(st.pid || '') || 'k:' + String(st.k || '');
-    var mount = function () { mountPlayer(st.url); };
-    if (!key || key === 'k:') { episodeList = []; epsLoadedFor = ''; return mount(); }
-    if (epsLoadedFor === key) return mount(); // đã tải cho bộ này (đổi tập không refetch)
+    if (!key || key === 'k:') { episodeList = []; epsLoadedFor = ''; return Promise.resolve(); }
+    if (epsLoadedFor === key) return Promise.resolve();
     var p;
     if (st.pid) {
         p = fetch(RTDB + '/anime/' + st.pid + '.json').then(r => r.json())
@@ -343,12 +353,77 @@ function loadEpisodesThenMount(st) {
         p = fetch('https://phimapi.com/phim/' + st.k).then(r => r.json())
             .then(d => kkphimEpisodes(d));
     }
-    p.then(function (eps) {
+    return p.then(function (eps) {
         episodeList = eps || [];
         epsLoadedFor = key;
     }).catch(function () {
         episodeList = [];
-    }).then(mount);
+        epsLoadedFor = key;
+    });
+}
+
+function loadEpisodesThenMount(st) {
+    loadEpisodes(st).then(function () { mountPlayer(st.url); });
+}
+
+// Phòng CHƯA CÓ tập (host chọn bộ ở modal tạo phòng xong vào thẳng phòng,
+// chọn tập sau): host thấy grid chọn tập phát lên node; người xem chờ.
+// Host đổi bộ khác ở modal cũng về đây (url rỗng) — huỷ player cũ đi.
+function showEpPick() {
+    var pk = document.getElementById('ep-pick');
+    if (!pk) return;
+    if (art) {
+        try { art.destroy(false); } catch (e) { }
+        art = null;
+    }
+    loadedUrl = '';
+    pk.style.display = 'flex';
+    var titleEl = document.getElementById('ep-pick-title');
+    var grid = document.getElementById('ep-pick-grid');
+    grid.innerHTML = '';
+    if (isHost()) {
+        titleEl.textContent = 'Chọn tập để bắt đầu:';
+        loadEpisodes(state).then(function () {
+            if (state.url) return; // host đã chọn ở nơi khác
+            grid.innerHTML = '';
+            episodeList.forEach(function (ep) {
+                var b = document.createElement('button');
+                b.type = 'button';
+                b.textContent = displayEp(ep.id);
+                b.addEventListener('click', function () { pickEp(ep); });
+                grid.appendChild(b);
+            });
+            if (!episodeList.length) titleEl.textContent = 'Bộ này chưa có nguồn phát (chưa crawl).';
+        });
+    } else {
+        titleEl.textContent = 'Chờ host chọn tập…';
+    }
+}
+
+// Host bấm tập đầu tiên trong #ep-pick: phát lên room node + mount ngay
+// (không đợi poll 3s) — cùng pattern onPlaylistChanged.
+function pickEp(ep) {
+    if (!isHost() || !ep || !ep.url) return;
+    lastSeekLogPos = 0;
+    switchArmed = true;
+    setTimeout(function () { switchArmed = false; }, 15000);
+    var series = String(state.title || '').replace(/ — Tập .*$/, '');
+    var title = (series ? series + ' — ' : '') + 'Tập ' + displayEp(ep.id);
+    // cập nhật state cục bộ để syncFromState mount ngay + applySync seek đúng
+    state.url = ep.url;
+    state.title = title;
+    state.pos = 0;
+    state.playing = true;
+    patchRoom({ url: ep.url, title: title, pos: 0, playing: true });
+    document.title = title;
+    var el = document.getElementById('room-label');
+    if (el) el.textContent = title;
+    var pk = document.getElementById('ep-pick');
+    if (pk) pk.style.display = 'none';
+    if (typeof RoomChat !== 'undefined' && RoomChat.action) {
+        RoomChat.action('đã chọn tập ' + displayEp(ep.id), '🎬');
+    }
+    syncFromState();
 }
 
 // Host bấm tập trong playlist (hoặc autoNext hết tập): plugin đã switchUrl
@@ -680,7 +755,8 @@ window.addEventListener('load', function () {
             firebase.auth().onAuthStateChanged(function () {
                 authResolved = true;
                 applyViewerLock();
-                if (isHost() && !hostSynced && art && loadedUrl) applySync();
+                // applySync tự xử lý art chưa mount (phòng chưa chọn tập)
+                if (isHost() && !hostSynced) applySync();
                 // Đánh giá lại syncFromState khi auth rõ vai: cổng mật khẩu
                 // phòng riêng (poll chỉ gọi khi dữ liệu ĐỔI nên lần đầu chạy
                 // lúc auth chưa resolve bị bỏ lỡ) + mount phòng riêng đang chờ
