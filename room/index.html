@@ -143,13 +143,15 @@
         }
 
         /* Người xem: khoá thêm nút setting (playbackRate làm lệch nhịp đồng
-           bộ) + cụm playlist (đổi tập là quyền host) */
+           bộ) + cụm playlist (đổi tập là quyền host). Các nút thao tác này
+           ẨN HẲN khỏi control bar (display:none) thay vì mờ — người xem
+           không cần thấy nút mình không bấm được; !important thắng style
+           runtime artplayer. */
         #room-layout.viewer-lock .art-control-setting,
         #room-layout.viewer-lock .art-control-selector,
         #room-layout.viewer-lock .art-control-prev,
         #room-layout.viewer-lock .art-control-next {
-            pointer-events: none;
-            opacity: 0.45;
+            display: none !important;
         }
 
         /* Panel danh sách tập dạng lưới (copy từ trang artplayer): các tập là
