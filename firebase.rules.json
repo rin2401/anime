@@ -18,6 +18,16 @@
         ".write": "auth != null && (!data.exists() || data.child('host').val() === auth.uid)"
       }
     },
+    "roomview": {
+      ".read": true,
+      "$roomId": {
+        ".validate": "root.child('room').child($roomId).exists()",
+        "$cid": {
+          ".write": true,
+          ".validate": "newData.hasChildren(['ts', 'uid', 'name']) && newData.child('ts').isNumber() && newData.child('ts').val() <= now + 300000 && newData.child('ts').val() >= now - 300000 && newData.child('uid').isString() && newData.child('uid').val().length <= 64 && newData.child('name').isString() && newData.child('name').val().length <= 40"
+        }
+      }
+    },
     "chat": {
       "$roomId": {
         ".indexOn": ["ts"],

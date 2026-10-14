@@ -1277,6 +1277,47 @@ function vidFullscreen() {
     if (art) art.fullscreen = !art.fullscreen;
 }
 
+// ── Hiện diện (presence): mỗi máy trong phòng heartbeat lên
+// roomview/{code}/{cid} để trang sảnh đếm "N người đang xem". cid theo TRÌNH
+// DUYỆT (localStorage) nên 2 tab cùng máy cùng phòng gộp 1 người, 2 thiết bị
+// = 2 người. Entry chỉ mang mốc ts — sảnh đếm ts còn tươi (60s) nên tab đóng
+// không kịp xoá cũng tự rớt khỏi đếm, không cần dọn chắc chắn.
+var presenceCid = '';
+function presenceBeat() {
+    if (!roomCode || !presenceCid) return;
+    var me = { uid: '', name: '' };
+    if (typeof RoomChat !== 'undefined' && RoomChat.identity) {
+        try { me = RoomChat.identity() || me; } catch (e) { }
+    }
+    var entry = {
+        ts: Date.now(),
+        uid: String(me.uid || '').slice(0, 64),
+        name: String(me.name || '').slice(0, 40),
+    };
+    var path = 'roomview/' + roomCode + '/' + presenceCid;
+    if (typeof firebase !== 'undefined' && firebase.database) {
+        try {
+            firebase.database().ref(path).set(entry).catch(function () { });
+            return;
+        } catch (e) { }
+    }
+    // Không có SDK (TV cũ) -> REST, kèm token nếu đang đăng nhập
+    var u = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth().currentUser : null;
+    var p = u ? u.getIdToken() : Promise.resolve(null);
+    p.then(function (tok) {
+        return fetch(RTDB + '/' + path + '.json' + (tok ? '?auth=' + tok : ''), {
+            method: 'PUT', body: JSON.stringify(entry),
+        });
+    }).catch(function () { });
+}
+function presenceLeave() {
+    if (!roomCode || !presenceCid) return;
+    try {
+        fetch(RTDB + '/roomview/' + roomCode + '/' + presenceCid + '.json',
+            { method: 'DELETE', keepalive: true }).catch(function () { });
+    } catch (e) { }
+}
+
 window.addEventListener('load', function () {
     Mousetrap.bind('up', volumeUp);
     Mousetrap.bind('down', volumeDown);
@@ -1297,6 +1338,17 @@ window.addEventListener('load', function () {
     if (codeLabel) codeLabel.textContent = id;
     roomCode = id;
     watchRoom(id);
+    // Hiện diện cho sảnh đếm người xem từng phòng: cid theo trình duyệt, beat
+    // 20s (sảnh đếm ts tươi 60s — chịu được throttle setInterval tab nền),
+    // pagehide xoá best-effort (fetch keepalive), còn lại ts tự hết hạn
+    try { presenceCid = localStorage.getItem('room:cid') || ''; } catch (e) { }
+    if (!presenceCid) {
+        presenceCid = 'c' + Math.random().toString(36).slice(2, 10);
+        try { localStorage.setItem('room:cid', presenceCid); } catch (e) { }
+    }
+    presenceBeat();
+    setInterval(presenceBeat, 20000);
+    window.addEventListener('pagehide', presenceLeave);
     // Dự phòng: auth chết/không tải được thì phòng riêng vẫn phải dùng được
     // (sau 5s coi như đã rõ vai — host sẽ đi qua cổng mật khẩu như khách)
     setTimeout(function () {

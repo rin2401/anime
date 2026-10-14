@@ -73,6 +73,19 @@ function ageText(ms) {
 }
 
 var lastRooms = {}; // bản rooms mới nhất — re-render khi auth resolve (nút sửa phòng của mình)
+var lastViewers = {}; // roomview/{code}/{cid} mới nhất — presence người xem (ts heartbeat)
+
+// Số người đang xem một phòng: đếm entry có mốc ts còn tươi (60s — beat 20s
+// từ player.js chịu được 2 nhịp miss; tab đóng không kịp xoá cũng tự rớt)
+function countViewers(code) {
+    var v = lastViewers[code];
+    if (!v) return 0;
+    var cut = Date.now() - 60000, n = 0;
+    for (var cid in v) {
+        if (v[cid] && Number(v[cid].ts) >= cut) n++;
+    }
+    return n;
+}
 
 // uid đang đăng nhập (null khi chưa resolve/khách) — dùng để biết card nào là
 // phòng CỦA MÌNH (hiện nút sửa)
@@ -107,6 +120,7 @@ function renderRoomList(rooms) {
             code: code, name: r.name || '', title: r.title || '', playing: !!r.playing,
             priv: !!r.priv, pw: r.pw || '', img: r.img || '', age: age,
             host: r.host || '', mine: !!me && r.host === me,
+            viewers: countViewers(code),
         });
     }
     items.sort(function (a, b) { return a.age - b.age; });
@@ -128,7 +142,9 @@ function renderRoomList(rooms) {
             '<div class="room-card-name"></div>' +
             '<div class="room-card-title"></div>' +
             '<div class="room-card-meta"><span class="room-card-dot"></span>' +
-            '<span class="room-card-status"></span><span class="room-card-age"></span></div>' +
+            '<span class="room-card-status"></span>' +
+            (it.viewers ? '<span class="room-card-viewers">' + roomIco('person', 'room-card-pico') + it.viewers + '</span>' : '') +
+            '<span class="room-card-age"></span></div>' +
             '</div>';
         var img = d.querySelector('img');
         if (img) {
@@ -252,6 +268,13 @@ function chatSys(code, text, icoKey) {
 function loadRoomList() {
     fetch(RTDB + '/room.json').then(function (r) { return r.json(); })
         .then(renderRoomList).catch(function () { });
+}
+
+// Presence người xem (roomview) — bản REST cho thiết bị không có SDK
+function loadViewers() {
+    fetch(RTDB + '/roomview.json').then(function (r) { return r.json(); })
+        .then(function (v) { lastViewers = v || {}; renderRoomList(lastRooms); })
+        .catch(function () { });
 }
 
 // ── Modal tạo phòng: CHỈ tên + mật khẩu (chọn phim sau, trong trang room) ──
@@ -598,18 +621,26 @@ window.addEventListener('load', function () {
     fetchSheetRows().then(function (r) { cRows = r; }).catch(function () { });
 
     // Danh sách phòng: SDK đẩy realtime (phòng mới mở/tan hiện tức thì);
-    // TV cũ không có SDK -> GET + refresh 15s như cũ
+    // TV cũ không có SDK -> GET + refresh 15s như cũ. Presence người xem
+    // (roomview) đi cùng kênh: SDK lắng nghe riêng, REST poll chung nhịp 15s
+    // (ts tươi 60s nên nhịp này đủ mượt cho con số đếm)
     var usedSdk = false;
     if (typeof firebase !== 'undefined' && firebase.database) {
         try {
             firebase.database().ref('room').on('value', function (snap) {
                 renderRoomList(snap.val() || {});
             });
+            firebase.database().ref('roomview').on('value', function (snap) {
+                lastViewers = snap.val() || {};
+                renderRoomList(lastRooms);
+            });
             usedSdk = true;
         } catch (e) { }
     }
     if (!usedSdk) {
         loadRoomList();
+        loadViewers();
         setInterval(loadRoomList, 15000);
+        setInterval(loadViewers, 15000);
     }
 });

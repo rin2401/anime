@@ -74,6 +74,7 @@ var RoomChat = (function () {
         rate: '<path d="M20.38 8.57l-1.23 1.85a8 8 0 0 1-.22 7.58H5.07A8 8 0 0 1 15.58 6.85l1.85-1.23A10 10 0 0 0 3.03 19a10 10 0 0 1 17.35-10.43z"/>',
         lock: '<path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM9 8V6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9z"/>',
         edit: '<path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.9959.9959 0 0 0 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>',
+        person: '<path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>',
     };
 
     function icoSvg(key, cls) {
@@ -81,6 +82,39 @@ var RoomChat = (function () {
         if (!p) return '';
         return '<span class="' + (cls || 'room-chat-ico') + '">'
             + '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' + p + '</svg></span>';
+    }
+
+    // ── Định danh (dùng chung: chat + presence roomview của player.js) ──
+    // Nằm ở cấp IIFE (KHÔNG trong mount) để expose qua return được.
+    function user() {
+        return (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth().currentUser : null;
+    }
+
+    // localStorage có thể bị chặn (private mode, TV cũ) -> bọc try
+    function ls(key, val) {
+        try {
+            if (arguments.length > 1) localStorage.setItem(key, val);
+            else return localStorage.getItem(key);
+        } catch (e) { return arguments.length > 1 ? undefined : null; }
+    }
+
+    // Định danh chat: đã đăng nhập thì dùng account Firebase; khách (không
+    // đăng nhập) dùng uid + tên "Khách NNNN" sinh một lần lưu localStorage —
+    // giữ nguyên qua các lần mở lại để tin của mình vẫn tô màu đúng
+    function identity() {
+        var u = user();
+        if (u) return { uid: u.uid, name: u.displayName || (u.email || '').split('@')[0] };
+        var uid = ls('roomchat:guest');
+        if (!uid) {
+            uid = 'g-' + Math.random().toString(36).slice(2, 12);
+            ls('roomchat:guest', uid);
+        }
+        var name = ls('roomchat:guestname');
+        if (!name) {
+            name = 'Khách ' + Math.floor(1000 + Math.random() * 9000);
+            ls('roomchat:guestname', name);
+        }
+        return { uid: uid, name: name };
     }
 
     function mount(el, getCode) {
@@ -102,37 +136,6 @@ var RoomChat = (function () {
         var usedSdk = false;
         var lastPoll = 0;
         var joinTs = 0;
-
-        function user() {
-            return (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth().currentUser : null;
-        }
-
-        // localStorage có thể bị chặn (private mode, TV cũ) -> bọc try
-        function ls(key, val) {
-            try {
-                if (arguments.length > 1) localStorage.setItem(key, val);
-                else return localStorage.getItem(key);
-            } catch (e) { return arguments.length > 1 ? undefined : null; }
-        }
-
-        // Định danh chat: đã đăng nhập thì dùng account Firebase; khách (không
-        // đăng nhập) dùng uid + tên "Khách NNNN" sinh một lần lưu localStorage —
-        // giữ nguyên qua các lần mở lại để tin của mình vẫn tô màu đúng
-        function identity() {
-            var u = user();
-            if (u) return { uid: u.uid, name: u.displayName || (u.email || '').split('@')[0] };
-            var uid = ls('roomchat:guest');
-            if (!uid) {
-                uid = 'g-' + Math.random().toString(36).slice(2, 12);
-                ls('roomchat:guest', uid);
-            }
-            var name = ls('roomchat:guestname');
-            if (!name) {
-                name = 'Khách ' + Math.floor(1000 + Math.random() * 9000);
-                ls('roomchat:guestname', name);
-            }
-            return { uid: uid, name: name };
-        }
 
         // Gửi: POST (PUSH) — id sinh phía server, thứ tự ts tự đúng.
         // Khách không đăng nhập gửi thẳng không token (rule chỉ đòi phòng tồn tại)
@@ -362,5 +365,8 @@ var RoomChat = (function () {
         // Icon SVG của phòng (nguồn duy nhất) — lobby/player dùng chung để nút
         // và card không phải chép lại path, và không nơi nào nhét emoji
         ico: icoSvg,
+        // Danh tính (uid + tên hiển thị, khách có uid/name giả) — player.js dùng
+        // cho presence (roomview) để tên người xem nhất quán với chat
+        identity: identity,
     };
 })();
