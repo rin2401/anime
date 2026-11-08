@@ -814,17 +814,22 @@ async def crawl_hls(anime_id, num_eps=DEFAULT_NUM_EPS, attach=True):
                         raise RuntimeError("no m3u8 trong jwplayer playlist")
                     # Shield v3: ưu tiên giải mã qua caps; fallback resolve như cũ
                     m3u8_text = None
+                    decoded = False
                     caps = await wait_shield_caps(tab_play)
                     if caps:
                         try:
                             m3u8_text = build_shield_m3u8(caps)
+                            decoded = True
                         except Exception as e:
                             print(f"  [!]    giải Shield thất bại ({e})", flush=True)
                     if m3u8_text is None:
                         m3u8_text = await build_m3u8(tab_play, m3u8_url)
-                    if _shield_warn(m3u8_text):
+                    if not decoded and _shield_warn(m3u8_text):
                         # caps rỗng -> avs-loader chưa chạy trên lần load này,
-                        # manifest vẫn mã hoá là dữ liệu hỏng — load lại thử lại
+                        # manifest vẫn mã hoá là dữ liệu hỏng — load lại thử lại.
+                        # CHỈ fallback (chưa qua caps) mới được warn: manifest ĐÃ
+                        # giải vẫn giữ #EXT-X-KEY thật của content AES-128, warn
+                        # chạm vào nó là false positive -> vứt kết quả OK (2026-11-08).
                         last_err = "manifest vẫn mã hoá Shield (caps rỗng)"
                         m3u8_text = None
                         continue
