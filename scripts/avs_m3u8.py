@@ -381,6 +381,31 @@ async def fetch_text(tab, url):
     return (r or {}).get("t")
 
 
+_SEG_KEY_RE = re.compile(r'URI="(https://[^"]*?/seg-key/[^"]*)"')
+
+
+async def fetch_key_b64(tab, url):
+    """Lấy 16 byte content key AES-128 (seg-key) trả base64, fetch trong page
+    context player — host googleapiscdn chặn CORS nên chỉ lấy được same-origin
+    trong trang player AVS; từ artplayer (rin2401.github.io) là Failed to fetch.
+    URI token chỉ sống ~2h nên phải lấy lúc crawl, lưu node cho artplayer."""
+    r = await ev(tab, """(async function(){
+        try {
+            const r = await fetch(%s, {credentials: 'include'});
+            if (!r.ok) return {e: 'HTTP ' + r.status};
+            const buf = new Uint8Array(await r.arrayBuffer());
+            let s = '';
+            for (const b of buf) s += String.fromCharCode(b);
+            return {b64: btoa(s)};
+        } catch (e) { return {e: '' + e}; }
+    })()""" % json.dumps(url), await_promise=True)
+    r = r or {}
+    if r.get("e"):
+        print(f"  [!]    fetch seg-key lỗi: {r['e']}", flush=True)
+        return None
+    return r.get("b64")
+
+
 def _abs(url, base_url):
     """Rebase dòng url m3u8 về absolute theo base (origin của url m3u8)."""
     if url.startswith("http"):
@@ -845,7 +870,14 @@ async def crawl_hls(anime_id, num_eps=DEFAULT_NUM_EPS, attach=True):
             ep_id = x["id"]
             fire_path = f"animevietsub/{ep_id}"
             title = ep_title(name, ep)
-            file_url = update_ep(title, m3u8_text, fire_path)
+            # Manifest seg-key (AES-128): key chỉ fetch được same-origin trong
+            # trang player (googleapiscdn chặn CORS từ trang khác) — lấy ngay
+            # lúc crawl rồi lưu base64 vào node; token trong URI chỉ sống ~2h.
+            key_b64 = None
+            km = _SEG_KEY_RE.search(m3u8_text)
+            if km and tab_play is not None:
+                key_b64 = await fetch_key_b64(tab_play, km.group(1))
+            file_url = update_ep(title, m3u8_text, fire_path, key_b64=key_b64)
 
             key = fb_key(ep)
             # update trên node con (merge từng field) chứ KHÔNG update cha với
@@ -856,7 +888,8 @@ async def crawl_hls(anime_id, num_eps=DEFAULT_NUM_EPS, attach=True):
             ok += 1
             nseg = sum(1 for l in m3u8_text.splitlines()
                        if l.strip() and not l.startswith("#"))
-            print(f"  [OK]   tập {ep}: {nseg} segment -> {fire_path}", flush=True)
+            print(f"  [OK]   tập {ep}: {nseg} segment -> {fire_path}"
+                  + (" (+key)" if key_b64 else ""), flush=True)
 
         print(f"\nTổng: crawl {len(todo)} | OK {ok} | miss {fail}", flush=True)
     finally:

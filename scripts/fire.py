@@ -11,9 +11,15 @@ cred = credentials.Certificate("r3fire.json")
 firebase_admin.initialize_app(cred, {"databaseURL": DB_URL})
 
 
-def update_ep(title, m3u8_data, fire_path):
+def update_ep(title, m3u8_data, fire_path, key_b64=None):
+    # key_b64: content key AES-128 (base64) của manifest seg-key mới của AVS —
+    # key chỉ fetch được trong trang player AVS (host googleapiscdn chặn CORS),
+    # lưu sẵn vào node để artplayer thay URI seg-key bằng data: URI khi phát.
+    fields = {"title": title, "m3u8": m3u8_data}
+    if key_b64:
+        fields["key"] = key_b64
     ref = db.reference(fire_path)
-    ref.update({"title": title, "m3u8": m3u8_data})
+    ref.update(fields)
 
     return f"{DB_URL}/{fire_path}.json"
 
